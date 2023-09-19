@@ -1,16 +1,7 @@
 # PLVS 
 
 
-PLVS is a real-time system that leverages sparse SLAM, volumetric mapping, and 3D unsupervised incremental segmentation. PLVS stands for Points, Lines, Volumetric mapping, and Segmentation. 
-
-PLVS is available in two different versions.
-- **PLVS I**: hosted on the branch `plvs1`. It is based on [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2), and supports mono, stereo, and RGB-D cameras.
-- **PLVS II**: hosted in the `master` branch. It based on [ORB-SLAM3](https://github.com/UZ-SLAMLab/ORB_SLAM3), and also supports camera systems provided with IMUs. 
-
-
-You can find further details on this [page](https://www.luigifreda.com/research/plvs-an-open-source-rgb-d-and-stereo-slam-for-volumetric-reconstruction-and-3d-incremental-segmentation/). 
-
-**Note**: PLVS is an active project. This *README* is under construction and will be updated soon with further information and details. 
+PLVS is a real-time system that leverages sparse SLAM, volumetric mapping, and 3D unsupervised incremental segmentation. PLVS stands for **Points**, **Lines**, **Volumetric mapping**, and **Segmentation**. 
 
 <p align="center">
 <img src="Images/PLVS-lab.png"
@@ -22,6 +13,23 @@ alt="PLVS augmented reality" height="180" border="1"/>
 <img src="Images/PLVS-details.gif"
 alt="PLVS details" height="180" border="1"/> 
 </p>
+
+PLVS is available in two different versions.
+- **PLVS I**: hosted on the branch `plvs1`. It is based on [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2), and supports mono, stereo, and RGB-D cameras.
+- **PLVS II**: hosted in the `master` branch. It based on [ORB-SLAM3](https://github.com/UZ-SLAMLab/ORB_SLAM3), and also supports camera systems provided with IMUs. 
+
+
+You can find further details on this [page](https://www.luigifreda.com/research/plvs-an-open-source-rgb-d-and-stereo-slam-for-volumetric-reconstruction-and-3d-incremental-segmentation/) and in the following document:
+
+**[PLVS: A SLAM System with Points, Lines, Volumetric Mapping, and 3D Incremental Segmentation](https://www.luigifreda.com/wp-content/uploads/2023/09/Freda-PLVS.pdf)**         
+*Luigi Freda*        
+CoRR 2023 
+
+
+
+**Note**: PLVS is an active project. This *README* is under construction and will be updated soon with further information and details. 
+
+
   
   
 ## Quick start 
