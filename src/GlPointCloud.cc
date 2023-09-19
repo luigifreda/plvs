@@ -44,7 +44,7 @@
 
 #define BUFFER_OFFSET(i) ((char*)NULL + (i))
 
-namespace PLVS2
+namespace PLVS
 {
 
 
@@ -352,7 +352,7 @@ void GlPointCloud<PointT>::InvertColors(typename PointCloudT::Ptr pCloud)
     }    
 }
 
-} //namespace PLVS2
+} //namespace PLVS
 
 
 

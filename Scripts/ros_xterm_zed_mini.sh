@@ -10,7 +10,7 @@ source ../ros_ws/devel/setup.bash
 
 USE_LIVE=0
 
-RGBD_DATASET_FOLDER="~/Work/datasets/rgbd_datasets/rgbd-mini"
+RGBD_DATASET_FOLDER="~/Work/datasets/rgbd_datasets/zed/rgbd-mini"
 
 DATASET="new_2018-09-27-11-40-10.bag"  
 

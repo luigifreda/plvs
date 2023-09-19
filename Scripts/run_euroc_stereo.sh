@@ -7,7 +7,7 @@
 
 #echo "usage: ./${0##*/} "
 
-SUFFIX="_old" # comment if you want to use the new example binaries
+# comment if you want to use the new example binaries
 
 EUROC_YAML="EuRoC.yaml"
 
@@ -30,7 +30,7 @@ SEQUENCE="V102"
 #V202
 #V203
 
-PATH_TO_SEQUENCE_FOLDER="$HOME/Work/datasets/rgbd_datasets/euroc/$SEQUENCE"
+PATH_TO_SEQUENCE_FOLDER="$HOME/Work/datasets/rgbd_datasets/euroc/$SEQUENCE/mav0"
 OUTPUT_BASE_NAME="dataset_"$SEQUENCE"_stereo"
 
 echo PATH_TO_SEQUENCE_FOLDER: $PATH_TO_SEQUENCE_FOLDER
@@ -44,16 +44,16 @@ echo OUTPUT_BASE_NAME: $OUTPUT_BASE_NAME
 
 #set -x
 
-$DEBUG_PREFIX ../Examples$SUFFIX/Stereo/stereo_euroc$SUFFIX \
+$DEBUG_PREFIX ../Examples/Stereo/stereo_euroc \
 	../Vocabulary/ORBvoc.txt \
-	../Examples$SUFFIX/Stereo/$EUROC_YAML \
-	$PATH_TO_SEQUENCE_FOLDER \
-	../Examples$SUFFIX/Stereo/EuRoC_TimeStamps/$SEQUENCE'.txt' \
-	$OUTPUT_BASE_NAME
+	../Examples/Stereo/$EUROC_YAML \
+	$PATH_TO_SEQUENCE_FOLDER/cam0/data \
+	$PATH_TO_SEQUENCE_FOLDER/cam1/data \
+	../Examples/Stereo/EuRoC_TimeStamps/$SEQUENCE'.txt' 
 
 echo "" 
 echo metric generated with evaluate_ate_scale.py: 
-python evaluate_ate_scale.py ../evaluation/Ground_truth/EuRoC_left_cam/"$SEQUENCE"_GT.txt "f_"$OUTPUT_BASE_NAME".txt" --plot "f_"$OUTPUT_BASE_NAME".pdf"
+python evaluate_ate_scale.py ../evaluation/Ground_truth/EuRoC_left_cam/"$SEQUENCE"_GT.txt CameraTrajectory.txt --plot "f_"$OUTPUT_BASE_NAME".pdf"
 
 echo "" 
 echo metrics generated with evaluate_euroc.sh:

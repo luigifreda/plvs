@@ -7,7 +7,7 @@
 
 #echo "usage: ./${0##*/} "
 
-SUFFIX="_old" 
+
 
 # from https://www.doc.ic.ac.uk/~ahanda/VaFRIC/iclnuim.html 
 DATASET_BASE_FOLDER="$HOME/Work/datasets/rgbd_datasets/icl_nuim/"
@@ -31,7 +31,7 @@ echo DATASET_PATH: $DATASET_PATH
 #export DEBUG_PREFIX="gdb -ex run --args"  # uncomment this in order to debug with gdb
 #export DEBUG_PREFIX="valkyrie "
 
-$DEBUG_PREFIX ../Examples$SUFFIX/RGB-D/rgbd_tum$SUFFIX ../Vocabulary/ORBvoc.txt ../Examples$SUFFIX/RGB-D/ICL.yaml $DATASET_PATH $DATASET_PATH/associations.txt
+$DEBUG_PREFIX ../Examples/RGB-D/rgbd_tum ../Vocabulary/ORBvoc.txt ../Examples/RGB-D/ICL.yaml $DATASET_PATH $DATASET_PATH/associations.txt
 
 
 #./perform_evaluation.sh $DATASET_PATH

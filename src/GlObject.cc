@@ -27,7 +27,7 @@
 
 typedef POINT_TYPE PointT;
 
-namespace PLVS2
+namespace PLVS
 {
 
 GlObject::Ptr GlObject::CreateObject( const std::string& strType, const std::string& filename )
@@ -83,7 +83,7 @@ void GlObject::SetDisplayMode(int val)
     }
 }
 
-} //namespace PLVS2
+} //namespace PLVS
 
 
 

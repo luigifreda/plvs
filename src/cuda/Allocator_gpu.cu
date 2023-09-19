@@ -2,7 +2,7 @@
 #include <cuda/helper_cuda.h>
 #include <cuda/Allocator.hpp>
 
-namespace PLVS2
+namespace PLVS
 {
 namespace cuda
 {
@@ -45,7 +45,7 @@ cv::cuda::GpuMat::Allocator * gpu_mat_allocator;
 
 namespace
 {
-using namespace PLVS2;
+using namespace PLVS;
 
 void __attribute__ ((constructor)) init()
 {

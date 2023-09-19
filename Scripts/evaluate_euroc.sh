@@ -27,10 +27,10 @@ else
 fi
 
 
-#GROUDTRUTH_DATA_PATH=$DATASET_PATH/mav0/state_groundtruth_estimate0/data.tum   # data generated with Scripts/generate_euroc_groundtruths_as_tum.sh
-GROUDTRUTH_DATA_PATH=$DATASET_PATH/mav0/state_groundtruth_estimate0/data_t2.tum # data generated with Scripts/generate_euroc_groundtruths_as_tum.sh
-F_CAMERA_TRAJECTORY=$TRAJECTORY_DIR/f_$TRAJECTORY_OUTPUT
-KF_CAMERA_TRAJECTORY=$TRAJECTORY_DIR/kf_$TRAJECTORY_OUTPUT
+GROUDTRUTH_DATA_PATH=$DATASET_PATH/state_groundtruth_estimate0/data.tum   # data generated with Scripts/generate_euroc_groundtruths_as_tum.sh
+#GROUDTRUTH_DATA_PATH=$DATASET_PATH/state_groundtruth_estimate0/data_t2.tum # data generated with Scripts/generate_euroc_groundtruths_as_tum.sh
+F_CAMERA_TRAJECTORY=$TRAJECTORY_DIR/CameraTrajectory.txt
+KF_CAMERA_TRAJECTORY=$TRAJECTORY_DIR/KeyFrameTrajectory.txt
 
 #echo GROUDTRUTH_DATA_PATH: $GROUDTRUTH_DATA_PATH
 #echo F_CAMERA_TRAJECTORY: $F_CAMERA_TRAJECTORY

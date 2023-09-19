@@ -38,7 +38,7 @@
 #include "Stopwatch.h"
 
 
-namespace PLVS2
+namespace PLVS
 {
 
 template<typename PointT>
@@ -48,14 +48,14 @@ template<typename PointT>
 const double PointCloudMapOctomap<PointT>::kDownsampleResFactor = 0.8;    
 
 template<typename PointT>
-PointCloudMapOctomap<PointT>::PointCloudMapOctomap(Map* pMap, const std::shared_ptr<PointCloudMapParameters>& params) : PointCloudMap<PointT>(pMap, params)
+PointCloudMapOctomap<PointT>::PointCloudMapOctomap(double resolution_in, double max_range) : PointCloudMap<PointT>(resolution_in)
 {
     ColorOctomapParameters octomap_params;
-    octomap_params.resolution = params->resolution;
-    octomap_params.sensor_max_range = params->maxDepthDistance;
+    octomap_params.resolution = resolution_in;
+    octomap_params.sensor_max_range = max_range;
     pColorOctomapServer_ = std::make_shared<ColorOctomapServer<PointT> >(octomap_params);
     
-    double resolutionLocalFilter = this->kDownsampleResFactor * params->resolution;
+    double resolutionLocalFilter = this->kDownsampleResFactor * resolution_in;
     bApplyLocalFilter_ = resolutionLocalFilter >= this->kMinResForApplyingLocalFilter;
     localVoxelFilter_.setLeafSize(resolutionLocalFilter, resolutionLocalFilter, resolutionLocalFilter);
 }
@@ -89,16 +89,15 @@ void PointCloudMapOctomap<PointT>::InsertData(typename PointCloudMapInput<PointT
 
     assert(pData->type == PointCloudMapInput<PointT>::kPointCloud);
 
-    Sophus::SE3f Twc = pData->pPointCloudKeyFrame->GetCameraPose();
+    cv::Mat Twc = pData->pPointCloudKeyFrame->GetCameraPose();
     pData->pPointCloudKeyFrame->TwcIntegration = Twc; 
 
-    const Eigen::Vector3f twc = Twc.translation();
-    const double x_sensor_origin = twc(0);
-    const double y_sensor_origin = twc(1);
-    const double z_sensor_origin = twc(2);
+    const double x_sensor_origin = Twc.at<float>(0, 3);
+    const double y_sensor_origin = Twc.at<float>(1, 3);
+    const double z_sensor_origin = Twc.at<float>(2, 3);
 
     typename PointCloudT::Ptr pCloudWorld(new PointCloudT);
-    this->TransformCameraCloudInWorldFrame(pData->pPointCloudKeyFrame->pCloudCamera, Converter::toIsometry3d(Twc), pCloudWorld);
+    this->TransformCameraCloudInWorldFrame(pData->pPointCloudKeyFrame->pCloudCamera, Twc, pCloudWorld);
     
     if(bApplyLocalFilter_) 
     {
@@ -146,7 +145,7 @@ template<typename PointT>
 void PointCloudMapOctomap<PointT>::OnMapChange()
 {
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
-    if (this->pPointCloudMapParameters_->bResetOnSparseMapChange)
+    if (this->bResetOnSparseMapChange_)
     {
         std::cout << "PointCloudMapOctomap<PointT>::OnMapChange() - octomap reset *** " << std::endl;
         pColorOctomapServer_->Reset();
@@ -154,4 +153,4 @@ void PointCloudMapOctomap<PointT>::OnMapChange()
 }
 
 
-} //namespace PLVS2
+} //namespace PLVS

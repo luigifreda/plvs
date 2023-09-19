@@ -30,7 +30,6 @@
 #include "PointDefinitions.h"
 #include "PointCloudKeyFrame.h"
 #include "PointCloudMapInput.h"
-#include "PointCloudMapTypes.h"
 
 #include <pcl/common/transforms.h>
 #include <pcl/filters/voxel_grid.h>
@@ -40,11 +39,8 @@
 
 
 
-namespace PLVS2
+namespace PLVS
 {
-
-class Map; 
-class PointCloudMapping;
 
 
 ///	\class CameraModelParams
@@ -55,9 +51,9 @@ class PointCloudMapping;
 ///	\warning
 struct CameraModelParams
 {
-    double fx;
-    double fy;
-    double cx;
+    double fx; 
+    double fy; 
+    double cx; 
     double cy;
     
     int width;
@@ -68,6 +64,7 @@ struct CameraModelParams
 };
 
 
+
 ///	\class PointCloudMapping
 ///	\author Luigi Freda
 ///	\brief Abstract class for merging/managing point clouds 
@@ -75,40 +72,22 @@ struct CameraModelParams
 ///	\date
 ///	\warning
 template<typename PointT>
-class PointCloudMap: private boost::noncopyable
+class PointCloudMap
 {
 public:
+
+    static const double kDefaultResolution;
+    static const float kMinCosForNormalAssociation;
     static const double kNormThresholdForEqualMatrices; 
 
 public:
 
     typedef typename pcl::PointCloud<PointT> PointCloudT;
- 
-    typedef std::shared_ptr<PointCloudMap> Ptr;    
-    typedef std::shared_ptr<const PointCloudMap> ConstPtr;   
-    
+
 public:
 
-    PointCloudMap(Map* pMap, const std::shared_ptr<PointCloudMapParameters>& params);
+    PointCloudMap(double resolution_in = kDefaultResolution);
 
-    void SetCorrespondingSparseMap(Map* pMap);
-    Map* GetCorrespodingSparseMap();
-    
-    void InsertKeyFrame(typename PointCloudKeyFrame<PointT>::Ptr pcKeyFrame);    
-    
-    long unsigned int GetId();
-    long unsigned int GetInitKFid();
-    long unsigned int GetMaxKFid();
-    //typename PointCloudKeyFrame<PointT>::Ptr GetOriginKF();
-    
-    bool IsBad();     // using the corresponding mpMap->IsBad()
-    //void SetBad();  // not needed since we are using the corresponding mpMap->IsBad()
-   
-    void SetCurrentMap();
-    void SetStoredMap();
-
-    void SetPointCloudMapParameters(const std::shared_ptr<PointCloudMapParameters>& params) { pPointCloudMapParameters_ = params; }
-    
     virtual void SetDepthCameraModel(const CameraModelParams& params) {}
     virtual void SetColorCameraModel(const CameraModelParams& params) {}
         
@@ -118,9 +97,7 @@ public:
     
     void UpdateMapTimestamp();
 
-    void Reset(); // reset the full data structure
-    virtual void Clear(); // clear the point cloud; TODO: Luigi to be renamed to ClearPointCloud() ?
-    void ResetPointCloud();
+    virtual void Clear();
     
     virtual void OnMapChange(){}
     
@@ -177,7 +154,7 @@ public: /// < getters
         }        
     }
 
-    std::uint64_t GetMapTimestamp()
+    pcl::uint64_t GetMapTimestamp()
     {
         std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
         return pPointCloud_->header.stamp;
@@ -189,38 +166,41 @@ public: /// < setters
     virtual void SetBoolProperty(unsigned int property, bool val){}
     virtual void SetFloatProperty(unsigned int property, float val){}
     
-//    void SetRemoveUnstablePoints(bool val) { bRemoveUnstablePoints_ = val; }
-//    void SetPerformSegmentation(bool val) { bPerformSegmentation_ = val; }
-//    void SetPerformCarving(bool val) { bPerformCarving_ = val; }
-//    void SetDownsampleStep(int val) { nDownsampleStep_ = val; }
-//    
-//    void SetResetOnMapChange(bool val) { bResetOnSparseMapChange_ = val; } 
-//    void SetKfAdjustmentOnMapChange(bool val) { bCloudDeformationOnSparseMapChange_ = val; }     
-//
-//    void SetMinCosForNormalAssociation(float val) { minCosForNormalAssociation_ = val; }
-        
-    void TransformCameraCloudInWorldFrame(typename PointCloudT::ConstPtr pCloudCamera, const Eigen::Isometry3d& Twc, typename PointCloudT::Ptr pCloudWorld);  
-    void TransformCameraCloudInWorldFrame(const PointCloudT& cloudCamera, const Eigen::Isometry3d& Twc, PointCloudT& cloudWorld);  
+    void SetRemoveUnstablePoints(bool val) { bRemoveUnstablePoints_ = val; }
+    void SetPerformSegmentation(bool val) { bPerformSegmentation_ = val; }
+    void SetPerformCarving(bool val) { bPerformCarving_ = val; }
+    void SetDownsampleStep(int val) { nDownsampleStep_ = val; }
+    
+    void SetResetOnMapChange(bool val) { bResetOnSparseMapChange_ = val; } 
+    void SetKfAdjustmentOnMapChange(bool val) { bCloudDeformationOnSparseMapChange_ = val; }     
+
+    void SetMinCosForNormalAssociation(float val) { minCosForNormalAssociation_ = val; }
+    
+    void ResetPointCloud();
+    
+    void TransformCameraCloudInWorldFrame(typename PointCloudT::ConstPtr pCloudCamera, const cv::Mat& Twc, typename PointCloudT::Ptr pCloudWorld);  
+    void TransformCameraCloudInWorldFrame(const PointCloudT& cloudCamera, const cv::Mat& Twc, PointCloudT& cloudWorld);  
     
 protected:
 
-    std::shared_ptr<PointCloudMapParameters> pPointCloudMapParameters_;
+    double resolution_;
+    
+    bool bResetOnSparseMapChange_;
+    bool bCloudDeformationOnSparseMapChange_;
 
     std::recursive_timed_mutex pointCloudMutex_;
     typename PointCloudT::Ptr pPointCloud_;
     typename PointCloudT::Ptr pPointCloudUnstable_;
     boost::uint64_t lastTimestamp_; // last received data timestamp 
     
+    int nDownsampleStep_; 
+    
     bool bMapUpdated_;
+    bool bRemoveUnstablePoints_; 
+    bool bPerformSegmentation_; 
+    bool bPerformCarving_; 
     
-protected: 
-    
-    Map* mpMap = NULL; // corresponding sparse map 
-        
-    bool mIsInUse_ = false;
-    //bool mbBad_ = false; 
-    
-    typename PointCloudKeyFrame<PointT>::Ptr mpKFinitial_;
+    float minCosForNormalAssociation_;
     
 protected: 
 
@@ -230,8 +210,6 @@ protected:
     
     void ComputeNormals(typename PointCloudT::Ptr pCloud);
     
-    
-    friend class PointCloudMapping;
 };
 
 
@@ -247,7 +225,7 @@ template class PointCloudMap<pcl::PointSurfelSegment>;
 
 #endif
 
-} //namespace PLVS2
+} //namespace PLVS
 
 
 

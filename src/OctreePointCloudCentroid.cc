@@ -17,7 +17,7 @@ const int OctreePointCloudVoxelCentroidContainerMV<PointT>::kMaxLabelConfidence 
 
 
 template<typename PointT, typename LeafContainerT, typename BranchContainerT, typename OctreeT>
-void OctreePointCloudCentroid<PointT, LeafContainerT, BranchContainerT, OctreeT>::addPointIdx(const int point_idx_arg, const std::uint64_t& time_stamp)
+void OctreePointCloudCentroid<PointT, LeafContainerT, BranchContainerT, OctreeT>::addPointIdx(const int point_idx_arg, const pcl::uint64_t& time_stamp)
 {
     OctreeKey key;
 
@@ -62,7 +62,7 @@ void OctreePointCloudCentroid<PointT, LeafContainerT, BranchContainerT, OctreeT>
 }
 
 template<typename PointT, typename LeafContainerT, typename BranchContainerT, typename OctreeT>
-void OctreePointCloudCentroid<PointT, LeafContainerT, BranchContainerT, OctreeT>::reinserPointIdx(const int point_idx_arg, const std::uint64_t& time_stamp)
+void OctreePointCloudCentroid<PointT, LeafContainerT, BranchContainerT, OctreeT>::reinserPointIdx(const int point_idx_arg, const pcl::uint64_t& time_stamp)
 {
     OctreeKey key;
 
@@ -113,7 +113,7 @@ void OctreePointCloudCentroid<PointT, LeafContainerT, BranchContainerT, OctreeT>
 {
     size_t i, iEnd;
 
-    std::uint64_t time_stamp = this->input_->header.stamp;
+    pcl::uint64_t time_stamp = this->input_->header.stamp;
 
     if (this->indices_)
     {
@@ -146,7 +146,7 @@ void OctreePointCloudCentroid<PointT, LeafContainerT, BranchContainerT, OctreeT>
 {
     size_t i, iEnd;
 
-    std::uint64_t time_stamp = this->input_->header.stamp;
+    pcl::uint64_t time_stamp = this->input_->header.stamp;
 
     if (this->indices_)
     {

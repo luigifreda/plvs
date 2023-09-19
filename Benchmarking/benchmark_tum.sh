@@ -4,7 +4,7 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) 
 SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
 cd $SCRIPT_DIR # this brings us in the actual used folder (not the possibly symbolic one)
 
-SUFFIX="_old" # comment if you want to use the new example binaries
+# comment if you want to use the new example binaries
 
 NUM_RUNS_X_DATASET=10
 
@@ -59,12 +59,12 @@ while IFS=$'\n' read -r line || [[ -n "$line" ]]; do
         echo Logging plvs to $OUTPUT_LOG
         echo Logging system stats to $OUTPUT_SYS_LOG        
 
-        $MAIN_DIR/Scripts/system_stats_logger.py -p rgbd_tum$SUFFIX -o Resources.txt --sleep-start 1  2>&1 >> $OUTPUT_SYS_LOG &
+        $MAIN_DIR/Scripts/system_stats_logger.py -p rgbd_tum -o Resources.txt --sleep-start 1  2>&1 >> $OUTPUT_SYS_LOG &
 
         # launch rgbd_tum 
-        $MAIN_DIR/Examples$SUFFIX/RGB-D/rgbd_tum$SUFFIX \
+        $MAIN_DIR/Examples/RGB-D/rgbd_tum \
             $MAIN_DIR/Vocabulary/ORBvoc.txt \
-            $MAIN_DIR/Examples$SUFFIX/RGB-D/$TUM_YAML \
+            $MAIN_DIR/Examples/RGB-D/$TUM_YAML \
             $RGBD_DATASET_PATH $RGBD_DATASET_PATH/associations.txt 2>&1 >> $OUTPUT_LOG && fg
         
         sleep 1; echo -e "\n"  # this is used to pass a char input and close the process (not needed without viewer)
@@ -83,7 +83,7 @@ while IFS=$'\n' read -r line || [[ -n "$line" ]]; do
     done
 
     # copy the settings 
-    cp $MAIN_DIR/Examples$SUFFIX/RGB-D/$TUM_YAML . 
+    cp $MAIN_DIR/Examples/RGB-D/$TUM_YAML . 
 
     cd ../
     mv $DATASET results/$DATASET

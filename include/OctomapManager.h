@@ -12,7 +12,7 @@
 //#include <pcl_conversions/pcl_conversions.h>
 
 
-namespace PLVS2
+namespace PLVS
 {
 
 // An inherited class from OctomapWorld, which also handles the connection to

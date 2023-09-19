@@ -33,7 +33,7 @@ namespace pcl
       float x; \
       float y; \
       float z; \
-      std::uint32_t kfid; \
+      uint32_t kfid; \
     }; \
   };
 
@@ -63,8 +63,8 @@ struct EIGEN_ALIGN16 _PointSurfelSegment
 //            uint16_t label; // 2 bytes
 //            uint8_t label_confidence; // 1 byte to be capped    
             
-            std::uint32_t label;        // 4 bytes
-            std::uint32_t label_confidence;   // 4 bytes
+            uint32_t label;        // 4 bytes
+            uint32_t label_confidence;   // 4 bytes
             
             //float confidence;
             //uint8_t confidence; //1 byte to be capped
@@ -130,14 +130,14 @@ inline std::ostream& operator<<(std::ostream& s, const pcl::PointSurfelSegment &
 }
 
 POINT_CLOUD_REGISTER_POINT_STRUCT(pcl::PointSurfelSegment,
-                                  (float, x, x)(float, y, y)(float, z, z) (std::uint32_t, kfid, kfid)
+                                  (float, x, x)(float, y, y)(float, z, z) (uint32_t, kfid, kfid)
                                   (float, normal_x, normal_x)(float, normal_y, normal_y)(float, normal_z, normal_z)
-                                  (std::uint32_t, rgba, rgba)
+                                  (uint32_t, rgba, rgba)
                                   (float, depth, depth)
-                                  (std::uint32_t, label, label)
+                                  (uint32_t, label, label)
                                   //(uint16_t, curvature, curvature)
                                   //(uint8_t, confidence, confidence)
-                                  (std::uint32_t, label_confidence, label_confidence)
+                                  (uint32_t, label_confidence, label_confidence)
                                   )
         
         

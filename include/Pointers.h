@@ -11,7 +11,7 @@
 #define UNUSED_VAR(x) (void)x
 #endif 
 
-namespace PLVS2
+namespace PLVS
 {
  
 template <typename T>
@@ -65,16 +65,13 @@ struct SharedPtrWithDeleter : public std::shared_ptr<T>
 /// < N.B.: keep the following lines coherent with the content of 'Pointers.cc'
 
 class MapPoint;
-DECLARE_POINTERS(MapPoint)
-//DECLARE_SMART_POINTERS(MapPoint)
+DECLARE_SMART_POINTERS(MapPoint)
 
 class MapLine;
-DECLARE_POINTERS(MapLine)
-//DECLARE_SMART_POINTERS(MapLine)
+DECLARE_SMART_POINTERS(MapLine)
 
 class MapObject;
-DECLARE_POINTERS(MapObject)
-//DECLARE_SMART_POINTERS(MapObject)
+DECLARE_SMART_POINTERS(MapObject)
 
 class KeyFrame; 
 DECLARE_POINTERS(KeyFrame)

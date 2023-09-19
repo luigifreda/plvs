@@ -184,7 +184,7 @@ fi
 cd ros_ws/src
 if [ ! -L plvs ]; then
     print_blue "installing plvs module... "
-    ln -s ../../Examples_old/ROS/PLVS plvs
+    ln -s ../../Examples/ROS/PLVS plvs
 fi
 
 #catkin_init_workspace

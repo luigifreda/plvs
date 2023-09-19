@@ -24,7 +24,7 @@
 
 #include <pcl/filters/voxel_grid.h>
 
-namespace PLVS2
+namespace PLVS
 {
 
 template<typename PointT>
@@ -49,7 +49,7 @@ public:
 
 public:
 
-    PointCloudMapOctomap(Map* pMap, const std::shared_ptr<PointCloudMapParameters>& params);
+    PointCloudMapOctomap(double resolution_in = PointCloudMap<PointT>::kDefaultResolution, double max_range = 10);
 
     void InsertCloud(typename PointCloudT::ConstPtr cloud_world, double x_sensor_origin, double y_sensor_origin, double z_sensor_origin, double max_range);
 
@@ -83,7 +83,7 @@ template class PointCloudMapOctomap<pcl::PointSurfelSegment>;
 
 #endif
 
-} //namespace PLVS2
+} //namespace PLVS
 
 
 

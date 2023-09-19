@@ -24,7 +24,6 @@
 #include <list>
 
 #include <opencv2/opencv.hpp>
-#include"sophus/sim3.hpp"
 
 #include "Frame.h"
 #include "KeyFrame.h"
@@ -41,7 +40,7 @@ class BinaryDescriptorMatcher;
 }
 
 
-namespace PLVS2
+namespace PLVS
 {
 
    
@@ -84,18 +83,13 @@ public:
     
     // Project MapLines using a Similarity Transformation and search matches.
     // Used in loop detection (Loop Closing)
-     int SearchByProjection(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const std::vector<MapLinePtr> &vpLines, std::vector<MapLinePtr> &vpMatched, int th, float ratioHamming);
+     int SearchByProjection(KeyFramePtr& pKF, cv::Mat Scw, const std::vector<MapLinePtr> &vpLines, std::vector<MapLinePtr> &vpMatched, int th, float ratioHamming);
     
-    // Project MapLines using a Similarity Transformation and search matches.
-    // Used in Place Recognition (Loop Closing and Merging)     
-    int SearchByProjection(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const std::vector<MapLinePtr> &vpLines, const std::vector<KeyFramePtr> &vpLinesKFs,
-                           std::vector<MapLinePtr> &vpMatched, std::vector<KeyFramePtr> &vpMatchedKF, int th, float ratioHamming);
-
     // Project MapLines into KeyFrame and search for duplicated MapLines
     int Fuse(KeyFramePtr& pKF, const std::vector<MapLinePtr> &vpMapLines, const float th=3.0);  
     
     // Project MapLines into KeyFrame using a given Sim3 and search for duplicated MapLines
-    int Fuse(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const std::vector<MapLinePtr> &vpLines, const float th, std::vector<MapLinePtr> &vpReplaceLine);
+    int Fuse(KeyFramePtr& pKF, cv::Mat Scw, const std::vector<MapLinePtr> &vpLines, const float th, std::vector<MapLinePtr> &vpReplaceLine);
     
 public: 
     
@@ -121,6 +115,6 @@ protected:
 };
 
 
-} //namespace PLVS2
+} //namespace PLVS
 
 #endif

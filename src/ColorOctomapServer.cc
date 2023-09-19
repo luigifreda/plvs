@@ -15,7 +15,7 @@
 //#include <pcl_ros/impl/transforms.hpp>
 #include <GL/gl.h>
 
-namespace PLVS2
+namespace PLVS
 {
 
 template<typename PointT>
@@ -432,4 +432,4 @@ void ColorOctomapServer<PointT>::GetOccupiedPointCloud(typename PointcloudType::
 } 
 
 
-} //namespace PLVS2
+} //namespace PLVS

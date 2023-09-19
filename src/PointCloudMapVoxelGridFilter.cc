@@ -41,16 +41,16 @@
 #define LET_ME_SEE_JUST_THE_LAST_CLOUD 0
 
 
-namespace PLVS2
+namespace PLVS
 {
 
 template<typename PointT>
 const int PointCloudMapVoxelGridFilter<PointT>::kDefaultPointCounterThreshold = 0;
 
 template<typename PointT>
-PointCloudMapVoxelGridFilter<PointT>::PointCloudMapVoxelGridFilter(Map* pMap, const std::shared_ptr<PointCloudMapParameters>& params) : PointCloudMap<PointT>(pMap, params)
+PointCloudMapVoxelGridFilter<PointT>::PointCloudMapVoxelGridFilter(double resolution_in) : PointCloudMap<PointT>(resolution_in)
 {
-    voxel_.setLeafSize(params->resolution, params->resolution, params->resolution);
+    voxel_.setLeafSize(this->resolution_, this->resolution_, this->resolution_);
     //voxel_.setMinimumPointsNumberPerVoxel(point_counter_threshold);
 }
 
@@ -71,10 +71,10 @@ void PointCloudMapVoxelGridFilter<PointT>::InsertData(typename PointCloudMapInpu
     assert(pData->type == PointCloudMapInput<PointT>::kPointCloud);
 
     typename PointCloudT::Ptr pCloudWorld(new PointCloudT);
-    Sophus::SE3f Twc = pData->pPointCloudKeyFrame->GetCameraPose();
+    cv::Mat Twc = pData->pPointCloudKeyFrame->GetCameraPose();
     pData->pPointCloudKeyFrame->TwcIntegration = Twc; 
     
-    this->TransformCameraCloudInWorldFrame(pData->pPointCloudKeyFrame->pCloudCamera, Converter::toIsometry3d(Twc), pCloudWorld);
+    this->TransformCameraCloudInWorldFrame(pData->pPointCloudKeyFrame->pCloudCamera, Twc, pCloudWorld);
 
 #if !LET_ME_SEE_JUST_THE_LAST_CLOUD
     *(this->pPointCloud_) += *pCloudWorld;
@@ -114,7 +114,7 @@ template<typename PointT>
 void PointCloudMapVoxelGridFilter<PointT>::OnMapChange()
 {
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
-    if (this->pPointCloudMapParameters_->bResetOnSparseMapChange)
+    if (this->bResetOnSparseMapChange_)
     {
         std::cout << "PointCloudMapVoxelGridFilter<PointT>::OnMapChange() - point cloud map reset *** " << std::endl;
         PointCloudMap<PointT>::Clear();
@@ -183,12 +183,12 @@ template<typename PointT>
 const float PointCloudMapVoxelGridFilterActive<PointT>::kKdtreeSearchRangeFactor = 2.5;
 
 template<typename PointT>
-PointCloudMapVoxelGridFilterActive<PointT>::PointCloudMapVoxelGridFilterActive(Map* pMap, const std::shared_ptr<PointCloudMapParameters>& params) : PointCloudMap<PointT>(pMap, params)
+PointCloudMapVoxelGridFilterActive<PointT>::PointCloudMapVoxelGridFilterActive(double resolution_in) : PointCloudMap<PointT>(resolution_in)
 {
-    voxel_.setLeafSize(params->resolution, params->resolution, params->resolution);
+    voxel_.setLeafSize(this->resolution_, this->resolution_, this->resolution_);
     //voxel_.setMinimumPointsNumberPerVoxel(point_counter_threshold);
     
-    pKfSearchTree_.reset(new KeyFrameSearchTree<>(params->resolution));     
+    pKfSearchTree_.reset(new KeyFrameSearchTree<>(this->resolution_));     
 }
 
 template<typename PointT>
@@ -219,7 +219,7 @@ void PointCloudMapVoxelGridFilterActive<PointT>::InsertData(typename PointCloudM
     typename PointCloudT::Ptr pCloudWorld(new PointCloudT);
     pData->pPointCloudKeyFrame->TwcIntegration = pData->pPointCloudKeyFrame->GetCameraPose(); 
     
-    this->TransformCameraCloudInWorldFrame(pData->pPointCloudKeyFrame->pCloudCamera, Converter::toIsometry3d(pData->pPointCloudKeyFrame->TwcIntegration), pCloudWorld);
+    this->TransformCameraCloudInWorldFrame(pData->pPointCloudKeyFrame->pCloudCamera, pData->pPointCloudKeyFrame->TwcIntegration, pCloudWorld);
     
     *(this->pPointCloud_) += *pCloudWorld; // push back all points 
 }
@@ -269,7 +269,7 @@ template<typename PointT>
 void PointCloudMapVoxelGridFilterActive<PointT>::OnMapChange()
 {
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
-    if (this->pPointCloudMapParameters_->bResetOnSparseMapChange)
+    if (this->bResetOnSparseMapChange_)
     {
         std::cout << "PointCloudMapVoxelGridFilterActive<PointT>::OnMapChange() - point cloud map reset *** " << std::endl;
         PointCloudMap<PointT>::Clear();
@@ -285,13 +285,13 @@ void PointCloudMapVoxelGridFilterActive<pcl::PointSurfelSegment>::OnMapChange()
     
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
     
-    if (this->pPointCloudMapParameters_->bResetOnSparseMapChange)
+    if (this->bResetOnSparseMapChange_)
     {
         std::cout << "PointCloudMapVoxelGridFilterActive<PointT>::OnMapChange() - point cloud map reset *** " << std::endl;
         PointCloudMap<PointT>::Clear();
     }
     
-    if(this->pPointCloudMapParameters_->bCloudDeformationOnSparseMapChange)
+    if(this->bCloudDeformationOnSparseMapChange_)
     {
         std::cout << "PointCloudMapVoxelGridFilterActive<PointT>::OnMapChange() - point cloud KF adjustment" << std::endl;
         
@@ -328,29 +328,27 @@ void PointCloudMapVoxelGridFilterActive<pcl::PointSurfelSegment>::OnMapChange()
             if(pKF->isBad()) continue;
             
             // let's correct the cloud 
-            const Sophus::SE3f& TwcIntegration = pcKF->TwcIntegration; // pose at the last time of integration 
+            const cv::Mat& TwcIntegration = pcKF->TwcIntegration; // pose at the last time of integration 
             
-            // cv::Mat TcwIntegration = cv::Mat::eye(4,4,CV_32F);
-            // // invert by taking into account the structure of the homogeneous transformation matrix
-            // cv::Mat RcwIntegration =  TwcIntegration.rowRange(0,3).colRange(0,3).t();
-            // cv::Mat tcwIntegration = -RcwIntegration*TwcIntegration.rowRange(0,3).col(3);
-            // RcwIntegration.copyTo(TcwIntegration.rowRange(0,3).colRange(0,3));
-            // tcwIntegration.copyTo(TcwIntegration.rowRange(0,3).col(3));
-            Sophus::SE3f TcwIntegration = TwcIntegration.inverse();
+            cv::Mat TcwIntegration = cv::Mat::eye(4,4,CV_32F);
+            // invert by taking into account the structure of the homogeneous transformation matrix
+            cv::Mat RcwIntegration =  TwcIntegration.rowRange(0,3).colRange(0,3).t();
+            cv::Mat tcwIntegration = -RcwIntegration*TwcIntegration.rowRange(0,3).col(3);
+            RcwIntegration.copyTo(TcwIntegration.rowRange(0,3).colRange(0,3));
+            tcwIntegration.copyTo(TcwIntegration.rowRange(0,3).col(3));
             
-            Sophus::SE3f TwcNew = pKF->GetPoseInverse();  // new corrected pose 
+            cv::Mat TwcNew =  pKF->GetPoseInverse();  // new corrected pose 
             
             // let's compute the correction transformation 
             //cv::Mat Twnwo= TwcNew * TwcIntegration.inv(); // from world old to world new             
-            Sophus::SE3f Twnwo = TwcNew * TcwIntegration; // from world old to world new 
+            cv::Mat Twnwo= TwcNew * TcwIntegration; // from world old to world new 
             
             // check if the transformation is "big" enough otherwise do not re-transform the cloud 
-            //double norm = cv::norm(Twnwo - identity);
-            double norm = (Twnwo.matrix3x4() - Sophus::SE3f().matrix3x4()).norm();
+            double norm = cv::norm(Twnwo - identity);
             std::cout << "norm: " << norm << std::endl; 
             if( norm > kNormThresholdForEqualMatrices)
             {            
-                this->TransformCameraCloudInWorldFrame(kfCloudWorld, Converter::toIsometry3d(Twnwo), kfCloudWorldNew);   
+                this->TransformCameraCloudInWorldFrame(kfCloudWorld, Twnwo, kfCloudWorldNew);   
             }
             else
             {
@@ -374,4 +372,4 @@ void PointCloudMapVoxelGridFilterActive<pcl::PointSurfelSegment>::OnMapChange()
 
 
 
-} //namespace PLVS2
+} //namespace PLVS

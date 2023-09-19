@@ -52,7 +52,7 @@ using namespace cv;
 using namespace cv::cuda;
 using namespace cv::cuda::device;
 
-namespace PLVS2
+namespace PLVS
 {
 namespace cuda
 {

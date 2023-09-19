@@ -41,7 +41,15 @@ public:
         _ofile << a;
         return *this;
     }
+
+//    template <typename T, unsigned int N>
+//    Logger &operator<<(const T (&a)[N])
+//    {
+//        _ofile << a;
+//        return *this;
+//    }
     
+
     Logger &operator<<(std::ostream& (*pf) (std::ostream&))
     {
         // intercept std::endl

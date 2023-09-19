@@ -22,87 +22,51 @@
 #include "Utils.h"
 
 #include<mutex>
-#include <opencv2/core/base.hpp>
-
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
-#include <boost/archive/text_iarchive.hpp>
-#include <boost/archive/text_oarchive.hpp>
 
 #define ENABLE_NEW_CHANGES 1
-#define USE_ENDPOINTS_AVERAGING 0 // TODO: [Luigi] this seems to bring some problems when using IMU (futher investigation is needed)
+#define USE_ENDPOINTS_AVERAGING 0 
 #define DEBUG_DESTRUCTOR 0
 
-namespace PLVS2
+namespace PLVS
 {
 
 long unsigned int MapLine::nNextId=0;
 mutex MapLine::mGlobalMutex;
 
-MapLine::MapLine():
-    mnFirstKFid(-1), // [Luigi]: changed from 0 to -1
-    mnFirstFrame(0), nObs(0), mnTrackReferenceForFrame(0),
-    mnLastFrameSeen(0), mnBALocalForKF(0), mnFuseCandidateForKF(0), mnLoopPointForKF(0), mnCorrectedByKF(0),
-    mnCorrectedReference(0), mnBAGlobalForKF(0), mpRefKF(static_cast<KeyFramePtr>(NULL)), mnVisible(1), mnFound(1), mbBad(false),
-    mpReplaced(static_cast<MapLinePtr>(NULL)), mfMinDistance(0), mfMaxDistance(0), mpMap(0), muNumLineBAFailures(0)
-{
-    //mpReplaced = static_cast<MapLinePtr>(NULL); // Luigi: we don't need to repeat it!
-}
-
-MapLine::MapLine(const Eigen::Vector3f& PosStart, const Eigen::Vector3f& PosEnd, KeyFramePtr pRefKF, Map* pMap):
+MapLine::MapLine(const cv::Mat& p3DStart, const cv::Mat& p3DEnd,  Map* pMap, KeyFramePtr pRefKF):
     mnFirstKFid(pRefKF->mnId), mnFirstFrame(pRefKF->mnFrameId), nObs(0), mnTrackReferenceForFrame(0),
     mnLastFrameSeen(0), mnBALocalForKF(0), mnFuseCandidateForKF(0), mnLoopPointForKF(0), mnCorrectedByKF(0),
     mnCorrectedReference(0), mnBAGlobalForKF(0), mpRefKF(pRefKF), mnVisible(1), mnFound(1), mbBad(false),
-    mpReplaced(static_cast<MapLinePtr>(NULL)), mfMinDistance(0), mfMaxDistance(0), mpMap(pMap), muNumLineBAFailures(0),
-    mnOriginMapId(pMap->GetId())
+    mpReplaced(static_cast<MapLinePtr>(NULL)), mfMinDistance(0), mfMaxDistance(0), mpMap(pMap), muNumLineBAFailures(0)
 {
-    SetWorldEndPoints(PosStart, PosEnd);
-    
+    p3DStart.copyTo(mWorldPosStart);
+    p3DEnd.copyTo(mWorldPosEnd);
     UdateLength();
-    
-    mNormalVector.setZero();
-
-    mbTrackInViewR = false;
-    mbTrackInView = false;
+    mNormalVector = cv::Mat::zeros(3,1,CV_32F);
 
     // MapLines can be created from Tracking and Local Mapping. This mutex avoid conflicts with id.
     unique_lock<mutex> lock(mpMap->mMutexLineCreation);
     mnId=nNextId++;
 }
 
-MapLine::MapLine(const Eigen::Vector3f& PosStart, const Eigen::Vector3f& PosEnd, Map* pMap, Frame* pFrame, const int &idxF):
+MapLine::MapLine(const cv::Mat& p3DStart, const cv::Mat& p3DEnd, Map* pMap, Frame* pFrame, const int &idxF):
     mnFirstKFid(-1), mnFirstFrame(pFrame->mnId), nObs(0), mnTrackReferenceForFrame(0), mnLastFrameSeen(0),
     mnBALocalForKF(0), mnFuseCandidateForKF(0),mnLoopPointForKF(0), mnCorrectedByKF(0),
     mnCorrectedReference(0), mnBAGlobalForKF(0), mpRefKF(static_cast<KeyFramePtr>(NULL)), mnVisible(1),
-    mnFound(1), mbBad(false), mpReplaced(NULL), mpMap(pMap), mnOriginMapId(pMap->GetId()), muNumLineBAFailures(0)
+    mnFound(1), mbBad(false), mpReplaced(NULL), mpMap(pMap), muNumLineBAFailures(0)
 {
-    SetWorldEndPoints(PosStart, PosEnd); 
-    
+    p3DStart.copyTo(mWorldPosStart);
+    p3DEnd.copyTo(mWorldPosEnd);
     UdateLength();
-    
-    Eigen::Vector3f p3DMiddle = 0.5*(mWorldPosStart+mWorldPosEnd);
+    cv::Mat p3DMiddle = 0.5*(mWorldPosStart+mWorldPosEnd);
 
-    Eigen::Vector3f Ow;
-    if(pFrame -> NlinesLeft == -1 || idxF < pFrame -> NlinesLeft){
-        Ow = pFrame->GetCameraCenter();
-    }
-    else
-    {
-        Eigen::Matrix3f Rwl = pFrame->GetRwc();
-        Eigen::Vector3f tlr = pFrame->GetRelativePoseTlr().translation();
-        Eigen::Vector3f twl = pFrame->GetOw();
-
-        Ow = Rwl * tlr + twl;
-    }
+    const cv::Mat Ow = pFrame->GetCameraCenter();
     mNormalVector = p3DMiddle - Ow;
-    //mNormalVector = mNormalVector/cv::norm(mNormalVector);
-    mNormalVector.normalize();
+    mNormalVector = mNormalVector/cv::norm(mNormalVector);
 
 //    cv::Mat PC = mWorldPosMiddle - Ow;
 //    const float dist = cv::norm(PC);
-//    const int level = (pFrame -> NlinesLeft == -1) ? pFrame->mvKeysUn[idxF].octave
-//                                              : (idxF < pFrame -> NlinesLeft) ? pFrame->mvKeys[idxF].octave
-//                                                                         : pFrame -> mvKeysRight[idxF].octave;
+//    const int level = pFrame->mvKeysUn[idxF].octave;
 //    const float levelScaleFactor =  pFrame->mvScaleFactors[level];
 //    const int nLevels = pFrame->mnScaleLevels;
 //    mfMaxDistance = dist*levelScaleFactor;
@@ -115,39 +79,14 @@ MapLine::MapLine(const Eigen::Vector3f& PosStart, const Eigen::Vector3f& PosEnd,
 //    float distMiddle = cv::norm(p3DMiddle - Ow);
 //    mfMaxDistance = distMiddle;
 //    mfMinDistance = distMiddle;    
-    float distStart = (PosStart - Ow).norm();
-    float distEnd   = (PosEnd - Ow).norm();
+    float distStart = cv::norm(p3DStart - Ow);
+    float distEnd   = cv::norm(p3DEnd - Ow);
     mfMaxDistance = std::max(distStart,distEnd) * levelScaleFactor;
     mfMinDistance = std::min(distStart,distEnd) * levelScaleFactor/pFrame->mvLineScaleFactors[nLevels-1];
 
 
     pFrame->mLineDescriptors.row(idxF).copyTo(mDescriptor);
 
-    // MapLines can be created from Tracking and Local Mapping. This mutex avoid conflicts with id.
-    unique_lock<mutex> lock(mpMap->mMutexLineCreation);
-    mnId=nNextId++;
-}
-
-MapLine::MapLine(const double invDepthStart, cv::Point2f uv_initStart, const double invDepthEnd, cv::Point2f uv_initEnd, KeyFramePtr pRefKF, KeyFramePtr pHostKF, Map* pMap):
-    mnFirstKFid(pRefKF->mnId), mnFirstFrame(pRefKF->mnFrameId), nObs(0), mnTrackReferenceForFrame(0),
-    mnLastFrameSeen(0), mnBALocalForKF(0), mnFuseCandidateForKF(0), mnLoopPointForKF(0), mnCorrectedByKF(0),
-    mnCorrectedReference(0), mnBAGlobalForKF(0), mpRefKF(pRefKF), mnVisible(1), mnFound(1), mbBad(false),
-    mpReplaced(static_cast<MapLinePtr>(NULL)), mfMinDistance(0), mfMaxDistance(0), mpMap(pMap),
-    mnOriginMapId(pMap->GetId())
-{
-    mInvDepthStart=invDepthStart;
-    mInitUStart=(double)uv_initStart.x;
-    mInitVStart=(double)uv_initStart.y;
-    
-    mInvDepthEnd=invDepthEnd;    
-    mInitUEnd=(double)uv_initEnd.x;
-    mInitVEnd=(double)uv_initEnd.y;
-    
-    mpHostKF = pHostKF;
-
-    mNormalVector.setZero();
-
-    // Worldpos is not set
     // MapLines can be created from Tracking and Local Mapping. This mutex avoid conflicts with id.
     unique_lock<mutex> lock(mpMap->mMutexLineCreation);
     mnId=nNextId++;
@@ -160,52 +99,51 @@ MapLine::~MapLine()
 #endif
 }
 
-void MapLine::SetWorldEndPoints(const Eigen::Vector3f &PosStart, const Eigen::Vector3f &PosEnd)
+void MapLine::SetWorldEndPoints(const cv::Mat &PosStart, const cv::Mat &PosEnd)
 {
     unique_lock<mutex> lock2(mGlobalMutex);
     unique_lock<mutex> lock(mMutexPos);
-    
-    mWorldPosStart = PosStart;  
-    mWorldPosEnd = PosEnd;    
+    PosStart.copyTo(mWorldPosStart);  
+    PosEnd.copyTo(mWorldPosEnd);    
 }
 
-void MapLine::GetWorldEndPoints(Eigen::Vector3f &PosStart, Eigen::Vector3f &PosEnd)
+void MapLine::GetWorldEndPoints(cv::Mat &PosStart, cv::Mat &PosEnd)
 {
     unique_lock<mutex> lock(mMutexPos);
-    PosStart = mWorldPosStart;    
-    PosEnd = mWorldPosEnd;        
+    mWorldPosStart.copyTo(PosStart);    
+    mWorldPosEnd.copyTo(PosEnd);        
 }
 
-void MapLine::SetWorldPosStart(const Eigen::Vector3f &Pos)
-{
-    unique_lock<mutex> lock2(mGlobalMutex);
-    unique_lock<mutex> lock(mMutexPos);
-    mWorldPosStart = Pos;   
-}
-
-Eigen::Vector3f MapLine::GetWorldPosStart()
-{
-    unique_lock<mutex> lock(mMutexPos);
-    return mWorldPosStart;
-}
-
-void MapLine::SetWorldPosEnd(const Eigen::Vector3f &Pos)
+void MapLine::SetWorldPosStart(const cv::Mat &Pos)
 {
     unique_lock<mutex> lock2(mGlobalMutex);
     unique_lock<mutex> lock(mMutexPos);
-    mWorldPosEnd = Pos; 
+    Pos.copyTo(mWorldPosStart);
 }
 
-Eigen::Vector3f MapLine::GetWorldPosEnd()
+cv::Mat MapLine::GetWorldPosStart()
 {
     unique_lock<mutex> lock(mMutexPos);
-    return mWorldPosEnd;
+    return mWorldPosStart.clone();
 }
 
-Eigen::Vector3f MapLine::GetNormal()
+void MapLine::SetWorldPosEnd(const cv::Mat &Pos)
+{
+    unique_lock<mutex> lock2(mGlobalMutex);
+    unique_lock<mutex> lock(mMutexPos);
+    Pos.copyTo(mWorldPosEnd);
+}
+
+cv::Mat MapLine::GetWorldPosEnd()
 {
     unique_lock<mutex> lock(mMutexPos);
-    return mNormalVector;
+    return mWorldPosEnd.clone();
+}
+
+cv::Mat MapLine::GetNormal()
+{
+    unique_lock<mutex> lock(mMutexPos);
+    return mNormalVector.clone();
 }
 
 float MapLine::GetLength()
@@ -220,31 +158,18 @@ KeyFramePtr MapLine::GetReferenceKeyFrame()
     return mpRefKF;
 }
 
-void MapLine::AddObservation(const KeyFramePtr& pKF, int idx)
+bool MapLine::AddObservation(const KeyFramePtr& pKF, size_t idx)
 {
     unique_lock<mutex> lock(mMutexFeatures);
-    tuple<int,int> indexes;
+    if(mObservations.count(pKF))
+        return false;
+    mObservations[pKF]=idx;
 
-    if(mObservations.count(pKF)){
-        indexes = mObservations[pKF];
-    }
-    else{
-        indexes = tuple<int,int>(-1,-1);
-    }
-
-    if(pKF -> NlinesLeft != -1 && idx >= pKF -> NlinesLeft){
-        get<1>(indexes) = idx;
-    }
-    else{
-        get<0>(indexes) = idx;
-    }
-
-    mObservations[pKF]=indexes;
-
-    if( !pKF->mpCamera2 && ((pKF->mvuRightLineStart[idx]>=0) && (pKF->mvuRightLineEnd[idx]>=0)) )
+    if( (pKF->mvuRightLineStart[idx]>=0) && (pKF->mvuRightLineEnd[idx]>=0) )
         nObs+=2;
     else
         nObs++;
+    return true; 
 }
 
 void MapLine::EraseObservation(const KeyFramePtr& pKF)
@@ -255,40 +180,26 @@ void MapLine::EraseObservation(const KeyFramePtr& pKF)
 #if !ENABLE_NEW_CHANGES
         if(mObservations.count(pKF))
         {
-            //int idx = mObservations[pKF];
-            tuple<int,int> indexes = mObservations[pKF];
-            int leftIndex = get<0>(indexes), rightIndex = get<1>(indexes);
-
-            if(leftIndex != -1){
-                if(!pKF->mpCamera2 && ((pKF->mvuRightLineStart[leftIndex]>=0) && (pKF->mvuRightLineEnd[leftIndex]>=0)) )
-                    nObs-=2;
-                else
-                    nObs--;
-            }
-            if(rightIndex != -1){
+            int idx = mObservations[pKF];
+            if( (pKF->mvuRightLineStart[idx]>=0) && (pKF->mvuRightLineEnd[idx]>=0) )
+                nObs-=2;
+            else
                 nObs--;
-            }
 
             mObservations.erase(pKF);
-#else  
-        auto it = mObservations.find(pKF);       
+#else            
+        std::map<KeyFramePtr,size_t>::iterator it = mObservations.find(pKF);       
         if( it != mObservations.end())
         {
-            tuple<int,int> indexes  = it->second;
-            int leftIndex = get<0>(indexes), rightIndex = get<1>(indexes);
-
-            if(leftIndex != -1){
-                if(!pKF->mpCamera2 && ((pKF->mvuRightLineStart[leftIndex]>=0) && (pKF->mvuRightLineEnd[leftIndex]>=0)) )
-                    nObs-=2;
-                else
-                    nObs--;
-            }
-            if(rightIndex != -1){
+            const int idx = it->second;
+            if( (pKF->mvuRightLineStart[idx]>=0) && (pKF->mvuRightLineEnd[idx]>=0) )
+                nObs-=2;
+            else
                 nObs--;
-            }
 
-            mObservations.erase(it);         
-#endif 
+            mObservations.erase(it);            
+#endif            
+
             if(mpRefKF==pKF)
                 mpRefKF=mObservations.begin()->first;
 
@@ -302,7 +213,7 @@ void MapLine::EraseObservation(const KeyFramePtr& pKF)
         SetBadFlag();
 }
 
-std::map<KeyFramePtr, std::tuple<int,int>>  MapLine::GetObservations()
+map<KeyFramePtr, size_t> MapLine::GetObservations()
 {
     unique_lock<mutex> lock(mMutexFeatures);
     return mObservations;
@@ -316,7 +227,7 @@ int MapLine::Observations()
 
 void MapLine::SetBadFlag()
 {
-    map<KeyFramePtr, tuple<int,int>> obs;
+    map<KeyFramePtr,size_t> obs;
     {
         unique_lock<mutex> lock1(mMutexFeatures);
         unique_lock<mutex> lock2(mMutexPos);
@@ -324,21 +235,15 @@ void MapLine::SetBadFlag()
         obs = mObservations;
         mObservations.clear();
     }
-    for(map<KeyFramePtr, tuple<int,int>>::iterator mit=obs.begin(), mend=obs.end(); mit!=mend; mit++)
+    for(map<KeyFramePtr,size_t>::iterator mit=obs.begin(), mend=obs.end(); mit!=mend; mit++)
     {
         KeyFramePtr pKF = mit->first;
-        int leftIndex = get<0>(mit -> second), rightIndex = get<1>(mit -> second);
-        if(leftIndex != -1){
-            pKF->EraseMapLineMatch(leftIndex);
-        }
-        if(rightIndex != -1){
-            pKF->EraseMapLineMatch(rightIndex);
-        }
+        pKF->EraseMapLineMatch(mit->second);
     }
 
     //mpMap->EraseMapLine(this);
     mpMap->EraseMapLine(WrapPtr(this));   // N.B.: 1) we use a wrap pointer (empty deleter) since the raw ptr 'this' has not been created with the wrap pointer 
-                                          //       2) the comparison operators for shared_ptr simply compare pointer values        
+                                                       //       2) the comparison operators for shared_ptr simply compare pointer values        
 }
 
 MapLinePtr MapLine::GetReplaced()
@@ -355,7 +260,7 @@ void MapLine::Replace(MapLinePtr& pML)
         return;
 
     int nvisible, nfound;
-    map<KeyFramePtr,tuple<int,int>> obs;
+    map<KeyFramePtr,size_t> obs;
     {
         unique_lock<mutex> lock1(mMutexFeatures);
         unique_lock<mutex> lock2(mMutexPos);
@@ -366,21 +271,21 @@ void MapLine::Replace(MapLinePtr& pML)
         nfound = mnFound;        
         mpReplaced = pML;
         
-#if USE_ENDPOINTS_AVERAGING      
+#if USE_ENDPOINTS_AVERAGING        
         // check associations of end-points and average them 
-        const Eigen::Vector3f start1 = pML->mWorldPosStart; 
-        const Eigen::Vector3f end1 = pML->mWorldPosEnd; 
-        Eigen::Vector3f line1Dir = start1 - end1;         
-        const float normLine1Dir = line1Dir.norm();
-        const float w1 = (float)pML->nObs * normLine1Dir;
-        //const float w1 = normLine1Dir;
+        cv::Mat start1 = pML->mWorldPosStart; // data sharing 
+        cv::Mat end1 = pML->mWorldPosEnd; // data sharing 
+        cv::Mat line1Dir = start1 - end1;         
+        const float normLine1Dir = cv::norm(line1Dir);
+        //const float w1 = (float)pML->nObs * normLine1Dir;
+        const float w1 = normLine1Dir;
         
-        Eigen::Vector3f start2 = this->mWorldPosStart; 
-        Eigen::Vector3f end2 = this->mWorldPosEnd; 
-        Eigen::Vector3f line2Dir = start2 - end2;       
-        const float normLine2Dir = line2Dir.norm();               
-        const float w2 = (float)this->nObs * normLine2Dir;     
-        //const float w2 = normLine2Dir;           
+        cv::Mat start2 = this->mWorldPosStart; // data sharing 
+        cv::Mat end2 = this->mWorldPosEnd; // data sharing 
+        cv::Mat line2Dir = start2 - end2;       
+        const float normLine2Dir = cv::norm(line2Dir);               
+        //const float w2 = (float)this->nObs * normLine2Dir;     
+        const float w2 = normLine2Dir;           
 
         const float wTot = w1+w2;
 
@@ -405,43 +310,32 @@ void MapLine::Replace(MapLinePtr& pML)
                     std::swap(start2, end2); // swap without changing data in the original containers 
                 }
         
-                const Eigen::Vector3f p3DNewStart = (start1 * w1 + start2 * w2) /wTot;
-                const Eigen::Vector3f p3DNewEnd = (end1 * w1 + end2 * w2) /wTot;
-                pML->mWorldPosStart = /*start1 =*/ p3DNewStart;
-                pML->mWorldPosEnd = /*end1 =*/ p3DNewEnd;
+                const float wTotInv = 1.f/wTot;
+                cv::Mat p3DNewStart = (start1 * w1 + start2 * w2) * wTotInv;
+                cv::Mat p3DNewEnd = (end1 * w1 + end2 * w2) * wTotInv;
+                p3DNewStart.copyTo( start1 );
+                p3DNewEnd.copyTo( end1 );
             }
         }
 #endif
         
     }
 
-    for(map<KeyFramePtr,tuple<int,int>>::iterator mit=obs.begin(), mend=obs.end(); mit!=mend; mit++)
+    for(map<KeyFramePtr,size_t>::iterator mit=obs.begin(), mend=obs.end(); mit!=mend; mit++)
     {
         // Replace measurement in keyframe
         KeyFramePtr pKF = mit->first;
 
-        tuple<int,int> indexes = mit -> second;
-        int leftIndex = get<0>(indexes), rightIndex = get<1>(indexes);
-
-        if(!pML->IsInKeyFrame(pKF))
+//        if(!pML->IsInKeyFrame(pKF))
+//        {
+//            pML->AddObservation(pKF,mit->second); // N.B.: here we are guaranteed that the observation is added since we have preliminary checked is not in keyframe
+        if(pML->AddObservation(pKF,mit->second))
         {
-            if(leftIndex != -1){
-                pKF->ReplaceMapLineMatch(leftIndex, pML);
-                pML->AddObservation(pKF,leftIndex);
-            }
-            if(rightIndex != -1){
-                pKF->ReplaceMapLineMatch(rightIndex, pML);
-                pML->AddObservation(pKF,rightIndex);
-            }
+            pKF->ReplaceMapLineMatch(mit->second, pML);  
         }
         else
         {
-            if(leftIndex != -1){
-                pKF->EraseMapLineMatch(leftIndex);
-            }
-            if(rightIndex != -1){
-                pKF->EraseMapLineMatch(rightIndex);
-            }
+            pKF->EraseMapLineMatch(mit->second);
         }
     }
     pML->IncreaseFound(nfound);
@@ -455,10 +349,8 @@ void MapLine::Replace(MapLinePtr& pML)
 
 bool MapLine::isBad()
 {
-    unique_lock<mutex> lock1(mMutexFeatures,std::defer_lock);
-    unique_lock<mutex> lock2(mMutexPos,std::defer_lock);
-    lock(lock1, lock2);
-
+    unique_lock<mutex> lock(mMutexFeatures);
+    unique_lock<mutex> lock2(mMutexPos);
     return mbBad;
 }
 
@@ -488,7 +380,7 @@ void MapLine::ComputeDistinctiveDescriptors()
     // Retrieve all observed descriptors
     vector<cv::Mat> vDescriptors;
 
-    map<KeyFramePtr,tuple<int,int>> observations;
+    map<KeyFramePtr,size_t> observations;
 
     {
         unique_lock<mutex> lock1(mMutexFeatures);
@@ -502,21 +394,12 @@ void MapLine::ComputeDistinctiveDescriptors()
 
     vDescriptors.reserve(observations.size());
 
-    for(map<KeyFramePtr,tuple<int,int>>::iterator mit=observations.begin(), mend=observations.end(); mit!=mend; mit++)
+    for(map<KeyFramePtr,size_t>::iterator mit=observations.begin(), mend=observations.end(); mit!=mend; mit++)
     {
         KeyFramePtr pKF = mit->first;
 
-        if(!pKF->isBad()){
-            tuple<int,int> indexes = mit -> second;
-            int leftIndex = get<0>(indexes), rightIndex = get<1>(indexes);
-
-            if(leftIndex != -1){
-                vDescriptors.push_back(pKF->mLineDescriptors.row(leftIndex));
-            }
-            if(rightIndex != -1){
-                vDescriptors.push_back(pKF->mLineDescriptors.row(rightIndex));
-            }
-        }
+        if(!pKF->isBad())
+            vDescriptors.push_back(pKF->mLineDescriptors.row(mit->second));
     }
 
     if(vDescriptors.empty())
@@ -568,19 +451,19 @@ cv::Mat MapLine::GetDescriptor()
     return mDescriptor.clone();
 }
 
-tuple<int,int> MapLine::GetIndexInKeyFrame(const KeyFramePtr& pKF)
+int MapLine::GetIndexInKeyFrame(const KeyFramePtr& pKF)
 {
     unique_lock<mutex> lock(mMutexFeatures);
 #if !ENABLE_NEW_CHANGES  
     if(mObservations.count(pKF))
         return mObservations[pKF];
 #else
-    auto it = mObservations.find(pKF); 
+    std::map<KeyFramePtr,size_t>::iterator it = mObservations.find(pKF); 
     if( it != mObservations.end()) 
         return it->second;
 #endif    
     else
-        return tuple<int,int>(-1,-1);
+        return -1;
 }
 
 bool MapLine::IsInKeyFrame(const KeyFramePtr& pKF)
@@ -591,10 +474,10 @@ bool MapLine::IsInKeyFrame(const KeyFramePtr& pKF)
 
 void MapLine::UpdateNormalAndDepth()
 {
-    map<KeyFramePtr,tuple<int,int>> observations;
+    map<KeyFramePtr,size_t> observations;
     KeyFramePtr pRefKF;
-    Eigen::Vector3f p3DStart;
-    Eigen::Vector3f p3DEnd;
+    cv::Mat p3DStart;
+    cv::Mat p3DEnd;
     {
         unique_lock<mutex> lock1(mMutexFeatures);
         unique_lock<mutex> lock2(mMutexPos);
@@ -602,8 +485,8 @@ void MapLine::UpdateNormalAndDepth()
             return;
         observations = mObservations;
         pRefKF = mpRefKF;
-        p3DStart = mWorldPosStart;
-        p3DEnd   = mWorldPosEnd;
+        p3DStart = mWorldPosStart.clone();
+        p3DEnd   = mWorldPosEnd.clone();
     }
 
     if(observations.empty())
@@ -611,79 +494,49 @@ void MapLine::UpdateNormalAndDepth()
     
     UdateLength();
 
-    const Eigen::Vector3f p3DMiddle = 0.5*(p3DStart + p3DEnd);
-    Eigen::Vector3f normal = Eigen::Vector3f::Zero();
+    const cv::Mat p3DMiddle = 0.5*(p3DStart + p3DEnd);
+    cv::Mat normal = cv::Mat::zeros(3,1,CV_32F);
     int n=0;
-    for(map<KeyFramePtr,tuple<int,int>>::iterator mit=observations.begin(), mend=observations.end(); mit!=mend; mit++)
+    for(map<KeyFramePtr,size_t>::iterator mit=observations.begin(), mend=observations.end(); mit!=mend; mit++)
     {
         KeyFramePtr pKF = mit->first;
-
-        tuple<int,int> indexes = mit -> second;
-        int leftIndex = get<0>(indexes), rightIndex = get<1>(indexes);
-
-        if(leftIndex != -1){
-            Eigen::Vector3f Owi = pKF->GetCameraCenter();
-            Eigen::Vector3f normali = p3DMiddle - Owi;
-            normal = normal + normali/normali.norm();
-            n++;
-        }
-        if(rightIndex != -1){
-            Eigen::Vector3f Owi = pKF->GetRightCameraCenter();
-            Eigen::Vector3f normali = p3DMiddle - Owi;
-            normal = normal + normali/normali.norm();
-            n++;
-        }
+        const cv::Mat Owi     = pKF->GetCameraCenter();
+        const cv::Mat normali = p3DMiddle - Owi;
+        normal = normal + normali/cv::norm(normali);
+        n++;
     }
 
-    //Eigen::Vector3f PC = Pos - pRefKF->GetCameraCenter();
-    //const float dist = cv::norm(PC);
-
-    const Eigen::Vector3f Ow = pRefKF->GetCameraCenter();
-    float distStart = (p3DStart - Ow).norm();
-    float distEnd   = (p3DEnd - Ow).norm();
-    //float distMiddle = cv::norm(p3DMiddle - Ow);
-
-    tuple<int ,int> indexes = observations[pRefKF];
-    int leftIndex = get<0>(indexes), rightIndex = get<1>(indexes);
-    int level;
-    if(pRefKF -> NlinesLeft == -1){
-        level = pRefKF->mvKeyLinesUn[leftIndex].octave;
-    }
-    else if(leftIndex != -1){
-        level = pRefKF -> mvKeyLines[leftIndex].octave;
-    }
-    else{
-        level = pRefKF -> mvKeyLinesRight[rightIndex - pRefKF -> NlinesLeft].octave;
-    }
-
-    //const int level = pRefKF->mvKeyLinesUn[observations[pRefKF]].octave;
+//    cv::Mat PC = Pos - pRefKF->GetCameraCenter();
+//    const float dist = cv::norm(PC);
+//    const int level = pRefKF->mvKeysUn[observations[pRefKF]].octave;
+//    const float levelScaleFactor =  pRefKF->mvScaleFactors[level];
+//    const int nLevels = pRefKF->mnScaleLevels;
+    
+    const cv::Mat Ow = pRefKF->GetCameraCenter();
+    float distStart = cv::norm(p3DStart - Ow);
+    float distEnd   = cv::norm(p3DEnd - Ow);
+//  float distMiddle = cv::norm(p3DMiddle - Ow);
+    
+    const int level = pRefKF->mvKeyLinesUn[observations[pRefKF]].octave;
     const float levelScaleFactor =  pRefKF->mvLineScaleFactors[level];
-    const int nLevels = pRefKF->mnScaleLevels;
+    const int nLevels = pRefKF->mnLineScaleLevels;    
+
 
     {
         unique_lock<mutex> lock3(mMutexPos);
-        //mfMaxDistance = dist*levelScaleFactor;
-        //mfMinDistance = mfMaxDistance/pRefKF->mvScaleFactors[nLevels-1];
-	    mfMaxDistance = std::max(distStart,distEnd) * levelScaleFactor;
+//        mfMaxDistance = dist*levelScaleFactor;
+//        mfMinDistance = mfMaxDistance/pRefKF->mvScaleFactors[nLevels-1];
+        mfMaxDistance = std::max(distStart,distEnd) * levelScaleFactor;
         mfMinDistance = std::min(distStart,distEnd) * levelScaleFactor/pRefKF->mvLineScaleFactors[nLevels-1];
-
-        mNormalVector = normal/n;
-        mNormalVector.normalize();
+        mNormalVector = normal/n;           
         //mNormalVector = mNormalVector/cv::norm(mNormalVector);
-        //mNormalVectorx = cv::Matx31f(mNormalVector.at<float>(0), mNormalVector.at<float>(1), mNormalVector.at<float>(2));        
+             
     }
 }
 
 void MapLine::UdateLength()
 {
-    //mfLength = cv::norm(mWorldPosStart - mWorldPosEnd);
-    mfLength = (mWorldPosStart - mWorldPosEnd).norm();
-}
-
-void MapLine::SetNormalVector(Eigen::Vector3f& normal)
-{
-    unique_lock<mutex> lock3(mMutexPos);
-    mNormalVector = normal;
+    mfLength = cv::norm(mWorldPosStart - mWorldPosEnd);
 }
 
 float MapLine::GetMinDistanceInvariance()
@@ -740,210 +593,52 @@ long unsigned int MapLine::GetCurrentMaxId()
     return nNextId;    
 }
 
-void MapLine::PrintObservations()
-{
-    cout << "ML_OBS: ML " << mnId << endl;
-    for(map<KeyFramePtr,tuple<int,int>>::iterator mit=mObservations.begin(), mend=mObservations.end(); mit!=mend; mit++)
-    {
-        KeyFramePtr pKFi = mit->first;
-        tuple<int,int> indexes = mit->second;
-        int leftIndex = get<0>(indexes), rightIndex = get<1>(indexes);
-        cout << "--OBS in KF " << pKFi->mnId << " in map " << pKFi->GetMap()->GetId() << endl;
-    }
-}
-
-Map* MapLine::GetMap()
-{
-    unique_lock<mutex> lock(mMutexMap);
-    return mpMap;
-}
-
-void MapLine::UpdateMap(Map* pMap)
-{
-    unique_lock<mutex> lock(mMutexMap);
-    mpMap = pMap;
-}
-
-void MapLine::PreSave(set<KeyFramePtr>& spKF,set<MapLinePtr>& spML)
-{
-    mBackupReplacedId = -1;
-    if(mpReplaced && spML.find(mpReplaced) != spML.end())
-        mBackupReplacedId = mpReplaced->mnId;
-
-    mBackupObservationsId1.clear();
-    mBackupObservationsId2.clear();
-    // Save the id and position in each KF who view it
-    for(std::map<KeyFramePtr,std::tuple<int,int> >::const_iterator it = mObservations.begin(), end = mObservations.end(); it != end; ++it)
-    {
-        KeyFramePtr pKFi = it->first;
-        if(spKF.find(pKFi) != spKF.end())
-        {
-            mBackupObservationsId1[it->first->mnId] = get<0>(it->second);
-            mBackupObservationsId2[it->first->mnId] = get<1>(it->second);
-        }
-        else
-        {
-            EraseObservation(pKFi);
-        }
-    }
-
-    // Save the id of the reference KF
-    if(spKF.find(mpRefKF) != spKF.end())
-    {
-        mBackupRefKFId = mpRefKF->mnId;
-    }
-}
-
-void MapLine::PostLoad(map<long unsigned int, KeyFramePtr>& mpKFid, map<long unsigned int, MapLinePtr>& mpMLid)
-{
-    mpRefKF = mpKFid[mBackupRefKFId];
-    if(!mpRefKF)
-    {
-        cout << "MP without KF reference " << mBackupRefKFId << "; Num obs: " << nObs << endl;
-    }
-    mpReplaced = static_cast<MapLinePtr>(NULL);
-    if(mBackupReplacedId>=0)
-    {
-       map<long unsigned int, MapLinePtr>::iterator it = mpMLid.find(mBackupReplacedId);
-       if (it != mpMLid.end())
-        mpReplaced = it->second;
-    }
-
-    mObservations.clear();
-
-    for(map<long unsigned int, int>::const_iterator it = mBackupObservationsId1.begin(), end = mBackupObservationsId1.end(); it != end; ++it)
-    {
-        KeyFramePtr pKFi = mpKFid[it->first];
-        map<long unsigned int, int>::const_iterator it2 = mBackupObservationsId2.find(it->first);
-        std::tuple<int, int> indexes = tuple<int,int>(it->second,it2->second);
-        if(pKFi)
-        {
-           mObservations[pKFi] = indexes;
-        }
-    }
-
-    mBackupObservationsId1.clear();
-    mBackupObservationsId2.clear();
-}
-
+MapLine::MapLine():
+    mnFirstKFid(-1), mnFirstFrame(0), nObs(0), mnTrackReferenceForFrame(0),
+    mnLastFrameSeen(0), mnBALocalForKF(0), mnFuseCandidateForKF(0), mnLoopPointForKF(0), mnCorrectedByKF(0),
+    mnCorrectedReference(0), mnBAGlobalForKF(0), mpRefKF(static_cast<KeyFramePtr>(NULL)), mnVisible(1), mnFound(1), mbBad(false),
+    mpReplaced(static_cast<MapLinePtr>(NULL)), mfMinDistance(0), mfMaxDistance(0), mpMap(0), muNumLineBAFailures(0)
+{}
 template<class Archive>
-void MapLine::serialize(Archive & ar, const unsigned int version)
+void MapLine::serialize(Archive &ar, const unsigned int version) 
 {
     UNUSED_VAR(version);
-    
-    using namespace boost::serialization; 
-    
-    //std::cout << "saving line " << mnId << std::endl; 
-    
-    ar & mnId;
-    ar & nNextId; // Luigi: added this 
-    ar & mnFirstKFid;
-    ar & mnFirstFrame;
-    ar & nObs;
-    // Variables used by the tracking
-
-    // ar & mTrackProjStartX;
-    // ar & mTrackProjStartY;
-    // ar & mTrackStartDepth;
-    // ar & mTrackStartDepthR;
-    // ar & mTrackProjStartXR;
-    // ar & mTrackProjStartYR;
-
-    // ar & mTrackProjEndX;
-    // ar & mTrackProjEndY;
-    // ar & mTrackEndDepth;
-    // ar & mTrackEndDepthR;
-    // ar & mTrackProjEndXR;
-    // ar & mTrackProjEndYR;
-
-    // ar & mTrackProjMiddleX;
-    // ar & mTrackProjMiddleY;
-    // ar & mTrackMiddleDepth;
-    // ar & mTrackMiddleDepthR;
-    // ar & mTrackProjMiddleXR;
-    // ar & mTrackProjMiddleYR;
-
-    // ar & mbTrackInView;
-    // ar & mbTrackInViewR;
-    // ar & mnTrackScaleLevel;
-    // ar & mnTrackScaleLevelR;
-    // ar & mTrackViewCos;
-    // ar & mTrackViewCosR;
-    // ar & mnTrackReferenceForFrame;
-    // ar & mnLastFrameSeen;
-
-    // Variables used by local mapping
-    // ar & mnBALocalForKF;
-    // ar & mnFuseCandidateForKF;
-
-    // // Variables used by loop closing and merging
-    // ar & mnLoopPointForKF;
-    // ar & mnCorrectedByKF;
-    // ar & mnCorrectedReference;
-
-    //serializeMatrix(ar,mPosStartGBA,version);
-    //serializeMatrix(ar,mPosEndGBA,version);
-    // ar & mPosStartGBA;
-    // ar & mPosEndGBA;
-
-    // ar & mnBAGlobalForKF;
-    // ar & mnBALocalForMerge;
-    
-    ar & muNumLineBAFailures;    
-
-    //serializeMatrix(ar,mPosStartMerge,version);
-    //serializeMatrix(ar,mPosEndMerge,version);
-    // ar & mPosStartMerge;
-    // ar & mPosEndMerge;
-    
-    //serializeMatrix(ar,mNormalVectorMerge,version);
-    // ar & mNormalVectorMerge;
-    
-    ar & mInvDepthStart;
-    ar & mInitUStart;
-    ar & mInitVStart;
-    ar & mInvDepthEnd;
-    ar & mInitUEnd;
-    ar & mInitVEnd;
-
-    // Protected variables
-    //serializeMatrix(ar,mWorldPosStart,version);
-    //serializeMatrix(ar,mWorldPosEnd,version);
-    //ar & mWorldPosStart;
-    ar & boost::serialization::make_array(mWorldPosStart.data(), mWorldPosStart.size());
-    //ar & mWorldPosEnd;      
-    ar & boost::serialization::make_array(mWorldPosEnd.data(), mWorldPosEnd.size());
-    
+        
+    ar & mnId & nNextId & mnFirstKFid & mnFirstFrame & nObs;
+    // Tracking related vars
+    ar & mTrackProjStartX;
+    ar & mTrackProjStartY;
+    ar & mTrackProjStartXR;
+    ar & mTrackProjEndX;
+    ar & mTrackProjEndY;
+    ar & mTrackProjEndXR; 
+    ar & mTrackProjMiddleX;
+    ar & mTrackProjMiddleY;
+    ar & mTrackProjMiddleXR;       
+    ar & mbTrackInView;
+    ar & mnTrackScaleLevel;
+    ar & mTrackViewCos;
+    ar & mnTrackReferenceForFrame;
+    ar & mnLastFrameSeen;
+    // Local Mapping related vars
+    ar & mnBALocalForKF & mnFuseCandidateForKF;
+    // Loop Closing related vars
+    ar & mnLoopPointForKF & mnCorrectedByKF & mnCorrectedReference & mPosStartGBA & mPosEndGBA & mnBAGlobalForKF;
+    ar & muNumLineBAFailures;
+    // don't save the mutex
+    ar & mWorldPosStart & mWorldPosEnd;
     ar & mfLength;
     ar & mObservations;
-
-    //ar & BOOST_SERIALIZATION_NVP(mBackupObservationsId);
-    //ar & mBackupObservationsId1;
-    //ar & mBackupObservationsId2;
-    
-    //serializeMatrix(ar,mNormalVector,version);
-    //serializeMatrix(ar,mDescriptor,version);
-    //ar & mNormalVector;
-    ar & boost::serialization::make_array(mNormalVector.data(), mNormalVector.size());
-    
+    ar & mNormalVector;
     ar & mDescriptor;
-    
-    ar & mpRefKF; // Luigi: added this 
-    //ar & mBackupRefKFId;
-    ar & mnVisible;
-    ar & mnFound;
-
-    ar & mbBad;
-    ar & mpReplaced; // Luigi: added this 
-    //ar & mBackupReplacedId;
-
-    ar & mfMinDistance;
-    ar & mfMaxDistance;
-    ar & mpMap; // Luigi: added this 
+    ar & mpRefKF;
+    ar & mnVisible & mnFound;
+    ar & mbBad & mpReplaced;
+    ar & mfMinDistance & mfMaxDistance;
+    ar & mpMap;
+    // don't save the mutex
 }
-template void MapLine::serialize(boost::archive::binary_iarchive &, const unsigned int);
-template void MapLine::serialize(boost::archive::binary_oarchive &, const unsigned int);
-template void MapLine::serialize(boost::archive::text_iarchive&, const unsigned int);
-template void MapLine::serialize(boost::archive::text_oarchive&, const unsigned int);
+template void MapLine::serialize(boost::archive::binary_iarchive&, const unsigned int);
+template void MapLine::serialize(boost::archive::binary_oarchive&, const unsigned int);
 
-} //namespace PLVS2
+} //namespace PLVS

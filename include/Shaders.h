@@ -47,7 +47,7 @@
 #define XSTR(x) #x
 #define STR(x) XSTR(x)
 
-namespace PLVS2  
+namespace PLVS  
 {
 
 class Uniform
@@ -235,6 +235,6 @@ static inline std::shared_ptr<Shader> loadProgramFromFile(const std::string& ver
     return program;
 }
 
-} // namespace PLVS2
+} // namespace PLVS
 
 #endif /* SHADERS_SHADERS_H_ */

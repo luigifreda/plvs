@@ -43,11 +43,11 @@
 
 
 
-namespace PLVS2
+namespace PLVS
 {
 
 template<typename PointT>
-PointCloudMapFastFusion<PointT>::PointCloudMapFastFusion(Map* pMap, const std::shared_ptr<PointCloudMapParameters>& params) : PointCloudMap<PointT>(pMap, params)
+PointCloudMapFastFusion<PointT>::PointCloudMapFastFusion(double resolution_in, double min_range, double max_range, bool useCarving_in) : PointCloudMap<PointT>(resolution_in)//,octree_(this->resolution_)
 {
     useColor = true;
 
@@ -55,11 +55,11 @@ PointCloudMapFastFusion<PointT>::PointCloudMapFastFusion(Map* pMap, const std::s
     performIncrementalMeshing = true;
     depthConstistencyChecks = 0;
 
-    scale = params->resolution;
+    scale = resolution_in;
     //distanceThreshold = sqrt(3) * resolution_in;
-    distanceThreshold = 2 * sqrt(3) * params->resolution;
+    distanceThreshold = 2 * sqrt(3) * resolution_in;
 
-    //this->bPerformCarving_ = useCarving_in;
+    this->bPerformCarving_ = useCarving_in;
 
     Init();
 }
@@ -109,13 +109,12 @@ void PointCloudMapFastFusion<PointT>::InsertData(typename PointCloudMapInput<Poi
     intrinsic.at<double>(1, 2) = depthCameraModel_.cy;
     cameraInfo.setIntrinsic(intrinsic);
 
-    Sophus::SE3f Twc = pData->pPointCloudKeyFrame->GetCameraPose();
-    pData->pPointCloudKeyFrame->TwcIntegration = Twc; 
+    cv::Mat Twc_float = pData->pPointCloudKeyFrame->GetCameraPose();
+    pData->pPointCloudKeyFrame->TwcIntegration = Twc_float; 
         
-    //cv::Mat Twc_double;
-    //Twc_float.convertTo(Twc_double, CV_64F);
-    cv::Mat cvTwc_double = Converter::toCvSE3d(Twc);
-    cameraInfo.setExtrinsic(cvTwc_double);
+    cv::Mat Twc_double;
+    Twc_float.convertTo(Twc_double, CV_64F);
+    cameraInfo.setExtrinsic(Twc_double);
 
     cv::Mat depthImage;
     float scale = 5000.0f;
@@ -245,7 +244,7 @@ int PointCloudMapFastFusion<PointT>::UpdateMap()
         const size_t ii = faces[f];
         if (ii + 2 >= numVertices) 
         {
-            std::cerr << " ERROR: face " << ii << " with illegal index! " << std::endl;
+            std::cerr << " ERROR: face with illegal index! " << std::endl;
             continue;
         }
         const float d1x = vertices[ii + 0].x - vertices[ii + 2].x;
@@ -303,15 +302,12 @@ void PointCloudMapFastFusion<PointT>::Clear()
 {
 #ifdef USE_FASTFUSION    
     std::cout << "PointCloudMapFastFusion<PointT>::Clear()" << std::endl;
-    
+
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
-    
-    //if(PointCloudMap<PointT>::pPointCloud_->empty()) return; 
-    
+
     pFusion_.reset();
     pCurrentMeshInterleaved_.reset();
     
-    ///  < FIXME: this Init() may generate a CRASH (there could be a problem in FusionMipMapCPU destructor)    
     Init(); 
 
     /// < clear basic class !
@@ -327,13 +323,13 @@ void PointCloudMapFastFusion<PointT>::OnMapChange()
 
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
 
-    if (this->pPointCloudMapParameters_->bResetOnSparseMapChange)
+    if (this->bResetOnSparseMapChange_)
     {
         std::cout << "PointCloudMapFastFusion<PointT>::OnMapChange() - reset " << std::endl;
         pFusion_.reset();
         pCurrentMeshInterleaved_.reset();
         
-        ///  < FIXME: this Init() may generate a CRASH (there could be a problem in FusionMipMapCPU destructor)
+        ///  < FIXME: this Init() generates a CRASH (there should be a problem in FusionMipMapCPU destructor)
         Init();
     }
 #endif     
@@ -423,4 +419,4 @@ bool PointCloudMapFastFusion<PointT>::LoadMap(const std::string& filename)
 
 
 
-} //namespace PLVS2
+} //namespace PLVS

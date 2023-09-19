@@ -35,166 +35,47 @@
 #include "Converter.h"
 #include "Utils.h"
 #include "Stopwatch.h"
-#include "KeyFrame.h"
-#include "Map.h"
 
 
 
-namespace PLVS2
+namespace PLVS
 {
+
+
+template<typename PointT>
+const double PointCloudMap<PointT>::kDefaultResolution = 0.05;
+
+template<typename PointT>
+const float PointCloudMap<PointT>::kMinCosForNormalAssociation = cos(20 * M_PI / 180);
 
 template<typename PointT>
 const double PointCloudMap<PointT>::kNormThresholdForEqualMatrices = 1e-5; 
 
 template<typename PointT>
-PointCloudMap<PointT>::PointCloudMap(Map* pMap, const std::shared_ptr<PointCloudMapParameters>& params):
-mpMap(pMap), pPointCloudMapParameters_(params), lastTimestamp_(0), bMapUpdated_(false) 
+PointCloudMap<PointT>::PointCloudMap(double resolution_in) :
+resolution_(resolution_in), bResetOnSparseMapChange_(true), bCloudDeformationOnSparseMapChange_(false), lastTimestamp_(0),
+bMapUpdated_(false), bRemoveUnstablePoints_(true), bPerformSegmentation_(false), bPerformCarving_(false),
+minCosForNormalAssociation_(PointCloudMap<PointT>::kMinCosForNormalAssociation)
 {
-    PLVS_ASSERT(mpMap!=NULL,"PointCloudMap should be initialized with a valid Map!");
-        
     pPointCloud_ = boost::make_shared< PointCloudT >();
     pPointCloudUnstable_ = boost::make_shared< PointCloudT >();
 }
 
 template<typename PointT>
-void PointCloudMap<PointT>::SetCorrespondingSparseMap(Map* pMap) 
-{ 
-    PLVS_ASSERT(mpMap!=NULL,"PointCloudMap should be initialized with a valid Map!");
-    
-    std::unique_lock<std::recursive_timed_mutex> lock(pointCloudMutex_);  
-    mpMap = pMap; 
-}
-
-template<typename PointT>
-Map* PointCloudMap<PointT>::GetCorrespodingSparseMap() 
-{ 
-    std::unique_lock<std::recursive_timed_mutex> lock(pointCloudMutex_);     
-    return mpMap; 
-}
-//
-//template<typename PointT>
-//void PointCloudMap<PointT>::InsertKeyFrame(typename PointCloudKeyFrame<PointT>::Ptr pcKeyFrame)
-//{
-//    KeyFramePtr& pKF = pcKeyFrame->pKF;
-//    cout << "receive a keyframe, id = " << pKF->mnId << endl;
-//    if(baseKeyframeId_< 0) baseKeyframeId_ = pKF->mnId; 
-//
-//    unique_lock<mutex> lck(keyframesMutex_);
-//
-//    //pcKeyFrame->Init(); // N.B.: no memory sharing for color and depth  
-//    
-//    if(pcKeyframes_.empty()) 
-//    {
-//        //mnInitKFid_ = pKF->mnId;
-//        mpKFinitial_ = pcKeyFrame;
-//        //mpKFlowerID_ = pcKeyFrame;        
-//    }
-////    if(pKF->mnId > mnMaxKFid_)
-////    {
-////        mnMaxKFid_ = pKF->mnId;
-////    }
-////    if(pKF->mnId < mpKFlowerID_->pKF->mnId)
-////    {
-////        mpKFlowerID_ = pcKeyFrame;
-////    }    
-//    
-//    pcKeyframesIn_.push_back(pcKeyFrame);
-//
-//    bKeyframesAvailable_ = true;
-//    
-////    if (pcKeyframesIn_.size() >= numKeyframesToQueueBeforeProcessing_)
-////    {
-////        keyFramesCond_.notify_one();
-////    }       
-//}
-
-template<typename PointT>
-long unsigned int PointCloudMap<PointT>::GetId()
-{
-    std::unique_lock<std::recursive_timed_mutex> lock(pointCloudMutex_);    
-    return mpMap->GetId();
-}
-
-template<typename PointT>
-long unsigned int PointCloudMap<PointT>::GetInitKFid()
-{
-    std::unique_lock<std::recursive_timed_mutex> lock(pointCloudMutex_);
-    return mpMap->GetInitKFid();
-}
-
-template<typename PointT>
-long unsigned int PointCloudMap<PointT>::GetMaxKFid()
-{
-    std::unique_lock<std::recursive_timed_mutex> lock(pointCloudMutex_);
-    return mpMap->GetMaxKFid();
-}
-
-//template<typename PointT>
-//typename PointCloudKeyFrame<PointT>::Ptr PointCloudMap<PointT>::GetOriginKF()
-//{
-//    return mpKFinitial_;
-//}
-
-template<typename PointT>
-bool PointCloudMap<PointT>::IsBad()
-{
-    std::unique_lock<std::recursive_timed_mutex> lock(pointCloudMutex_);    
-    return mpMap->IsBad();    
-}
-
-//template<typename PointT>
-//void PointCloudMap<PointT>::SetBad()
-//{
-//    mbBad_ = true;    
-//}
-
-
-template<typename PointT>
-void PointCloudMap<PointT>::SetCurrentMap()
-{
-    mIsInUse_ = true;
-}
-
-template<typename PointT>
-void PointCloudMap<PointT>::SetStoredMap()
-{
-    mIsInUse_ = false;
-}
-
-//// reset the full data structure
-//template<typename PointT>
-//void PointCloudMap<PointT>::Reset()
-//{
-//    std::cout << "PointCloudMap::Reset() - start " << std::endl;
-//
-//    unique_lock<mutex> lck(keyframesMutex_); // block the insertion of new frames
-//
-//    bKeyframesAvailable_ = false;
-//    bKeyframesToInsertInMap_ = false; 
-//    
-//    pcKeyframesIn_.clear();
-//
-//    {
-//        std::unique_lock<std::recursive_timed_mutex> lck(pointCloudMutex_);
-//        this->Clear();
-//    }
-//
-//    {
-//        std::unique_lock<std::mutex> lck(pcKeyframesMutex_);
-//        pcKeyframes_.clear();
-//        lastKeyframeIndex_ = 0;
-//        
-//        pcKeyframesToReinsert_.clear();
-//    }
-//    std::cout << "PointCloudMap::Reset() - end" << std::endl;    
-//}
-
-// clear the point cloud 
-template<typename PointT>
 void PointCloudMap<PointT>::Clear()
 {
     std::unique_lock<std::recursive_timed_mutex> lck(pointCloudMutex_);
     if (pPointCloud_) pPointCloud_->clear();
+}
+
+template<typename PointT>
+void PointCloudMap<PointT>::UpdateMapTimestamp()
+{
+    std::unique_lock<std::recursive_timed_mutex> lck(pointCloudMutex_);
+    if (pPointCloud_) pPointCloud_->header.stamp = TimeUtils::getTimestamp();
+    if (pPointCloudUnstable_) pPointCloudUnstable_->header.stamp = (pPointCloud_ ? pPointCloud_->header.stamp : 0);
+
+    bMapUpdated_ = true;
 }
 
 template<typename PointT>
@@ -213,34 +94,29 @@ void PointCloudMap<PointT>::ResetPointCloud()
 }
 
 template<typename PointT>
-void PointCloudMap<PointT>::UpdateMapTimestamp()
-{
-    std::unique_lock<std::recursive_timed_mutex> lck(pointCloudMutex_);
-    if (pPointCloud_) pPointCloud_->header.stamp = TimeUtils::getTimestamp();
-    if (pPointCloudUnstable_) pPointCloudUnstable_->header.stamp = (pPointCloud_ ? pPointCloud_->header.stamp : 0);
-
-    bMapUpdated_ = true;
-}
-
-template<typename PointT>
 void PointCloudMap<PointT>::TransformCameraCloudInWorldFrame(typename PointCloudT::ConstPtr pCloudCamera,
-                                                             const Eigen::Isometry3d& Twc,
+                                                             const cv::Mat& Twc,
                                                              typename PointCloudT::Ptr pCloudWorld)
 {
+    // N.B.: keep this consistent with the following function, which does the same job 
+    Eigen::Isometry3d T = PLVS::Converter::toSE3Quat(Twc);
+
 #if !USE_NORMALS
-    pcl::transformPointCloud(*pCloudCamera, *pCloudWorld, Twc.matrix());
+    pcl::transformPointCloud(*pCloudCamera, *pCloudWorld, T.matrix());
 #else
-    pcl::transformPointCloudWithNormals(*pCloudCamera, *pCloudWorld, Twc.matrix());
+    pcl::transformPointCloudWithNormals(*pCloudCamera, *pCloudWorld, T.matrix());
 #endif
 }
 
 template<typename PointT>
-void PointCloudMap<PointT>::TransformCameraCloudInWorldFrame(const PointCloudT& cloudCamera, const Eigen::Isometry3d& Twc, PointCloudT& cloudWorld)
+void PointCloudMap<PointT>::TransformCameraCloudInWorldFrame(const PointCloudT& cloudCamera, const cv::Mat& Twc, PointCloudT& cloudWorld)
 {
+    Eigen::Isometry3d T = PLVS::Converter::toSE3Quat(Twc);
+
 #if !USE_NORMALS
-    pcl::transformPointCloud(cloudCamera, cloudWorld, Twc.matrix());
+    pcl::transformPointCloud(cloudCamera, cloudWorld, T.matrix());
 #else
-    pcl::transformPointCloudWithNormals(cloudCamera, cloudWorld, Twc.matrix());
+    pcl::transformPointCloudWithNormals(cloudCamera, cloudWorld, T.matrix());
 #endif    
 }
 
@@ -543,4 +419,4 @@ void PointCloudMap<PointT>::ComputeNormals(typename PointCloudT::Ptr pCloud)
     
 }
 
-} //namespace PLVS2
+} //namespace PLVS

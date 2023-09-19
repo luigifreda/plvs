@@ -90,7 +90,7 @@ static const GLfloat quad_data[] =
 static const int quad_data_size = 4;
 
 
-namespace PLVS2
+namespace PLVS
 {
 
 PointCloudDrawer::PointCloudDrawer()
@@ -134,8 +134,8 @@ void PointCloudDrawer::SetPointCloudMapping(std::shared_ptr<PointCloudMapping> p
 {
     pPointCloudMapping_ = pPointCloudMapping;
 
-    if( (pPointCloudMapping_->GetMapType() == PointCloudMapTypes::kChisel) ||
-        (pPointCloudMapping_->GetMapType() == PointCloudMapTypes::kVoxblox)
+    if( (pPointCloudMapping_->GetMapType() == PointCloudMapping::kChisel) ||
+        (pPointCloudMapping_->GetMapType() == PointCloudMapping::kVoxblox)
       )
     {
         glDrawingModePoints_ = GL_TRIANGLES;
@@ -172,7 +172,7 @@ void PointCloudDrawer::RefreshPC()
     std::chrono::monotonic_clock::time_point t1 = std::chrono::monotonic_clock::now();
 #endif
 
-    std::uint64_t current_cloud_timestamp = pPointCloudMapping_->GetMapTimestamp();
+    pcl::uint64_t current_cloud_timestamp = pPointCloudMapping_->GetMapTimestamp();
     if (current_cloud_timestamp > cloud_timestamp_)
     {
         //std::cout << "PointCloudDrawer::refreshPC() - asking new point cloud" << std::endl;
@@ -643,4 +643,4 @@ void PointCloudDrawer::SetLabelConfidenceThreshold(const unsigned int th)
     labelConfidenceThreshold_ = th;
 }
 
-} //namespace PLVS2
+} //namespace PLVS

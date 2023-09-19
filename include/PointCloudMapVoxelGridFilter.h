@@ -27,7 +27,7 @@
 #include <memory>
 #include <unordered_map>
 
-namespace PLVS2
+namespace PLVS
 {
 
 template<typename PointT>
@@ -49,7 +49,7 @@ public:
 
 public:
 
-    PointCloudMapVoxelGridFilter(Map* pMap, const std::shared_ptr<PointCloudMapParameters>& params);
+    PointCloudMapVoxelGridFilter(double resolution_in = PointCloudMap<PointT>::kDefaultResolution);
 
     void InsertCloud(typename PointCloudT::ConstPtr cloud_world, double x_sensor_origin, double y_sensor_origin, double z_sensor_origin, double max_range);
 
@@ -120,7 +120,7 @@ public:
 
 public:
 
-    PointCloudMapVoxelGridFilterActive(Map* pMap, const std::shared_ptr<PointCloudMapParameters>& params);
+    PointCloudMapVoxelGridFilterActive(double resolution_in = PointCloudMap<PointT>::kDefaultResolution);
 
     void InsertCloud(typename PointCloudT::ConstPtr cloud_world, double x_sensor_origin, double y_sensor_origin, double z_sensor_origin, double max_range);
 
@@ -164,7 +164,7 @@ template class PointCloudMapVoxelGridFilterActive<pcl::PointSurfelSegment>;
 
 #endif
 
-} //namespace PLVS2
+} //namespace PLVS
 
 
 

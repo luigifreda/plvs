@@ -30,7 +30,7 @@ class PinholeCamera;
 }
 
 
-namespace PLVS2
+namespace PLVS
 {
 
 ///	\class PointCloudMapOctreePointCloud
@@ -48,7 +48,7 @@ public:
     static const int kFactorCarvingThreshold; 
     static const float kMinCarvingThreshold; 
     static const int kFactorSigmaZ; 
-    static const std::uint64_t kDeltaTimeForCleaningUnstablePointsUs; // [microseconds]
+    static const pcl::uint64_t kDeltaTimeForCleaningUnstablePointsUs; // [microseconds]
     
     enum PropertyType {kPointCounterThreshold=0, kNone};
     
@@ -63,7 +63,7 @@ public:
 
 public:
 
-    PointCloudMapOctreePointCloud(Map* pMap, const std::shared_ptr<PointCloudMapParameters>& params);
+    PointCloudMapOctreePointCloud(double resolution_in = PointCloudMap<PointT>::kDefaultResolution, int point_counter_threshold = kDefaultPointCounterThreshold, bool useCarving_in = false);
     
     void SetDepthCameraModel(const CameraModelParams& params);
     
@@ -77,9 +77,9 @@ public:
     
     //void InsertCloudWithDepthOld(typename PointCloudT::ConstPtr cloud_world, const cv::Mat& Twc, const cv::Mat& depthImage, double max_range);
     
-    void InsertCloudWithDepthOld(typename PointCloudT::Ptr cloud_world, typename PointCloudMapInput<PointT>::Ptr pData, const Sophus::SE3f& Twc);
-    void InsertCloudWithDepthNoSegm(typename PointCloudT::Ptr cloud_world, typename PointCloudMapInput<PointT>::Ptr pData, const Sophus::SE3f& Twc);
-    void InsertCloudWithDepthSegm(typename PointCloudT::Ptr cloud_world, typename PointCloudMapInput<PointT>::Ptr pData, const Sophus::SE3f& Twc);
+    void InsertCloudWithDepthOld(typename PointCloudT::Ptr cloud_world, typename PointCloudMapInput<PointT>::Ptr pData, const cv::Mat& Twc);
+    void InsertCloudWithDepthNoSegm(typename PointCloudT::Ptr cloud_world, typename PointCloudMapInput<PointT>::Ptr pData, const cv::Mat& Twc);
+    void InsertCloudWithDepthSegm(typename PointCloudT::Ptr cloud_world, typename PointCloudMapInput<PointT>::Ptr pData, const cv::Mat& Twc);
     
     void InsertData(typename PointCloudMapInput<PointT>::Ptr pData);
         
@@ -105,7 +105,7 @@ protected:
     
     pcl::VoxelGrid<PointT> voxelFilter_;
     
-    //int nPointCounterThreshold_;
+    int nPointCounterThreshold_;
     float carvingThreshold_; 
     
     std::shared_ptr<chisel::PinholeCamera> pDepthCameraModel_;
@@ -127,7 +127,7 @@ template class PointCloudMapOctreePointCloud<pcl::PointSurfelSegment>;
 
 #endif
 
-} //namespace PLVS2
+} //namespace PLVS
 
 
 

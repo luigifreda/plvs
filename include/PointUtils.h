@@ -27,7 +27,7 @@
 #include <pcl/kdtree/kdtree_flann.h>
 
 
-namespace PLVS2
+namespace PLVS
 {
 
 namespace PointUtils
@@ -60,21 +60,6 @@ inline void transformPoint(const PointT& mapPointW, const cv::Mat& Rcw, const cv
     mapPointC.z = mPc.at<float>(2);
 }
 
-template <class PointT, typename std::enable_if<!pcl::traits::has_field<PointT, pcl::fields::normal_x>::value>::type* = nullptr>
-inline void transformPoint(const PointT& mapPointW, const Eigen::Matrix3f& Rcw, const Eigen::Vector3f& tcw, PointT& mapPointC)
-{
-    mapPointC = mapPointW;
-    
-    const Eigen::Vector3f mPw(mapPointW.x, mapPointW.y, mapPointW.z);
-
-    // 3D in camera coordinates
-    const Eigen::Vector3f mPc = Rcw * mPw + tcw;
-    
-    mapPointC.x = mPc(0);
-    mapPointC.y = mPc(1);
-    mapPointC.z = mPc(2);
-}
-
 
 template <class PointT, typename std::enable_if<pcl::traits::has_field<PointT, pcl::fields::normal_x>::value>::type* = nullptr>
 inline void transformPoint(const PointT& mapPointW, const cv::Mat& Rcw, const cv::Mat& tcw, PointT& mapPointC)
@@ -95,27 +80,6 @@ inline void transformPoint(const PointT& mapPointW, const cv::Mat& Rcw, const cv
     mapPointC.normal_x = normalc.at<float>(0);
     mapPointC.normal_y = normalc.at<float>(1);
     mapPointC.normal_z = normalc.at<float>(2);
-}
-
-template <class PointT, typename std::enable_if<pcl::traits::has_field<PointT, pcl::fields::normal_x>::value>::type* = nullptr>
-inline void transformPoint(const PointT& mapPointW, const Eigen::Matrix3f& Rcw, const Eigen::Vector3f& tcw, PointT& mapPointC)
-{
-    mapPointC = mapPointW;
-    
-    const Eigen::Vector3f mPw(mapPointW.x, mapPointW.y, mapPointW.z);
-    const Eigen::Vector3f normalw(mapPointW.normal_x, mapPointW.normal_y, mapPointW.normal_z);
-
-    // 3D in camera coordinates
-    const Eigen::Vector3f mPc     = Rcw * mPw + tcw;
-    const Eigen::Vector3f normalc = Rcw * normalw;
-    
-    mapPointC.x = mPc(0);
-    mapPointC.y = mPc(1);
-    mapPointC.z = mPc(2);
-    
-    mapPointC.normal_x = normalc(0);
-    mapPointC.normal_y = normalc(1);
-    mapPointC.normal_z = normalc(2);
 }
 
 template <typename T> 
@@ -366,7 +330,7 @@ inline void setKFid(PointT& point, const int& kfid)
 
 } //namespace PointUtils
 
-} //namespace PLVS2
+} //namespace PLVS
 
 
 #endif /* POINTUTILS_H */

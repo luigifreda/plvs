@@ -8,7 +8,7 @@
 #include <cuda_runtime.h>
 #include <cuda/Cuda.hpp>
 
-namespace PLVS2
+namespace PLVS
 {
 namespace cuda
 {

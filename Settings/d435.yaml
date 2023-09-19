@@ -148,7 +148,7 @@ PointCloudMapping.downSampleStep: 2
 PointCloudMapping.minDepth: 0.1
 PointCloudMapping.maxDepth: 10
 PointCloudMapping.removeUnstablePoints: 1
-PointCloudMapping.resetOnSparseMapChange: 1
+PointCloudMapping.resetVoxelsOnMapChange: 1
 
 # [octree_point] specific params
 PointCloudMapping.pointCounterThreshold: 2

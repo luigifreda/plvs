@@ -25,7 +25,7 @@
 #include <limits>
 #include <Eigen/Core>
 
-namespace PLVS2
+namespace PLVS
 {
 
 
@@ -160,6 +160,6 @@ public:
 
 };
 
-}// namespace PLVS2
+}// namespace PLVS
 
 #endif 

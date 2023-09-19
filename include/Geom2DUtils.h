@@ -25,7 +25,7 @@
 #include <limits>
 #include <Eigen/Core>
 
-namespace PLVS2
+namespace PLVS
 {
 
 class Line2DRepresentation
@@ -147,7 +147,14 @@ public:
         lineRepresentation.nx *= nNormInv;
         lineRepresentation.ny *= nNormInv;
         
-        lineRepresentation.d = lineRepresentation.nx*xe + lineRepresentation.ny*ye;
+        // singularity 
+        /*if( ( fabs(lineRepresentation.nx)< 1e-3 ) && (lineRepresentation.ny<0) )
+        {
+            lineRepresentation.nx *= -1.0f;
+            lineRepresentation.ny *= -1.0f;
+        }*/
+        
+        lineRepresentation.d = lineRepresentation.nx * xe + lineRepresentation.ny*ye;
         /// < lineRepresentation.theta = atan2(lineRepresentation.ny, lineRepresentation.nx);
     }
         
@@ -155,7 +162,7 @@ public:
     {
         GetLine2dRepresentationNoTheta(xs,ys,xe,ye,lineRepresentation);
         lineRepresentation.theta = atan2(lineRepresentation.ny, lineRepresentation.nx);
-        /// < N.B here theta always belongs to [-pi/2,pi/2] since nx>=0
+        /// < N.B here theta always belongs to [-pi/2,pi/2] since (nx>=0)
     }    
     
     // we assume the two lines l1 and l2 are "normalized", that is they are in the form  l=[ nx, ny, -d] where nx^2+ny^2 = 1 
@@ -181,6 +188,6 @@ public:
 
 };
 
-}// namespace PLVS2
+}// namespace PLVS
 
 #endif 

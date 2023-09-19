@@ -14,7 +14,7 @@ USE_LIVE=0
 #DATASET="flight_of_stairs.bag"
 
 DATASET_BASE_FOLDER="$HOME/Work/datasets/rgbd_datasets/zed"
-DATASET="2018-08-01-11-36-42.bag"
+DATASET="circo_massimo_2018-08-01-11-36-42.bag"
 
 #DATASET_BASE_FOLDER="$HOME/Work/datasets/rgbd_datasets/zed"
 #DATASET="zed20191228171358.svo"

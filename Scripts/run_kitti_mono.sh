@@ -7,7 +7,7 @@
 
 #echo "usage: ./${0##*/} "
 
-SUFFIX="_old" 
+
 
 PATH_TO_SEQUENCE_FOLDER="$HOME/Work/datasets/rgbd_datasets/kitti/dataset/sequences"
 SEQUENCE_NUMBER=6
@@ -43,7 +43,7 @@ echo $PATH_TO_SEQUENCE_FOLDER
 #xterm -e "echo proc info recording; ./get_proc_info.sh ; bash" &
 
 
-$DEBUG_PREFIX ../Examples$SUFFIX/Monocular/mono_kitti$SUFFIX ../Vocabulary/ORBvoc.txt ../Examples$SUFFIX/Monocular/$KITTI_YAML $PATH_TO_SEQUENCE_FOLDER/$SEQUENCE
+$DEBUG_PREFIX ../Examples/Monocular/mono_kitti ../Vocabulary/ORBvoc.txt ../Examples/Monocular/$KITTI_YAML $PATH_TO_SEQUENCE_FOLDER/$SEQUENCE
 
 
 #./perform_evaluation.sh $PATH_TO_SEQUENCE_FOLDER

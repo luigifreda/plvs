@@ -28,7 +28,7 @@
 #include <line_descriptor_custom.hpp>
 
 
-namespace PLVS2
+namespace PLVS
 {
 
 class LineExtractor
@@ -104,7 +104,7 @@ protected:
     std::vector<float> mvInvLevelSigma2;
 };
 
-} //namespace PLVS2
+} //namespace PLVS
 
 #endif
 

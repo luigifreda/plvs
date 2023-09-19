@@ -37,7 +37,7 @@
 #include "Stopwatch.h"
 
 
-namespace PLVS2
+namespace PLVS
 {
 
 template<typename PointT>
@@ -45,18 +45,18 @@ std::string PointCloudMapVoxblox<PointT>::skIntegrationMethod = "fast"; /// < si
 
 
 template<typename PointT>
-PointCloudMapVoxblox<PointT>::PointCloudMapVoxblox(Map* pMap, const std::shared_ptr<PointCloudMapParameters>& params) : PointCloudMap<PointT>(pMap, params)
+PointCloudMapVoxblox<PointT>::PointCloudMapVoxblox(double resolution_in, double min_range, double max_range, bool useCarving_in) : PointCloudMap<PointT>(resolution_in)//,octree_(this->resolution_)
 {
-    //this->bPerformCarving_ = useCarving_in;
+    this->bPerformCarving_ = useCarving_in;
 
     voxblox::TsdfMap::Config tsdfMapConfig;
-    tsdfMapConfig.tsdf_voxel_size = params->resolution;
+    tsdfMapConfig.tsdf_voxel_size = resolution_in;
     tsdfMapConfig.tsdf_voxels_per_side = 16; 
     
     voxblox::TsdfIntegratorBase::Config  tsdfIntegratorBaseConfig;   
     tsdfIntegratorBaseConfig.default_truncation_distance = 0.1;
     tsdfIntegratorBaseConfig.max_weight = 10000.0;
-    tsdfIntegratorBaseConfig.voxel_carving_enabled = params->bUseCarving;
+    tsdfIntegratorBaseConfig.voxel_carving_enabled = useCarving_in;
     tsdfIntegratorBaseConfig.min_ray_length_m = 0.1;
     tsdfIntegratorBaseConfig.max_ray_length_m = 5.0;
     tsdfIntegratorBaseConfig.use_const_weight = false;
@@ -73,24 +73,22 @@ PointCloudMapVoxblox<PointT>::PointCloudMapVoxblox(Map* pMap, const std::shared_
 
     std::string integration_method = PointCloudMapVoxblox<PointT>::skIntegrationMethod; /// < simple, merged, fast 
     
-    this->pTsdfServer_ = std::make_shared<voxblox::TsdfServer>(tsdfMapConfig,tsdfIntegratorBaseConfig, integration_method);
+    this->pTsdfServer_ = std::make_shared<voxblox::TsdfServer>(tsdfMapConfig,tsdfIntegratorBaseConfig,integration_method);
 }
 
 
 template<typename PointT>
-void PointCloudMapVoxblox<PointT>::InsertCloud(typename PointCloudMap<PointT>::PointCloudT::ConstPtr cloud_camera, const Sophus::SE3f& Twc, double max_range)
+void PointCloudMapVoxblox<PointT>::InsertCloud(typename PointCloudMap<PointT>::PointCloudT::ConstPtr cloud_camera, const cv::Mat& Twc, double max_range)
 {
     std::cout << "PointCloudMapVoxblox<PointT>::InsertCloud()" << std::endl;
 
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
 
     voxblox::IsometryTransform transform(voxblox::IsometryTransform::Identity());
-    // transform.translation()(0) = Twc.at<float>(0, 3);
-    // transform.translation()(1) = Twc.at<float>(1, 3);
-    // transform.translation()(2) = Twc.at<float>(2, 3);
-    transform.translation() = Twc.translation(); 
-    //transform.linear() = Converter::toMatrix3f(Twc.rowRange(0, 3).colRange(0, 3));
-    transform.linear() = Twc.rotationMatrix();
+    transform.translation()(0) = Twc.at<float>(0, 3);
+    transform.translation()(1) = Twc.at<float>(1, 3);
+    transform.translation()(2) = Twc.at<float>(2, 3);
+    transform.linear() = Converter::toMatrix3f(Twc.rowRange(0, 3).colRange(0, 3));
     
     this->pTsdfServer_->insertPointCloud(*cloud_camera, transform); 
 
@@ -140,7 +138,7 @@ void PointCloudMapVoxblox<PointT>::InsertData(typename PointCloudMapInput<PointT
 
     this->lastTimestamp_ = pData->timestamp;
 
-    Sophus::SE3f Twc = pData->pPointCloudKeyFrame->GetCameraPose();
+    cv::Mat Twc = pData->pPointCloudKeyFrame->GetCameraPose();
     pData->pPointCloudKeyFrame->TwcIntegration = Twc;     
 
     switch (pData->type)
@@ -198,7 +196,7 @@ void PointCloudMapVoxblox<PointT>::OnMapChange()
 
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
 
-    if (this->pPointCloudMapParameters_->bResetOnSparseMapChange)
+    if (this->bResetOnSparseMapChange_)
     {
         std::cout << "PointCloudMapVoxblox<PointT>::OnMapChange() - voxblox reset *** " << std::endl;
         this->pTsdfServer_->clear();
@@ -268,4 +266,4 @@ bool PointCloudMapVoxblox<PointT>::LoadMap(const std::string& filename)
 
 
 
-} //namespace PLVS2
+} //namespace PLVS

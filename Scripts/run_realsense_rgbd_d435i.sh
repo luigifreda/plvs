@@ -6,4 +6,4 @@
 
 
 #$DEBUG_PREFIX ../Examples/RGB-D/rgbd_realsense_D435i ../Vocabulary/ORBvoc.txt ../Examples/RGB-D/RealSense_D435i.yaml
-$DEBUG_PREFIX ../Examples_old/RGB-D/rgbd_realsense_D435i_old ../Vocabulary/ORBvoc.txt ../Examples_old/RGB-D/RealSense_D435i_calib.yaml
+$DEBUG_PREFIX ../Examples_old/RGB-D/rgbd_realsense_D435i_old ../Vocabulary/ORBvoc.txt ../Examples/RGB-D/RealSense_D435i_calib.yaml

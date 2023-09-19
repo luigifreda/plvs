@@ -1,64 +1,60 @@
 /**
-* This file is part of ORB-SLAM3
+* This file is part of ORB-SLAM2.
 *
-* Copyright (C) 2017-2021 Carlos Campos, Richard Elvira, Juan J. Gómez Rodríguez, José M.M. Montiel and Juan D. Tardós, University of Zaragoza.
-* Copyright (C) 2014-2016 Raúl Mur-Artal, José M.M. Montiel and Juan D. Tardós, University of Zaragoza.
+* Copyright (C) 2014-2016 Raúl Mur-Artal <raulmur at unizar dot es> (University of Zaragoza)
+* For more information see <https://github.com/raulmur/ORB_SLAM2>
 *
-* ORB-SLAM3 is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
-* License as published by the Free Software Foundation, either version 3 of the License, or
+* ORB-SLAM2 is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
 * (at your option) any later version.
 *
-* ORB-SLAM3 is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
-* the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* ORB-SLAM2 is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 * GNU General Public License for more details.
 *
-* You should have received a copy of the GNU General Public License along with ORB-SLAM3.
-* If not, see <http://www.gnu.org/licenses/>.
+* You should have received a copy of the GNU General Public License
+* along with ORB-SLAM2. If not, see <http://www.gnu.org/licenses/>.
 */
-
 
 #ifndef MAPDRAWER_H
 #define MAPDRAWER_H
 
-//#include "Atlas.h"
-//#include "MapPoint.h"
-//#include "KeyFrame.h"
+#include "Map.h"
+#include "MapPoint.h"
+#include "KeyFrame.h"
 #include "Pointers.h"
-#include "Settings.h"
 #include<pangolin/pangolin.h>
 
 #include<mutex>
 
-namespace PLVS2
+namespace PLVS
 {
 
-class Atlas; 
-class Settings;
-
+///	\class MapDrawer
+///	\author Raúl Mur-Artal
+///	\brief Draw the map points along with the keyframes. It used in the viewer
+///	\note
+///	\date
+///	\warning
 class MapDrawer
 {
 public:
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    MapDrawer(Atlas* pAtlas, const string &strSettingPath, Settings* settings);
-
-    void newParameterLoader(Settings* settings);
-
-    Atlas* mpAtlas;
+    MapDrawer(Map* pMap, const string &strSettingPath);
+    Map* mpMap;
 
     void DrawMapPoints();
     void DrawMapLines();
     void DrawMapObjects();    
-    void DrawKeyFrames(const bool bDrawKF, const bool bDrawGraph, const bool bDrawInertialGraph, const bool bDrawOptLba);
+    void DrawKeyFrames(const bool bDrawKF, const bool bDrawGraph);
     void DrawCurrentCamera(pangolin::OpenGlMatrix &Twc);
     void setUseAR(bool value) { mbUseAR = value; }
-    void SetCurrentCameraPose(const Sophus::SE3f &Tcw);
+    void SetCurrentCameraPose(const cv::Mat &Tcw);
     void SetReferenceKeyFrame(KeyFramePtr pKF);
-    void GetCurrentOpenGLCameraMatrix(pangolin::OpenGlMatrix &M, pangolin::OpenGlMatrix &MOw);
-    void GetCurrentOpenGLCameraMatrix(pangolin::OpenGlMatrix &M, pangolin::OpenGlMatrix &MOw, pangolin::OpenGlMatrix &MTwwp);
-
+    void GetCurrentOpenGLCameraMatrix(pangolin::OpenGlMatrix &M);
+    
 private:
-
-    bool ParseViewerParamFile(cv::FileStorage &fSettings);
 
     float mKeyFrameSize;
     float mKeyFrameLineWidth;
@@ -69,21 +65,15 @@ private:
     float mCameraSize;
     float mCameraLineWidth;
 
-    Sophus::SE3f mCameraPose;
+    cv::Mat mCameraPose;
 
     std::mutex mMutexCamera;
 
-    float mfFrameColors[6][3] = {{0.0f, 0.0f, 1.0f},
-                                {0.8f, 0.4f, 1.0f},
-                                {1.0f, 0.2f, 0.4f},
-                                {0.6f, 0.0f, 1.0f},
-                                {1.0f, 1.0f, 0.0f},
-                                {0.0f, 1.0f, 1.0f}};
 protected:
 
     bool mbUseAR; //use AR visualization
 };
 
-} // namespace PLVS2
+} //namespace PLVS
 
 #endif // MAPDRAWER_H

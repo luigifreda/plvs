@@ -29,7 +29,7 @@
 
 
 
-namespace PLVS2
+namespace PLVS
 {
 
 
@@ -77,7 +77,7 @@ public:
 };
 
 
-} //namespace PLVS2
+} //namespace PLVS
 
 #endif /* POINTCLOUDMAPINPUT_H */
 

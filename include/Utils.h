@@ -35,7 +35,7 @@
 #define UNUSED_VAR(x) (void)x
 #endif 
 
-namespace PLVS2
+namespace PLVS
 {
     namespace IoColor 
     {
@@ -205,6 +205,6 @@ inline bool const Utils::GetParam<bool>(cv::FileStorage& fileStorage, const std:
     return Utils::GetParam<int>(fileStorage, nodename, defaultValInt, printOut) != 0;
 }    
 
-}// namespace PLVS2
+}// namespace PLVS
 
 #endif // CONVERTER_H

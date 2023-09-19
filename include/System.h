@@ -1,95 +1,57 @@
 /**
-* This file is part of ORB-SLAM3
+* This file is part of ORB-SLAM2.
 *
-* Copyright (C) 2017-2021 Carlos Campos, Richard Elvira, Juan J. Gómez Rodríguez, José M.M. Montiel and Juan D. Tardós, University of Zaragoza.
-* Copyright (C) 2014-2016 Raúl Mur-Artal, José M.M. Montiel and Juan D. Tardós, University of Zaragoza.
+* Copyright (C) 2014-2016 Raúl Mur-Artal <raulmur at unizar dot es> (University of Zaragoza)
+* For more information see <https://github.com/raulmur/ORB_SLAM2>
 *
-* ORB-SLAM3 is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
-* License as published by the Free Software Foundation, either version 3 of the License, or
+* ORB-SLAM2 is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
 * (at your option) any later version.
 *
-* ORB-SLAM3 is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
-* the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* ORB-SLAM2 is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 * GNU General Public License for more details.
 *
-* You should have received a copy of the GNU General Public License along with ORB-SLAM3.
-* If not, see <http://www.gnu.org/licenses/>.
+* You should have received a copy of the GNU General Public License
+* along with ORB-SLAM2. If not, see <http://www.gnu.org/licenses/>.
 */
 
 
 #ifndef SYSTEM_H
 #define SYSTEM_H
 
-
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string>
 #include <thread>
+#include <mutex>
+#include <fstream> // for map file io
+
 #include <opencv2/core/core.hpp>
 #include <line_descriptor_custom.hpp>
 
-#include "Eigen/Core"
-
-//#include "Tracking.h"
-//#include "FrameDrawer.h"
-//#include "MapDrawer.h"
-//#include "Atlas.h"
-//#include "LocalMapping.h"
-//#include "LoopClosing.h"
-//#include "KeyFrameDatabase.h"
 #include "ORBVocabulary.h"
-//#include "Viewer.h"
-#include "ImuTypes.h"
-#include "Settings.h"
-#include "Config.h"
 
 #include "BoostArchiver.h"
 #include "Pointers.h"
 
-namespace PLVS2
+
+
+namespace PLVS
 {
-
-class Verbose
-{
-public:
-    enum eLevel
-    {
-        VERBOSITY_QUIET=0,
-        VERBOSITY_NORMAL=1,
-        VERBOSITY_VERBOSE=2,
-        VERBOSITY_VERY_VERBOSE=3,
-        VERBOSITY_DEBUG=4
-    };
-
-    static eLevel th;
-
-public:
-    static void PrintMess(std::string str, eLevel lev)
-    {
-        if(lev <= th)
-            cout << str << endl;
-    }
-
-    static void SetTh(eLevel _th)
-    {
-        th = _th;
-    }
-};
 
 class Viewer;
 class FrameDrawer;
-class MapDrawer;
-class Atlas;
 class Map;
+class MapPoint;
+class MapLine; 
+class MapDrawer;
 class Tracking;
 class LocalMapping;
 class LoopClosing;
-class Settings;
 class PointCloudMapping; 
 class PointCloudDrawer;
 class KeyFrameDatabase;
-class MapDrawer;
 
 class System
 {
@@ -98,41 +60,31 @@ public:
     enum eSensor{
         MONOCULAR=0,
         STEREO=1,
-        RGBD=2,
-        IMU_MONOCULAR=3,
-        IMU_STEREO=4,
-        IMU_RGBD=5,
-    };
-
-    // File type
-    enum FileType{
-        TEXT_FILE=0,
-        BINARY_FILE=1,
+        RGBD=2
     };
 
 public:
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    // Initialize the SLAM system. It launches the Local Mapping, Loop Closing and Viewer threads.
-    System(const std::string &strVocFile, const std::string &strSettingsFile, const eSensor sensor, const bool bUseViewer = true, const int initFr = 0, const std::string &strSequence = std::string(), const std::string &strLoadingFile = std::string());
 
+    // Initialize the SLAM system. It launches the Local Mapping, Loop Closing and Viewer threads.
+    System(const std::string &strVocFile, const std::string &strSettingsFile, const eSensor sensor, const bool bUseViewer = true);
+    
     ~System();
 
     // Proccess the given stereo frame. Images must be synchronized and rectified.
     // Input images: RGB (CV_8UC3) or grayscale (CV_8U). RGB is converted to grayscale.
     // Returns the camera pose (empty if tracking fails).
-    Sophus::SE3f TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timestamp, const vector<IMU::Point>& vImuMeas = vector<IMU::Point>(), std::string filename="");
+    cv::Mat TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timestamp);
 
     // Process the given rgbd frame. Depthmap must be registered to the RGB frame.
     // Input image: RGB (CV_8UC3) or grayscale (CV_8U). RGB is converted to grayscale.
     // Input depthmap: Float (CV_32F).
     // Returns the camera pose (empty if tracking fails).
-    Sophus::SE3f TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const double &timestamp, const vector<IMU::Point>& vImuMeas = vector<IMU::Point>(), std::string filename="");
+    cv::Mat TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const double &timestamp);
 
-    // Proccess the given monocular frame and optionally imu data
+    // Proccess the given monocular frame
     // Input images: RGB (CV_8UC3) or grayscale (CV_8U). RGB is converted to grayscale.
     // Returns the camera pose (empty if tracking fails).
-    Sophus::SE3f TrackMonocular(const cv::Mat &im, const double &timestamp, const vector<IMU::Point>& vImuMeas = vector<IMU::Point>(), std::string filename="");
-
+    cv::Mat TrackMonocular(const cv::Mat &im, const double &timestamp);
 
     // This stops local mapping thread (map building) and performs only camera tracking.
     void ActivateLocalizationMode();
@@ -143,15 +95,13 @@ public:
     // since last call to this function
     bool MapChanged();
 
-    // Reset the system (clear Atlas or the active map)
+    // Reset the system (clear map)
     void Reset();
-    void ResetActiveMap();
 
     // All threads will be requested to finish.
     // It waits until all threads have finished.
     // This function must be called before saving the trajectory.
     void Shutdown();
-    bool isShutDown();
 
     // Save camera trajectory in the TUM RGB-D dataset format.
     // Only for stereo and RGB-D. This method does not work for monocular.
@@ -165,15 +115,6 @@ public:
     // See format details at: http://vision.in.tum.de/data/datasets/rgbd-dataset
     void SaveKeyFrameTrajectoryTUM(const std::string &filename);
 
-    void SaveTrajectoryEuRoC(const std::string &filename);
-    void SaveKeyFrameTrajectoryEuRoC(const std::string &filename);
-
-    void SaveTrajectoryEuRoC(const std::string &filename, Map* pMap);
-    void SaveKeyFrameTrajectoryEuRoC(const std::string &filename, Map* pMap);
-
-    // Save data used for initialization debug
-    void SaveDebugData(const int &iniIdx);
-
     // Save camera trajectory in the KITTI dataset format.
     // Only for stereo and RGB-D. This method does not work for monocular.
     // Call first Shutdown()
@@ -181,8 +122,8 @@ public:
     void SaveTrajectoryKITTI(const std::string &filename);
 
     // TODO: Save/Load functions
-    // SaveMap(const std::string &filename);
-    // LoadMap(const std::string &filename);
+    // SaveMap(const string &filename);
+    // LoadMap(const string &filename);
 
     // Information from most recent processed frame
     // You can call this right after TrackMonocular (or stereo or RGBD)
@@ -209,43 +150,18 @@ public:
     void SetPause(bool val);
     void TogglePause();
 
-    // For debugging
-    double GetTimeFromIMUInit();
-    bool isLost();
-    bool isFinished();
-
-    void ChangeDataset();
-
-    float GetImageScale();
-
-#ifdef REGISTER_TIMES
-    void InsertRectTime(double& time);
-    void InsertResizeTime(double& time);
-    void InsertTrackTime(double& time);
-#endif
-
     // Save/Load functions
-    void SaveCurrentMap();
-    void SaveCurrentMap(const std::string &filename);
-    bool LoadCurrentMap(const std::string &filename);
-    
-    void SaveAtlas(int type=BINARY_FILE);
-    void SaveAtlas(const std::string &filename, int type=FileType::BINARY_FILE);
-    bool LoadAtlas(const std::string &filename, int type=FileType::BINARY_FILE);    
+    void SaveMap();
+    void SaveMap(const string &filename);
+    bool LoadMap(const string &filename);
     
     void PrintMapStatistics();
-    //void SaveAtlas(int type);
 
     bool ShouldFinished();
     
     void SetCalibration(const float fx, const float fy, const float cx, const float cy, const cv::Mat& distCoef, const float bf);      
 
 private:
-
-    //void SaveAtlas(int type);
-    //bool LoadAtlas(int type);
-
-    std::string CalculateCheckSum(std::string filename, int type);
 
     // Input sensor
     eSensor mSensor;
@@ -256,9 +172,8 @@ private:
     // KeyFrame database for place recognition (relocalization and loop detection).
     KeyFrameDatabase* mpKeyFrameDatabase;
 
-    // Atlas structure that stores the pointers to all KeyFrames and MapPoints.
-    //Map* mpMap;
-    Atlas* mpAtlas;
+    // Map structure that stores the pointers to all KeyFrames and MapPoints.
+    Map* mpMap;
 
     // Tracker. It receives a frame and computes the associated camera pose.
     // It also decides when to insert a new keyframe, create some new MapPoints and
@@ -292,15 +207,11 @@ private:
     // Reset flag
     std::mutex mMutexReset;
     bool mbReset;
-    bool mbResetActiveMap;
 
     // Change mode flags
     std::mutex mMutexMode;
     bool mbActivateLocalizationMode;
     bool mbDeactivateLocalizationMode;
-
-    // Shutdown flag
-    bool mbShutDown;
 
     // Tracking state
     int mTrackingState;
@@ -309,23 +220,14 @@ private:
     std::vector<MapLinePtr> mTrackedMapLines;
     std::vector<cv::line_descriptor_c::KeyLine> mTrackedKeyLinesUn;
     std::mutex mMutexState;
-
-    //
-
     
     std::string mStrMapfile;
     int mnSaveMapCount;
     bool mbSaveMap;
     bool mbPaused;    
-
-    std::string mStrLoadAtlasFromFile;
-    std::string mStrSaveAtlasToFile;
-
-    std::string mStrVocabularyFilePath;
-
-    Settings* settings_;
+      
 };
 
-}// namespace PLVS2
+}// namespace PLVS
 
 #endif // SYSTEM_H

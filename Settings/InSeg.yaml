@@ -20,11 +20,10 @@ Viewer.ViewpointF: 500
 #--------------------------------------------------------------------------------------------
 # Camera Parameters. Adjust them!
 #--------------------------------------------------------------------------------------------
-Camera.type: "PinHole"
 
 # Camera calibration and distortion parameters (OpenCV)
-Camera.fx: 574.
-Camera.fy: 574.
+Camera.fx: 574
+Camera.fy: 574
 Camera.cx: 319.5
 Camera.cy: 239.5
 

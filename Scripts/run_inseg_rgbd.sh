@@ -6,7 +6,7 @@
 
 #echo "usage: ./${0##*/} "
 
-SUFFIX="_old" 
+
 
 INSEG_YAML="InSeg.yaml"
 
@@ -18,7 +18,7 @@ PATH_TO_SEQUENCE_FOLDER="~/Work/datasets/rgbd_datasets/inseg_dataset"
 eval PATH_TO_SEQUENCE_FOLDER=$PATH_TO_SEQUENCE_FOLDER
 echo $PATH_TO_SEQUENCE_FOLDER 
 
-$DEBUG_PREFIX ../Examples$SUFFIX/RGB-D/rgbd_inseg ../Vocabulary/ORBvoc.txt ../Settings/$INSEG_YAML $PATH_TO_SEQUENCE_FOLDER 
+$DEBUG_PREFIX ../Examples/RGB-D/rgbd_inseg ../Vocabulary/ORBvoc.txt ../Settings/$INSEG_YAML $PATH_TO_SEQUENCE_FOLDER 
 
 
 ./move_output_to_results.sh

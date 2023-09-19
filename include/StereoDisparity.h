@@ -34,7 +34,7 @@
 #include <iostream>
 #include <string>
 
-namespace PLVS2
+namespace PLVS
 {
 
 enum StereoFilterTypes { kWlsConf = 0, kWlsNoConf};

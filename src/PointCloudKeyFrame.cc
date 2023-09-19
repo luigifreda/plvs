@@ -37,7 +37,7 @@
 #endif
 
 
-namespace PLVS2
+namespace PLVS
 {
 
 // default initialization 
@@ -251,7 +251,7 @@ void PointCloudKeyFrame<PointT>::Release()
     
 // get Ow
 template<typename PointT>
-Eigen::Vector3f PointCloudKeyFrame<PointT>::GetCameraCenter()
+cv::Mat PointCloudKeyFrame<PointT>::GetCameraCenter()
 {
     std::unique_lock<std::mutex> locker(keyframeMutex);
     return pKF->GetCameraCenter();
@@ -259,7 +259,7 @@ Eigen::Vector3f PointCloudKeyFrame<PointT>::GetCameraCenter()
 
 // get Twc
 template<typename PointT>
-Sophus::SE3f PointCloudKeyFrame<PointT>::GetCameraPose()
+cv::Mat PointCloudKeyFrame<PointT>::GetCameraPose()
 {
     std::unique_lock<std::mutex> locker(keyframeMutex);
     return pKF->GetPoseInverse();
@@ -453,9 +453,9 @@ void PointCloudKeyFrame<PointT>::ProcessStereo()
         const bool bDownScale = ((PointCloudMapping::skDownsampleStep % 2) == 0);  
         StereoParameters params;
         
-        params.nMaxDisparity = PLVS2::StereoParameters::kMaxDisparity; 
+        params.nMaxDisparity = PLVS::StereoParameters::kMaxDisparity; 
         params.bDownScale = bDownScale; 
-        params.nFilterType = PLVS2::StereoFilterTypes::kWlsConf;        
+        params.nFilterType = PLVS::StereoFilterTypes::kWlsConf;        
         pSd.reset( new StereoDisparityCPU());
         pSd->Init(params);
     }
@@ -515,7 +515,7 @@ void PointCloudKeyFrame<PointT>::GetTransformedCloud(const cv::Mat& Twc, typenam
 {
     std::unique_lock<std::mutex> locker(keyframeMutex);  
     
-    Eigen::Isometry3d T = PLVS2::Converter::toSE3Quat(Twc);
+    Eigen::Isometry3d T = PLVS::Converter::toSE3Quat(Twc);
 
 #if !USE_NORMALS
     pcl::transformPointCloud(*pCloudCamera, *pCloudOut, T.matrix());

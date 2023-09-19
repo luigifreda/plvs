@@ -14,7 +14,7 @@ RGBD_DATASET_PATH="$HOME/Work/datasets/rgbd_datasets/$DATASET/$DATASET.bag"
 
 #ROS_BAG_PLAY_OPTIONS="--rate 0.5"  # comment this to remove rate adjustment 
 
-export CAMERA_SETTINGS="../Settings/ros/TUM2_ros.yaml"
+export CAMERA_SETTINGS="../Settings/TUM2_ros.yaml"
 
 export REMAP_COLOR_TOPIC="/camera/image_raw:=/camera/rgb/image_color "
 #export REMAP_DEPTH_TOPIC="camera/depth_registered/image_raw:=/camera/depth/image "

@@ -7,7 +7,7 @@
 
 #echo "usage: ./${0##*/} "
 
-SUFFIX="_old" # comment if you want to use the new example binaries
+# comment if you want to use the new example binaries
 
 
 PATH_TO_SEQUENCE_FOLDER="$HOME/Work/datasets/rgbd_datasets/kitti/dataset/sequences"
@@ -44,7 +44,7 @@ echo $PATH_TO_SEQUENCE_FOLDER
 #xterm -e "echo proc info recording; ./get_proc_info.sh ; bash" &
 
 
-$DEBUG_PREFIX ../Examples$SUFFIX/Stereo/stereo_kitti$SUFFIX ../Vocabulary/ORBvoc.txt ../Examples$SUFFIX/Stereo/$KITTI_YAML $PATH_TO_SEQUENCE_FOLDER/$SEQUENCE
+$DEBUG_PREFIX ../Examples/Stereo/stereo_kitti ../Vocabulary/ORBvoc.txt ../Examples/Stereo/$KITTI_YAML $PATH_TO_SEQUENCE_FOLDER/$SEQUENCE
 
 
 #./perform_evaluation.sh $PATH_TO_SEQUENCE_FOLDER

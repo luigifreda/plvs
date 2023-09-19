@@ -28,7 +28,7 @@
 #define UNUSED_VAR(x) (void)x
 #endif 
 
-namespace PLVS2
+namespace PLVS
 {
 
 enum GlObjectType { kGlObjectNone=0, kGlObjectCloud, kGlObjectCloudMesh, kGlObjectModel, kNumGlObjectType };
@@ -134,6 +134,6 @@ protected:
 };
 
 
-} //namespace PLVS2
+} //namespace PLVS
 
 #endif

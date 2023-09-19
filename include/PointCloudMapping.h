@@ -25,11 +25,9 @@
 #include <mutex>
 #include <thread>
 #include <chrono>
-#include <atomic>
 #include <condition_variable>
 
 #include "PointDefinitions.h"
-#include "PointCloudMapTypes.h"
 
 #include <pcl/common/transforms.h>
 
@@ -38,11 +36,10 @@
 #include "PointDefinitions.h"
 #include "PointCloudKeyFrame.h"
 
-namespace PLVS2
+namespace PLVS
 {
 class KeyFrame;
 class Map;
-class Atlas; 
 class LocalMapping; 
 
 template<typename PointT>
@@ -52,8 +49,6 @@ class CameraModelParams;
 template<typename PointT>
 class PointCloudMapInput;
 
-template<typename PointT>
-class PointCloudAtlas;
 
 struct Image4Viewer
 {
@@ -104,18 +99,29 @@ public:
     typedef POINT_TYPE PointT;
     typedef pcl::PointCloud<PointT> PointCloudT;
     
-    using PointCloudMapType = PointCloudMapTypes::PointCloudMapType;
+public:
+
+    enum PointCloudMapType
+    {
+        kVoxelGrid = 0,
+        kOctomap,
+        kOctreePoint,
+        kChisel,
+        kFastFusion,
+        kVoxblox,
+        kNumPointCloudMapType
+    };
     
 public:
 
-    PointCloudMapping(const std::string &strSettingPath, Atlas* atlas, LocalMapping* localMap);
+    PointCloudMapping(const std::string &strSettingPath, Map* map, LocalMapping* localMap);
 
     void InsertKeyFrame(PointCloudKeyFrame<PointT>::Ptr pcKeyFrame);    
 
     void Shutdown();
     void Run();
 
-    void Reset(); 
+    void Reset();
 
     void RebuildMap();
     
@@ -130,15 +136,13 @@ public: /// < getters
     
     PointCloudT::Ptr GetMap();
     void GetMap(typename PointCloudT::Ptr& pCloud, typename PointCloudT::Ptr& pCloudUnstable, std::vector<unsigned int>& faces, bool copyUnstable = false );
-    std::uint64_t GetMapTimestamp();
+    pcl::uint64_t GetMapTimestamp();
     
-    PointCloudMapType GetMapType() const { return pPointCloudMapParameters_->pointCloudMapType; }
+    PointCloudMapType GetMapType() const { return pointCloudMapType_; }
     
     std::vector<Image4Viewer> & GetVecImages() { return vecImages_; }
     
-    int GetSegmentationLabelConfidenceThreshold() { return pPointCloudMapParameters_->segmentationLabelConfidenceThreshold; }
-    
-    std::shared_ptr<PointCloudAtlas<PointT> > GetPointCloudAtlas() { return mpPointCloudAtlas; }
+    int GetSegmentationLabelConfidenceThreshold() { return segmentationLabelConfidenceThreshold_;}
     
 protected:
 
@@ -187,24 +191,30 @@ protected:
     int baseKeyframeId_ = -1;
     /* END: to be moved in PointCloudMap */
 
+    double resolution_ = 0.04;
     std::shared_ptr<PointCloudMap<PointT> > pPointCloudMap_;
     std::recursive_timed_mutex pointCloudMutex_;
     std::shared_ptr<CameraModelParams> pCameraParams;
 
-    std::uint64_t pointCloudTimestamp_;
+    pcl::uint64_t pointCloudTimestamp_;
     std::mutex pointCloudTimestampMutex_;
 
-    std::shared_ptr<PointCloudMapParameters> pPointCloudMapParameters_;
+    PointCloudMapType pointCloudMapType_;
     
-    Atlas* mpAtlas;
-    //Map* mpMap;
+
+    Map* mpMap;
     LocalMapping* mpLocalMapping;
-    std::shared_ptr<PointCloudAtlas<PointT> >  mpPointCloudAtlas;
 
     cv::Mat matCamGridPoints_;
     bool bInitCamGridPoints_;
     std::vector<std::vector<int> > vCamGridPointsNeighborsIdxs_;
 
+    double maxDepthDistance_; // [m]
+    double minDepthDistance_; // [m]
+    double imageDepthScale_;
+
+    bool bFilterDepthImages_;
+    bool bUseCarving_;
     bool bActive_;
     
     size_t numKeyframesToQueueBeforeProcessing_; 
@@ -212,15 +222,34 @@ protected:
     std::vector<Image4Viewer> vecImages_;
     
     std::atomic_bool bFinished_;
-
+    
+    int depthFilterDiamater_;  // diameter of the depth filter  
+    double depthFilterSigmaDepth_;  
+    double depthSigmaSpace_; 
+    
+    // segmentation 
+    
+    bool bSegmentationOn_; 
+    float sementationMaxDepth_; // [m]
+    float segmentationMinFi_; // dot product in [0,1]
+    float segmentationMaxDelta_; // [m] max allowed distance of two vertices on a convex surface 
+    int segmentationSingleDepthMinComponentArea_;
+    int segmentationLineDrawThinckness_;
+    
+    int segmentationLabelConfidenceThreshold_;
+    bool bSegmentationErosionDilationOn_; 
+    
     // loading/saving 
     
     bool mbLoadDensemap_;
-    int mnSaveMapCount_;
-    std::string msLoadFilename_; 
+    int mnSaveMapCount;
+    std::string msLoadFilename; 
+    
+    // cloud deformation based on pose graph (KFs) Adjustment 
+    bool bCloudDeformationOnSparseMapChange_;
 };
 
 
-} //namespace PLVS2
+} //namespace PLVS
 
 #endif // POINTCLOUDMAPPING_H

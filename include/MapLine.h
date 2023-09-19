@@ -17,68 +17,65 @@
  * 
  */
 
-
 #ifndef MAP_LINE_H
 #define MAP_LINE_H
 
-#include"KeyFrame.h"
-#include"Frame.h"
-#include"Map.h"
-
-#include<opencv2/core/core.hpp>
-#include<mutex>
-
+#include "KeyFrame.h"
+#include "Frame.h"
+#include "Map.h"
 #include "BoostArchiver.h"
 
-namespace PLVS2
+#include <opencv2/core/core.hpp>
+#include <mutex>
+#include <memory>
+
+namespace PLVS
 {
 
 class KeyFrame;
 class Map;
 class Frame;
 
+//typedef Eigen::Matrix<int,5,1>    Vector5i;
+//typedef Eigen::Matrix<double,6,1> Vector6d;
+//typedef Eigen::Matrix<double,6,6> Matrix6d;
+
 class MapLine
 {
-    friend class boost::serialization::access;
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version);
 
 public: 
     typedef std::shared_ptr<MapLine> Ptr;    
     typedef std::shared_ptr<const MapLine> ConstPtr;   
     
 public:
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    MapLine();
 
-    MapLine(const Eigen::Vector3f& PosStart, const Eigen::Vector3f& PosEnd, KeyFramePtr pRefKF, Map* pMap);
-    MapLine(const Eigen::Vector3f& PosStart, const Eigen::Vector3f& PosEnd, Map* pMap, Frame* pFrame, const int &idxF);
-    MapLine(const double invDepthStart, cv::Point2f uv_initStart, const double invDepthEnd, cv::Point2f uv_initEnd, KeyFramePtr pRefKF, KeyFramePtr pHostKF, Map* pMap);
-
+    MapLine(const cv::Mat& p3DStart, const cv::Mat& p3DEnd, Map* pMap, KeyFramePtr pRefKF);
+    MapLine(const cv::Mat& p3DStart, const cv::Mat& p3DEnd, Map* pMap, Frame* pFrame, const int &idxF);
+    
     ~MapLine();
 
     
-    void SetWorldEndPoints(const Eigen::Vector3f &PosStart, const Eigen::Vector3f &PosEnd);
-    void GetWorldEndPoints(Eigen::Vector3f &PosStart, Eigen::Vector3f &PosEnd);         
+    void SetWorldEndPoints(const cv::Mat &PosStart, const cv::Mat &PosEnd);
+    void GetWorldEndPoints(cv::Mat &PosStart, cv::Mat &PosEnd);    
     
-    void SetWorldPosStart(const Eigen::Vector3f &Pos);
-    Eigen::Vector3f GetWorldPosStart();
+    void SetWorldPosStart(const cv::Mat &Pos);
+    cv::Mat GetWorldPosStart();
     
-    void SetWorldPosEnd(const Eigen::Vector3f &Pos);
-    Eigen::Vector3f GetWorldPosEnd();
+    void SetWorldPosEnd(const cv::Mat &Pos);
+    cv::Mat GetWorldPosEnd();
 
-    Eigen::Vector3f GetNormal();
+    cv::Mat GetNormal();
     KeyFramePtr GetReferenceKeyFrame();
     
     float GetLength(); 
 
-    std::map<KeyFramePtr,std::tuple<int,int>> GetObservations();
+    std::map<KeyFramePtr,size_t> GetObservations();
     int Observations();
 
-    void AddObservation(const KeyFramePtr& pKF,int idx);
+    bool AddObservation(const KeyFramePtr& pKF,size_t idx);
     void EraseObservation(const KeyFramePtr& pKF);
 
-    std::tuple<int,int> GetIndexInKeyFrame(const KeyFramePtr& pKF);
+    int GetIndexInKeyFrame(const KeyFramePtr& pKF);
     bool IsInKeyFrame(const KeyFramePtr& pKF);
 
     void SetBadFlag();
@@ -100,8 +97,6 @@ public:
 
     void UpdateNormalAndDepth();
     void UdateLength(); 
-        
-    void SetNormalVector(Eigen::Vector3f& normal);
 
     float GetMinDistanceInvariance();
     float GetMaxDistanceInvariance();
@@ -113,15 +108,16 @@ public:
     static long unsigned int GetCurrentMaxId();   
 
 public:
-    Map* GetMap();
-    void UpdateMap(Map* pMap);
-
-    void PrintObservations();
-
-    void PreSave(set<KeyFramePtr>& spKF,set<MapLinePtr>& spMP);
-    void PostLoad(map<long unsigned int, KeyFramePtr>& mpKFid, map<long unsigned int, MapLinePtr>& mpMPid);   
-
-public:
+    // for serialization
+    MapLine();
+    
+private:
+    // serialize is recommended to be private
+    friend class boost::serialization::access;
+    template<class Archive>
+    void serialize(Archive &ar, const unsigned int version);    
+    
+public: 
     long unsigned int mnId;
     static long unsigned int nNextId;
     long int mnFirstKFid;
@@ -148,11 +144,11 @@ public:
     float mTrackMiddleDepth;
     float mTrackMiddleDepthR;
     float mTrackProjMiddleXR;
-    float mTrackProjMiddleYR;
+    //float mTrackProjMiddleYR;
     
-    bool mbTrackInView, mbTrackInViewR;
-    int mnTrackScaleLevel, mnTrackScaleLevelR;
-    float mTrackViewCos, mTrackViewCosR;
+    bool mbTrackInView;
+    int mnTrackScaleLevel;
+    float mTrackViewCos;
     long unsigned int mnTrackReferenceForFrame;
     long unsigned int mnLastFrameSeen;
 
@@ -164,77 +160,53 @@ public:
     long unsigned int mnLoopPointForKF;
     long unsigned int mnCorrectedByKF;
     long unsigned int mnCorrectedReference;    
-    Eigen::Vector3f mPosStartGBA;
-    Eigen::Vector3f mPosEndGBA;
+    cv::Mat mPosStartGBA;
+    cv::Mat mPosEndGBA;
     long unsigned int mnBAGlobalForKF;
-    long unsigned int mnBALocalForMerge;
     
     unsigned int muNumLineBAFailures;
+    
+    static std::mutex mGlobalMutex;    
 
-    // Variable used by merging
-    Eigen::Vector3f mPosStartMerge;
-    Eigen::Vector3f mPosEndMerge;
-    Eigen::Vector3f mNormalVectorMerge;
+protected:
 
-
-    // For inverse depth optimization
-    double mInvDepthStart;
-    double mInitUStart;
-    double mInitVStart;
-    double mInvDepthEnd;
-    double mInitUEnd;
-    double mInitVEnd;
-    KeyFramePtr mpHostKF;
-
-    static std::mutex mGlobalMutex;
-
-    unsigned int mnOriginMapId;
-
-protected:    
-
-     // Position in absolute coordinates
-    Eigen::Vector3f mWorldPosStart; //  3x1 mat
-    Eigen::Vector3f mWorldPosEnd;   //  3x1 mat
+    // Position in absolute coordinates
+    cv::Mat mWorldPosStart; //  3x1 mat
+    cv::Mat mWorldPosEnd;   //  3x1 mat
     
     float mfLength; // [m]
+    
+    // Keyframes observing the point and associated index in keyframe
+    std::map<KeyFramePtr,size_t> mObservations;  
+     
+    // Mean viewing direction
+    cv::Mat mNormalVector;
+     
+    // Reference KeyFrame
+    KeyFramePtr mpRefKF;
+    
+    // Bad flag (we do not currently erase MapPoint from memory)
+    bool mbBad;
+    MapLinePtr mpReplaced;
 
-     // Keyframes observing the line and associated index in keyframe
-     std::map<KeyFramePtr,std::tuple<int,int> > mObservations;   // KF -> <left idx, right idx>
-     // For save relation without pointer, this is necessary for save/load function
-     std::map<long unsigned int, int> mBackupObservationsId1;
-     std::map<long unsigned int, int> mBackupObservationsId2;
+    // Scale invariance distances
+    float mfMinDistance;
+    float mfMaxDistance;
 
-     // Mean viewing direction
-     Eigen::Vector3f mNormalVector;
+    // Tracking counters
+    int mnVisible;
+    int mnFound;
+         
+    // Best descriptor to fast matching
+    cv::Mat          mDescriptor;
+     
+    Map* mpMap;
 
-     // Best descriptor to fast matching
-     cv::Mat mDescriptor;
-
-     // Reference KeyFrame
-     KeyFramePtr mpRefKF;
-     long unsigned int mBackupRefKFId;
-
-     // Tracking counters
-     int mnVisible;
-     int mnFound;
-
-     // Bad flag (we do not currently erase MapLine from memory)
-     bool mbBad;
-     MapLinePtr mpReplaced;
-     // For save relation without pointer, this is necessary for save/load function
-     long long int mBackupReplacedId;
-
-     // Scale invariance distances
-     float mfMinDistance;
-     float mfMaxDistance;
-
-     Map* mpMap;
-
-     std::mutex mMutexPos;
-     std::mutex mMutexFeatures;
-     std::mutex mMutexMap;
+    std::mutex mMutexPos;
+    std::mutex mMutexFeatures;
+    
 };
 
-} //namespace PLVS2
+} //namespace 
 
 #endif // MAP_LINE_H

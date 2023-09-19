@@ -7,7 +7,7 @@
 
 #echo "usage: ./${0##*/} "
 
-SUFFIX="_old" # comment if you want to use the new example binaries
+# comment if you want to use the new example binaries
 
 DATASET_BASE_FOLDER="$HOME/Work/datasets/rgbd_datasets/tum"
 
@@ -79,8 +79,8 @@ echo DATASET_PATH: $DATASET_PATH
 #xterm -e "echo proc info recording; ./get_proc_info.sh ; bash" &
 
 # NOTE: use the script generate_tum_associations.sh to generate associations.txt files 
-$DEBUG_PREFIX ../Examples$SUFFIX/RGB-D/rgbd_tum$SUFFIX ../Vocabulary/ORBvoc.txt ../Examples$SUFFIX/RGB-D/$TUM_YAML $DATASET_PATH $DATASET_PATH/associations.txt #&> rgbd_tum.log
-#$DEBUG_PREFIX ../Examples$SUFFIX/RGB-D/rgbd_tum$SUFFIX ../Vocabulary/ORBvoc.txt ../Examples$SUFFIX/RGB-D/$TUM_YAML $DATASET_PATH $DATASET_PATH/associations.txt #&> rgbd_tum.log
+$DEBUG_PREFIX ../Examples/RGB-D/rgbd_tum ../Vocabulary/ORBvoc.txt ../Examples/RGB-D/$TUM_YAML $DATASET_PATH $DATASET_PATH/associations.txt #&> rgbd_tum.log
+#$DEBUG_PREFIX ../Examples/RGB-D/rgbd_tum ../Vocabulary/ORBvoc.txt ../Examples/RGB-D/$TUM_YAML $DATASET_PATH $DATASET_PATH/associations.txt #&> rgbd_tum.log
 
 #./perform_evaluation.sh $DATASET_PATH
 ./evaluate_tum.sh $DATASET_PATH 

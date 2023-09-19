@@ -48,7 +48,7 @@ static const string logFileName = "area_feature_search.log";
 static Logger logger(logFileName);
 #endif
 
-namespace PLVS2
+namespace PLVS
 {
 
 
@@ -538,13 +538,13 @@ int LineMatcher::SearchStereoMatchesByKnn(Frame &frame, std::vector<cv::DMatch>&
 int LineMatcher::SearchForTriangulation(KeyFramePtr& pKF1, KeyFramePtr& pKF2, vector<pair<size_t, size_t> > &vMatchedPairs, const bool bOnlyStereo)
 {    
     //Compute epipole in second image
-    Eigen::Vector3f C1w = pKF1->GetCameraCenter();
-    Eigen::Matrix3f R2w = pKF2->GetRotation();
-    Eigen::Vector3f t2w = pKF2->GetTranslation();
-    Eigen::Vector3f C12  = R2w*C1w+t2w;
-    const float invz = 1.0f/C12(2);
-    const float ex = pKF2->fx*C12(0)*invz+pKF2->cx;
-    const float ey = pKF2->fy*C12(1)*invz+pKF2->cy;  
+    cv::Mat Cw  = pKF1->GetCameraCenter();
+    cv::Mat R2w = pKF2->GetRotation();
+    cv::Mat t2w = pKF2->GetTranslation();
+    cv::Mat C2  = R2w*Cw+t2w;
+    const float invz = 1.0f/C2.at<float>(2);
+    const float ex =pKF2->fx*C2.at<float>(0)*invz+pKF2->cx;
+    const float ey =pKF2->fy*C2.at<float>(1)*invz+pKF2->cy;  
     
     int nmatches=0;
 
@@ -748,22 +748,18 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
        rotHist[i].reserve(100);
    const float factor = 1.0f/HISTO_LENGTH;
 
-    //const cv::Mat Rcw = CurrentFrame.mTcw.rowRange(0,3).colRange(0,3);
-    //const cv::Mat tcw = CurrentFrame.mTcw.rowRange(0,3).col(3);
-    //const cv::Mat twc = -Rcw.t()*tcw;
-    const Sophus::SE3f Tcw = CurrentFrame.GetPose();
-    const Eigen::Matrix3f Rcw = CurrentFrame.GetRcw();
-    const Eigen::Vector3f tcw = Tcw.translation();
-    const Eigen::Vector3f twc = Tcw.inverse().translation();
+    const cv::Mat Rcw = CurrentFrame.mTcw.rowRange(0,3).colRange(0,3);
+    const cv::Mat tcw = CurrentFrame.mTcw.rowRange(0,3).col(3);
 
-    // const cv::Mat Rlw = LastFrame.mTcw.rowRange(0,3).colRange(0,3);
-    // const cv::Mat tlw = LastFrame.mTcw.rowRange(0,3).col(3);
-    // const cv::Mat tlc = Rlw*twc+tlw;
-    const Sophus::SE3f Tlw = LastFrame.GetPose();
-    const Eigen::Vector3f tlc = Tlw * twc;
+    const cv::Mat twc = -Rcw.t()*tcw;
 
-    const bool bForward = tlc(2)>CurrentFrame.mb && !bMono;
-    const bool bBackward = -tlc(2)>CurrentFrame.mb && !bMono;
+    const cv::Mat Rlw = LastFrame.mTcw.rowRange(0,3).colRange(0,3);
+    const cv::Mat tlw = LastFrame.mTcw.rowRange(0,3).col(3);
+
+    const cv::Mat tlc = Rlw*twc+tlw;
+
+    const bool bForward = tlc.at<float>(2)>CurrentFrame.mb && !bMono;
+    const bool bBackward = -tlc.at<float>(2)>CurrentFrame.mb && !bMono;
 
     LineProjection proj;
     Line2DRepresentation projLineRepresentation;
@@ -1243,13 +1239,9 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, KeyFramePtr& pKF, const
 {
     int nmatches = 0;
 
-    //const cv::Mat Rcw = CurrentFrame.mTcw.rowRange(0,3).colRange(0,3);
-    //const cv::Mat tcw = CurrentFrame.mTcw.rowRange(0,3).col(3);
+    const cv::Mat Rcw = CurrentFrame.mTcw.rowRange(0,3).colRange(0,3);
+    const cv::Mat tcw = CurrentFrame.mTcw.rowRange(0,3).col(3);
     //const cv::Mat Ow = -Rcw.t()*tcw;
-
-    const Sophus::SE3f Tcw = CurrentFrame.GetPose();
-    const Eigen::Matrix3f Rcw = CurrentFrame.GetRcw();
-    const Eigen::Vector3f tcw = Tcw.translation();    
 
     // Rotation Histogram (to check rotation consistency)
    vector<int> rotHist[HISTO_LENGTH];
@@ -1413,7 +1405,7 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, KeyFramePtr& pKF, const
 
 // guided search by projection; used in LoopClosing::ComputeSim3() when we use lines for voting loop closures 
 // vpMatched are the lines matched in the keyframe pKF 
-int LineMatcher::SearchByProjection(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const vector<MapLinePtr> &vpLines, vector<MapLinePtr> &vpMatched, int th, float ratioHamming)
+int LineMatcher::SearchByProjection(KeyFramePtr& pKF, cv::Mat Scw, const vector<MapLinePtr> &vpLines, vector<MapLinePtr> &vpMatched, int th, float ratioHamming)
 {
     // Get Calibration Parameters for later projection
 //    const float &fx = pKF->fx;
@@ -1422,17 +1414,11 @@ int LineMatcher::SearchByProjection(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, 
 //    const float &cy = pKF->cy;
 
     // Decompose Scw
-    // cv::Mat sRcw = Scw.rowRange(0,3).colRange(0,3);
-    // const float scw = sqrt(sRcw.row(0).dot(sRcw.row(0)));
-    // cv::Mat Rcw = sRcw/scw;
-    // cv::Mat tcw = Scw.rowRange(0,3).col(3)/scw;
-    // cv::Mat Ow = -Rcw.t()*tcw;
-
-    // Transform Scw to SE3 
-    Eigen::Matrix3f Rcw = Scw.rotationMatrix();
-    float scale = Scw.scale(); 
-    Eigen::Vector3f tcw = Scw.translation()/scale;
-    Eigen::Vector3f Ow = -Rcw.transpose()*tcw;    
+    cv::Mat sRcw = Scw.rowRange(0,3).colRange(0,3);
+    const float scw = sqrt(sRcw.row(0).dot(sRcw.row(0)));
+    cv::Mat Rcw = sRcw/scw;
+    cv::Mat tcw = Scw.rowRange(0,3).col(3)/scw;
+    cv::Mat Ow = -Rcw.t()*tcw;
 
     // Set of MapLines already found in the KeyFrame
     set<MapLinePtr> spAlreadyFound(vpMatched.begin(), vpMatched.end());
@@ -1487,10 +1473,10 @@ int LineMatcher::SearchByProjection(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, 
         if(!proj.ProjectLineWithCheck(Rcw, tcw, pML, *pKF))
             continue;
                 
-        Eigen::Vector3f PO = proj.p3DMw-Ow;
+        cv::Mat PO = proj.p3DMw-Ow;
 
         // Viewing angle must be less than 60 deg
-        Eigen::Vector3f Pn = pML->GetNormal();
+        cv::Mat Pn = pML->GetNormal();
 
         if(PO.dot(Pn)<0.5*proj.distMiddlePoint)
             continue;
@@ -1570,144 +1556,6 @@ int LineMatcher::SearchByProjection(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, 
     return nmatches;
 }
 
-// Project MapLines using a Similarity Transformation and search matches.
-// Used in Place Recognition (Loop Closing and Merging)
-int LineMatcher::SearchByProjection(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const std::vector<MapLinePtr> &vpLines, const std::vector<KeyFramePtr> &vpLinesKFs,
-                                    std::vector<MapLinePtr> &vpMatched, std::vector<KeyFramePtr> &vpMatchedKF, int th, float ratioHamming)
-{
-//    // Get Calibration Parameters for later projection
-//    const float &fx = pKF->fx;
-//    const float &fy = pKF->fy;
-//    const float &cx = pKF->cx;
-//    const float &cy = pKF->cy;
-
-    // Decompose Scw
-    // cv::Mat sRcw = Scw.rowRange(0,3).colRange(0,3);
-    // const float scw = sqrt(sRcw.row(0).dot(sRcw.row(0)));
-    // cv::Mat Rcw = sRcw/scw;
-    // cv::Mat tcw = Scw.rowRange(0,3).col(3)/scw;
-    // cv::Mat Ow = -Rcw.t()*tcw;
-
-    // Transform Scw to SE3 
-    Eigen::Matrix3f Rcw = Scw.rotationMatrix();
-    float scale = Scw.scale(); 
-    Eigen::Vector3f tcw = Scw.translation()/scale;
-    Eigen::Vector3f Ow = -Rcw.transpose()*tcw;     
-
-    // Set of MapLines already found in the KeyFrame
-    set<MapLinePtr> spAlreadyFound(vpMatched.begin(), vpMatched.end());
-    spAlreadyFound.erase(static_cast<MapLinePtr>(NULL));
-
-    int nmatches=0;
-    LineProjection proj;
-    Line2DRepresentation projLineRepresentation;
-    
-    // For each Candidate MapPoint Project and Match
-    for(int iMP=0, iendMP=vpLines.size(); iMP<iendMP; iMP++)
-    {
-        MapLinePtr pML = vpLines[iMP];
-        KeyFramePtr pKFi = vpLinesKFs[iMP];
-
-        // Discard Bad MapPoints and already found
-        if(pML->isBad() || spAlreadyFound.count(pML))
-            continue;
-        
-    //    // Get 3D Coords.
-    //    cv::Mat p3Dw = pML->GetWorldPos();
-
-    //    // Transform into Camera Coords.
-    //    cv::Mat p3Dc = Rcw*p3Dw+tcw;
-
-    //    // Depth must be positive
-    //    if(p3Dc.at<float>(2)<0.0)
-    //        continue;
-
-    //    // Project into Image
-    //    const float invz = 1/p3Dc.at<float>(2);
-    //    const float x = p3Dc.at<float>(0)*invz;
-    //    const float y = p3Dc.at<float>(1)*invz;
-
-    //    const float u = fx*x+cx;
-    //    const float v = fy*y+cy;
-
-    //    // Point must be inside the image
-    //    if(!pKF->IsInImage(u,v))
-    //        continue;
-
-    //    // Depth must be inside the scale invariance region of the point
-    //    const float maxDistance = pML->GetMaxDistanceInvariance();
-    //    const float minDistance = pML->GetMinDistanceInvariance();
-    //    cv::Mat PO = p3Dw-Ow;
-    //    const float dist = cv::norm(PO);
-
-    //    if(dist<minDistance || dist>maxDistance)
-    //        continue;
-
-        if(!proj.ProjectLineWithCheck(Rcw, tcw, pML, *pKF))
-            continue;
-
-        Eigen::Vector3f PO = proj.p3DMw-Ow;
-        
-        // Viewing angle must be less than 60 deg
-        Eigen::Vector3f Pn = pML->GetNormal(); 
-
-        if(PO.dot(Pn)<0.5*proj.distMiddlePoint)
-            continue;
-        
-        Geom2DUtils::GetLine2dRepresentation(proj.uS, proj.vS, proj.uE, proj.vE, projLineRepresentation); 
-        
-        int nPredictedLevel = pML->PredictScale(proj.distMiddlePoint,pKF);        
-
-    //    // Search in a radius
-    //    const float radius = th*pKF->mvScaleFactors[nPredictedLevel];
-    //    const vector<size_t> vIndices = pKF->GetFeaturesInArea(u,v,radius);
-        
-        const float scale = pKF->mvLineScaleFactors[nPredictedLevel];
-        const float deltaTheta = Frame::kDeltaTheta*scale;
-        const float deltaD = th * Frame::kDeltaD*scale;  //only increase the distance 
-        const vector<size_t> vIndices = pKF->GetLineFeaturesInArea(projLineRepresentation, deltaTheta, deltaD);            
-
-        if(vIndices.empty())
-            continue;
-
-        // Match to the most similar keypoint in the radius
-        const cv::Mat dML = pML->GetDescriptor();
-
-        int bestDist = 256;
-        int bestIdx = -1;
-        for(vector<size_t>::const_iterator vit=vIndices.begin(), vend=vIndices.end(); vit!=vend; vit++)
-        {
-            const size_t idx = *vit;
-            if(vpMatched[idx])
-                continue;
-
-            const int &klLevel= pKF->mvKeyLinesUn[idx].octave;
-
-            if(klLevel<nPredictedLevel-1 || klLevel>nPredictedLevel)
-                continue;
-
-            const cv::Mat &dKF = pKF->mLineDescriptors.row(idx);            
-
-            const int dist = DescriptorDistance(dML,dKF);
-
-            if(dist<bestDist)
-            {
-                bestDist = dist;
-                bestIdx = idx;
-            }
-        }
-
-        if( (bestDist<=TH_LOW*ratioHamming) && (bestIdx>=0) ) 
-        {
-            vpMatched[bestIdx] = pML;
-            vpMatchedKF[bestIdx] = pKFi;
-            nmatches++;
-        }
-
-    }
-
-    return nmatches;
-}
 
 /// < < < < < < < < < < < < < < < < < < < < < < < < < < < < < < < < < < < < 
 
@@ -1715,8 +1563,8 @@ int LineMatcher::SearchByProjection(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, 
 // Project MapLines into KeyFrame and search for duplicated MapLines
 int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, const float th) 
 {
-    Eigen::Matrix3f Rcw = pKF->GetRotation();
-    Eigen::Vector3f tcw = pKF->GetTranslation();
+    cv::Mat Rcw = pKF->GetRotation();
+    cv::Mat tcw = pKF->GetTranslation();
 
 //    const float &fx = pKF->fx;
 //    const float &fy = pKF->fy;
@@ -1724,7 +1572,7 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
 //    const float &cy = pKF->cy;
 //    const float &bf = pKF->mbf;
 
-    Eigen::Vector3f Ow = pKF->GetCameraCenter();
+    cv::Mat Ow = pKF->GetCameraCenter();
 
     int nFused=0;
 
@@ -1776,7 +1624,7 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
 
     //    const float maxDistance = pML->GetMaxDistanceInvariance();
     //    const float minDistance = pML->GetMinDistanceInvariance();
-        Eigen::Vector3f PO = proj.p3DMw-Ow;
+        cv::Mat PO = proj.p3DMw-Ow;
     //    const float dist3D = cv::norm(PO);
 
     //     Depth must be inside the scale pyramid of the image
@@ -1784,7 +1632,7 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
     //        continue;
 
         // Viewing angle must be less than 60 deg
-        Eigen::Vector3f Pn = pML->GetNormal(); 
+        cv::Mat Pn = pML->GetNormal(); 
 
         if(PO.dot(Pn)<0.5*proj.distMiddlePoint)
             continue;
@@ -1962,10 +1810,8 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
             }
             else
             {
-                //if( pML->AddObservation(pKF,bestIdx) )
-                //    pKF->AddMapLine(pML,bestIdx);
-                pML->AddObservation(pKF,bestIdx);
-                pKF->AddMapLine(pML,bestIdx);
+                if( pML->AddObservation(pKF,bestIdx) )
+                    pKF->AddMapLine(pML,bestIdx);
             }
             nFused++;
         }
@@ -1983,7 +1829,7 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
 
 // used in LoopClosing::SearchAndFuse()
 // Project MapLines into KeyFrame using a given Sim3 and search for duplicated MapLines
-int LineMatcher::Fuse(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const std::vector<MapLinePtr> &vpLines, const float th, vector<MapLinePtr> &vpReplaceLine)
+int LineMatcher::Fuse(KeyFramePtr& pKF, cv::Mat Scw, const std::vector<MapLinePtr> &vpLines, const float th, vector<MapLinePtr> &vpReplaceLine)
 {
     // Get Calibration Parameters for later projection
 //    const float &fx = pKF->fx;
@@ -1992,17 +1838,11 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const std::vec
 //    const float &cy = pKF->cy;
 
     // Decompose Scw
-    // cv::Mat sRcw = Scw.rowRange(0,3).colRange(0,3);
-    // const float scw = sqrt(sRcw.row(0).dot(sRcw.row(0)));
-    // cv::Mat Rcw = sRcw/scw;
-    // cv::Mat tcw = Scw.rowRange(0,3).col(3)/scw;
-    // cv::Mat Ow = -Rcw.t()*tcw;
-
-    // Transform Scw to SE3 
-    Eigen::Matrix3f Rcw = Scw.rotationMatrix();
-    float scale = Scw.scale(); 
-    Eigen::Vector3f tcw = Scw.translation()/scale;
-    Eigen::Vector3f Ow = -Rcw.transpose()*tcw;      
+    cv::Mat sRcw = Scw.rowRange(0,3).colRange(0,3);
+    const float scw = sqrt(sRcw.row(0).dot(sRcw.row(0)));
+    cv::Mat Rcw = sRcw/scw;
+    cv::Mat tcw = Scw.rowRange(0,3).col(3)/scw;
+    cv::Mat Ow = -Rcw.t()*tcw;
 
     // Set of MapLines already found in the KeyFrame
     const set<MapLinePtr> spAlreadyFound = pKF->GetMapLines();
@@ -2073,10 +1913,11 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const std::vec
         if (!proj.ProjectLineWithCheck(Rcw, tcw, pML, *pKF))
             continue;
   
-        Eigen::Vector3f PO = proj.p3DMw-Ow;
+
+        cv::Mat PO = proj.p3DMw-Ow;
 
         // Viewing angle must be less than 60 deg
-        Eigen::Vector3f Pn = pML->GetNormal();
+        cv::Mat Pn = pML->GetNormal();
 
         if(PO.dot(Pn)<0.5*proj.distMiddlePoint)
             continue;
@@ -2215,10 +2056,8 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const std::vec
             }
             else
             {
-                //if( pML->AddObservation(pKF,bestIdx) )
-                //    pKF->AddMapLine(pML,bestIdx);
-                pML->AddObservation(pKF,bestIdx);
-                pKF->AddMapLine(pML,bestIdx);
+                if( pML->AddObservation(pKF,bestIdx) )
+                    pKF->AddMapLine(pML,bestIdx);
             }
             nFused++;
         }

@@ -28,7 +28,7 @@
 #include <mutex>
 
 
-namespace PLVS2
+namespace PLVS
 {
 
 class KeyFrame; 
@@ -65,10 +65,10 @@ public: // setters
 protected:    
     
     void AddPoint(const PointT& point);       
-    void AddPoint(const Eigen::Vector3f& Ow);          
+    void AddPoint(const cv::Mat& Ow);          
     
     void RadiusSearch(const PointT& point, double radius, std::vector<int> &k_indices, std::vector<float> &k_sqr_distances);
-    void RadiusSearch(const Eigen::Vector3f& Ow, double radius, std::vector<int> &k_indices, std::vector<float> &k_sqr_distances);    
+    void RadiusSearch(const cv::Mat& Ow, double radius, std::vector<int> &k_indices, std::vector<float> &k_sqr_distances);    
         
 protected:
     
@@ -87,7 +87,7 @@ protected:
 template class KeyFrameSearchTree<pcl::PointXYZL>;
 
 
-} //namespace PLVS2
+} //namespace PLVS
 
 #endif /* KEYFRAME_SEARCH_TREE_H */
 

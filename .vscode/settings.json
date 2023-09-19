@@ -82,9 +82,6 @@
         "typeinfo": "cpp",
         "variant": "cpp",
         "bit": "cpp",
-        "tensor": "cpp",
-        "geometry": "cpp",
-        "numericaldiff": "cpp",
-        "specialfunctions": "cpp"
+        "tensor": "cpp"
     }
 }

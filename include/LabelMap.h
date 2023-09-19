@@ -28,7 +28,7 @@
 #ifndef LABELMAP_H
 #define LABELMAP_H
 
-namespace PLVS2
+namespace PLVS
 {
 
 class GlobalLabelMap; 
@@ -208,7 +208,7 @@ protected:
 
 
 
-} //namespace PLVS2
+} //namespace PLVS
 
 
 #endif /* LABELMAP_H */

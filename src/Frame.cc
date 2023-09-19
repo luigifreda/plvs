@@ -1,43 +1,35 @@
 /**
-* This file is part of ORB-SLAM3
+* This file is part of ORB-SLAM2.
 *
-* Copyright (C) 2017-2021 Carlos Campos, Richard Elvira, Juan J. Gómez Rodríguez, José M.M. Montiel and Juan D. Tardós, University of Zaragoza.
-* Copyright (C) 2014-2016 Raúl Mur-Artal, José M.M. Montiel and Juan D. Tardós, University of Zaragoza.
+* Copyright (C) 2014-2016 Raúl Mur-Artal <raulmur at unizar dot es> (University of Zaragoza)
+* For more information see <https://github.com/raulmur/ORB_SLAM2>
 *
-* ORB-SLAM3 is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
-* License as published by the Free Software Foundation, either version 3 of the License, or
+* ORB-SLAM2 is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
 * (at your option) any later version.
 *
-* ORB-SLAM3 is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
-* the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
+* ORB-SLAM2 is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details. 
 *
-* You should have received a copy of the GNU General Public License along with ORB-SLAM3.
-* If not, see <http://www.gnu.org/licenses/>.
+* You should have received a copy of the GNU General Public License
+* along with ORB-SLAM2. If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "Frame.h"
-
-#include "G2oTypes.h"
-#include "MapPoint.h"
-#include "KeyFrame.h"
-#include "ORBextractor.h"
 #include "Converter.h"
 #include "ORBmatcher.h"
-#include "GeometricCamera.h"
-
+#include "KeyFrame.h"
 #include "MapLine.h"
 #include "Utils.h"
 #include "LineMatcher.h"
 #include "Tracking.h"
 #include "Geom2DUtils.h"
 #include "Stopwatch.h"
-#include "Utils.h"
-#include "Geom2DUtils.h"
-
 #include <thread>
-#include <include/CameraModels/Pinhole.h>
-#include <include/CameraModels/KannalaBrandt8.h>
+#include <limits>
 
 
 #define LOG_ASSIGN_FEATURES 0
@@ -48,7 +40,7 @@
                                            //       This is because a Gaussian filter is added in keylines extraction when a pre-computed pyramid is set.
                                            //       In fact, the keypoint Gaussian filter is too strong for keyline extraction (it blurs the image too much!)
 
-#define DISABLE_STATIC_LINE_TRIANGULATION 1  // set this to 1 to check how local mapping is able to triangulate lines without using any static stereo line triangulation
+#define DISABLE_STATIC_LINE_TRIANGULATION 0  // set this to 1 to check how local mapping is able to triangulate lines without using any static stereo line triangulation
 
 #if LOG_ASSIGN_FEATURES
 #include "Logger.h"
@@ -56,7 +48,7 @@ static const string logFileName = "assign_feature.log";
 static Logger logger(logFileName);
 #endif
 
-namespace PLVS2
+namespace PLVS
 {
 
 long unsigned int Frame::nNextId=0;
@@ -88,33 +80,20 @@ const int Frame::kMaxInt = std::numeric_limits<int>::max();
 
 float Frame::skMinLineLength3D = 0.01; // [m]
 
-//For stereo fisheye matching
-cv::BFMatcher Frame::BFmatcher = cv::BFMatcher(cv::NORM_HAMMING);
-
-Frame::Frame(): mpcpi(NULL), mpImuPreintegrated(NULL), mpPrevFrame(NULL), mpImuPreintegratedFrame(NULL), mpReferenceKF(static_cast<KeyFramePtr>(NULL)), 
-		mbIsSet(false), mbImuPreintegrated(false), mbHasPose(false), mbHasVelocity(false)
-{
-#ifdef REGISTER_TIMES
-    mTimeStereoMatch = 0;
-    mTimeORB_Ext = 0;
-#endif
-}
-
+Frame::Frame()
+{}
 
 //Copy Constructor
 Frame::Frame(const Frame &frame)
-    :mpcpi(frame.mpcpi),
-     mpORBvocabulary(frame.mpORBvocabulary), mpORBextractorLeft(frame.mpORBextractorLeft), mpORBextractorRight(frame.mpORBextractorRight),
-     mTimeStamp(frame.mTimeStamp), mK(frame.mK.clone()), mK_(Converter::toMatrix3f(frame.mK)), mDistCoef(frame.mDistCoef.clone()),
+    :mpORBvocabulary(frame.mpORBvocabulary), mpORBextractorLeft(frame.mpORBextractorLeft), mpORBextractorRight(frame.mpORBextractorRight),
+     mTimeStamp(frame.mTimeStamp), mK(frame.mK.clone()), mDistCoef(frame.mDistCoef.clone()),
      mbf(frame.mbf), mbfInv(frame.mbfInv), mb(frame.mb), mThDepth(frame.mThDepth), 
      N(frame.N), 
      mvKeys(frame.mvKeys), mvKeysRight(frame.mvKeysRight), mvKeysUn(frame.mvKeysUn), 
      mvuRight(frame.mvuRight), mvDepth(frame.mvDepth), 
      mBowVec(frame.mBowVec), mFeatVec(frame.mFeatVec),
      mDescriptors(frame.mDescriptors.clone()), mDescriptorsRight(frame.mDescriptorsRight.clone()),   // clone point descriptors 
-     mvpMapPoints(frame.mvpMapPoints), mvbOutlier(frame.mvbOutlier),
-     mImuCalib(frame.mImuCalib), mnCloseMPs(frame.mnCloseMPs),
-     mpImuPreintegrated(frame.mpImuPreintegrated), mpImuPreintegratedFrame(frame.mpImuPreintegratedFrame), mImuBias(frame.mImuBias),
+     mvpMapPoints(frame.mvpMapPoints), mvbOutlier(frame.mvbOutlier), 
      mnId(frame.mnId),
      Nlines(frame.Nlines),
      mvKeyLines(frame.mvKeyLines), mvKeyLinesRight(frame.mvKeyLinesRight), mvKeyLinesUn(frame.mvKeyLinesUn),
@@ -124,73 +103,35 @@ Frame::Frame(const Frame &frame)
      mpReferenceKF(frame.mpReferenceKF), mnScaleLevels(frame.mnScaleLevels),
      mfScaleFactor(frame.mfScaleFactor), mfLogScaleFactor(frame.mfLogScaleFactor),
      mvScaleFactors(frame.mvScaleFactors), mvInvScaleFactors(frame.mvInvScaleFactors),
-     mNameFile(frame.mNameFile), mnDataset(frame.mnDataset),
      mvLevelSigma2(frame.mvLevelSigma2), mvInvLevelSigma2(frame.mvInvLevelSigma2),
-     mpPrevFrame(frame.mpPrevFrame), mpLastKeyFrame(frame.mpLastKeyFrame),
-     mbIsSet(frame.mbIsSet), 
-     mbImuPreintegrated(frame.mbImuPreintegrated), mpMutexImu(frame.mpMutexImu),
-     mpCamera(frame.mpCamera), mpCamera2(frame.mpCamera2), 
-     Nleft(frame.Nleft), Nright(frame.Nright),
-     monoLeft(frame.monoLeft), monoRight(frame.monoRight), mvLeftToRightMatch(frame.mvLeftToRightMatch),
-     mvRightToLeftMatch(frame.mvRightToLeftMatch), mvStereo3Dpoints(frame.mvStereo3Dpoints),
-     mTlr(frame.mTlr), mRlr(frame.mRlr), mtlr(frame.mtlr), mTrl(frame.mTrl),
-     mTcw(frame.mTcw),
      mnLineScaleLevels(frame.mnLineScaleLevels),
      mfLineScaleFactor(frame.mfLineScaleFactor), mfLineLogScaleFactor(frame.mfLineLogScaleFactor),        
      mvLineScaleFactors(frame.mvLineScaleFactors), 
      mvLineLevelSigma2(frame.mvLineLevelSigma2), mvLineInvLevelSigma2(frame.mvLineInvLevelSigma2),
-     mMedianDepth(frame.mMedianDepth),
-     mbHasPose(false), mbHasVelocity(false)
+     mMedianDepth(frame.mMedianDepth)
 {
     for(int i=0;i<FRAME_GRID_COLS;i++)
-        for(int j=0; j<FRAME_GRID_ROWS; j++){
+        for(int j=0; j<FRAME_GRID_ROWS; j++)
             mGrid[i][j]=frame.mGrid[i][j];
-            if(frame.Nleft > 0){
-                mGridRight[i][j] = frame.mGridRight[i][j];
-            }
-        }
-
+    
     if(frame.mpLineExtractorLeft)
     {
         for(int i=0;i<LINE_D_GRID_COLS;i++)
             for(int j=0; j<LINE_THETA_GRID_ROWS; j++)
                 mLineGrid[i][j]=frame.mLineGrid[i][j];
     }
-
-    if(frame.mbHasPose)
-        SetPose(frame.GetPose());
-
-    if(frame.HasVelocity())
-    {
-        SetVelocity(frame.GetVelocity());
-    }
-
-    mmProjectPoints = frame.mmProjectPoints;
-    mmMatchedInImage = frame.mmMatchedInImage;
     
-    mmProjectLines = frame.mmProjectLines;
-    mmMatchedLinesInImage = frame.mmMatchedLinesInImage;
-
-#ifdef REGISTER_TIMES
-    mTimeStereoMatch = frame.mTimeStereoMatch;
-    mTimeORB_Ext = frame.mTimeORB_Ext;
-#endif
+    if(!frame.mTcw.empty())
+        SetPose(frame.mTcw);
 }
 
 /// <  STEREO 
 Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeStamp, 
-	std::shared_ptr<LineExtractor>& lineExtractorLeft, std::shared_ptr<LineExtractor>& lineExtractorRight, 
-        ORBextractor* extractorLeft, ORBextractor* extractorRight, ORBVocabulary* voc, 
-        cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth, GeometricCamera* pCamera, Frame* pPrevF, const IMU::Calib &ImuCalib)
-    :mpcpi(NULL), mpLineExtractorLeft(lineExtractorLeft),mpLineExtractorRight(lineExtractorRight), 
-     mpORBvocabulary(voc),mpORBextractorLeft(extractorLeft),mpORBextractorRight(extractorRight), mTimeStamp(timeStamp), mK(K.clone()), 
-     mK_(Converter::toMatrix3f(K)), 
-     mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth),
-     mImuCalib(ImuCalib), mpImuPreintegrated(NULL), mpPrevFrame(pPrevF),mpImuPreintegratedFrame(NULL),
+	std::shared_ptr<LineExtractor>& lineExtractorLeft, std::shared_ptr<LineExtractor>& lineExtractorRight, ORBextractor* extractorLeft, ORBextractor* extractorRight, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth)
+    :mpLineExtractorLeft(lineExtractorLeft),mpLineExtractorRight(lineExtractorRight),
+     mpORBvocabulary(voc),mpORBextractorLeft(extractorLeft),mpORBextractorRight(extractorRight), mTimeStamp(timeStamp), mK(K.clone()),mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth),
      mpReferenceKF(static_cast<KeyFramePtr>(NULL)), Nlines(0),
-     mMedianDepth(KeyFrame::skFovCenterDistance),
-     mbIsSet(false), mbImuPreintegrated(false),
-     mpCamera(pCamera) ,mpCamera2(nullptr), mbHasPose(false), mbHasVelocity(false)
+     mMedianDepth(KeyFrame::skFovCenterDistance)
 {
     // Frame ID
     mnId=nNextId++;
@@ -216,8 +157,7 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
         mvLineLevelSigma2    = mpLineExtractorLeft->GetScaleSigmaSquares();
         mvLineInvLevelSigma2 = mpLineExtractorLeft->GetInverseScaleSigmaSquares();
     }    
-
-
+    
     // This is done only for the first Frame (or after a change in the calibration)
     if(mbInitialComputations)
     {
@@ -242,21 +182,6 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     mb = mbf/fx; 
     mbfInv = 1.f/mbf;
 
-    if(pPrevF)
-    {
-        if(pPrevF->HasVelocity())
-            SetVelocity(pPrevF->GetVelocity());
-    }
-    else
-    {
-        mVw.setZero();
-    }
-
-    // Features extraction
-    
-#ifdef REGISTER_TIMES
-    std::chrono::steady_clock::time_point time_StartExtORB = std::chrono::steady_clock::now();
-#endif
     if(mpLineExtractorLeft)
     {            
 #ifndef USE_CUDA          
@@ -276,8 +201,8 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
 #endif         
         
         // ORB extraction
-        thread threadLeft(&Frame::ExtractORB,this,0,imLeft,0,0);
-        thread threadRight(&Frame::ExtractORB,this,1,imRight,0,0);     
+        std::thread threadLeft(&Frame::ExtractORB,this,0,imLeft);
+        std::thread threadRight(&Frame::ExtractORB,this,1,imRight);        
         // Line extraction
         std::thread threadLinesLeft(&Frame::ExtractLSD,this,0,imLeft);
         std::thread threadLinesRight(&Frame::ExtractLSD,this,1,imRight);        
@@ -290,37 +215,26 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     else
     {
         // ORB extraction
-        thread threadLeft(&Frame::ExtractORB,this,0,imLeft,0,0);
-        thread threadRight(&Frame::ExtractORB,this,1,imRight,0,0);
+        std::thread threadLeft(&Frame::ExtractORB,this,0,imLeft);
+        std::thread threadRight(&Frame::ExtractORB,this,1,imRight);             
+        
         threadLeft.join();
-        threadRight.join();        
-    } 
-#ifdef REGISTER_TIMES
-    std::chrono::steady_clock::time_point time_EndExtORB = std::chrono::steady_clock::now();
-
-    mTimeORB_Ext = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndExtORB - time_StartExtORB).count();
-#endif
+        threadRight.join();          
+    }
+   
 
     N = mvKeys.size();
+
     if(mvKeys.empty())
         return;
 
     UndistortKeyPoints();
 
-#ifdef REGISTER_TIMES
-    std::chrono::steady_clock::time_point time_StartStereoMatches = std::chrono::steady_clock::now();
-#endif
     ComputeStereoMatches();
-#ifdef REGISTER_TIMES
-    std::chrono::steady_clock::time_point time_EndStereoMatches = std::chrono::steady_clock::now();
 
-    mTimeStereoMatch = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndStereoMatches - time_StartStereoMatches).count();
-#endif
-
-    mvpMapPoints = vector<MapPointPtr>(N,static_cast<MapPointPtr>(NULL));
+    mvpMapPoints = vector<MapPointPtr>(N,static_cast<MapPointPtr>(NULL));    
     mvbOutlier = vector<bool>(N,false);
-    mmProjectPoints.clear();
-    mmMatchedInImage.clear();
+    
     
     // LSD line segments extraction 
     if(mpLineExtractorLeft)
@@ -342,41 +256,17 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
         mvpMapLines = vector<MapLinePtr>(Nlines,static_cast<MapLinePtr>(NULL));
         mvbLineOutlier = vector<bool>(Nlines,false);
         mvuNumLinePosOptFailures = vector<unsigned int>(Nlines,0);
-
-        mmProjectLines.clear();// = map<long unsigned int, LineEndPoints>(N, static_cast<LineEndPoints>(NULL));
-        mmMatchedLinesInImage.clear();
-
     }    
 
-    mpMutexImu = new std::mutex();
-
-    //Set no stereo fisheye information
-    Nleft = -1;
-    Nright = -1;
-    mvLeftToRightMatch = vector<int>(0);
-    mvRightToLeftMatch = vector<int>(0);
-    mvStereo3Dpoints = vector<Eigen::Vector3f>(0);
-    monoLeft = -1;
-    monoRight = -1;
-    
-    AssignFeaturesToGrid(); //NOTE: this must stay after having initialized Nleft and Nright
+    AssignFeaturesToGrid();
 }
 
 /// <  RGBD 
-Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeStamp, 
-             std::shared_ptr<LineExtractor>& lineExtractor, 
-             ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth, GeometricCamera* pCamera,Frame* pPrevF, const IMU::Calib &ImuCalib)
-    :mpcpi(NULL),
-     mpLineExtractorLeft(lineExtractor),mpLineExtractorRight(0),
+Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeStamp, std::shared_ptr<LineExtractor>& lineExtractor, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth)
+    :mpLineExtractorLeft(lineExtractor),mpLineExtractorRight(0),
      mpORBvocabulary(voc),mpORBextractorLeft(extractor),mpORBextractorRight(static_cast<ORBextractor*>(NULL)),
-     mTimeStamp(timeStamp), mK(K.clone()), mK_(Converter::toMatrix3f(K)),
-     mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth),
-     Nlines(0),
-     mImuCalib(ImuCalib), mpImuPreintegrated(NULL), mpPrevFrame(pPrevF), mpImuPreintegratedFrame(NULL), mpReferenceKF(static_cast<KeyFramePtr>(NULL)), 
-     mbIsSet(false), mbImuPreintegrated(false),
-     mpCamera(pCamera),mpCamera2(nullptr),
-     mMedianDepth(KeyFrame::skFovCenterDistance),  
-     mbHasPose(false), mbHasVelocity(false)
+     mTimeStamp(timeStamp), mK(K.clone()),mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth), Nlines(0),
+     mMedianDepth(KeyFrame::skFovCenterDistance)   
 {
     // Frame ID
     mnId=nNextId++;
@@ -427,20 +317,8 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
 
     mb = mbf/fx;
     mbfInv = 1.f/mbf;    
-
-    if(pPrevF){
-        if(pPrevF->HasVelocity())
-            SetVelocity(pPrevF->GetVelocity());
-    }
-    else{
-        mVw.setZero();
-    }
    
-    // Feature extraction
-    
-#ifdef REGISTER_TIMES
-    std::chrono::steady_clock::time_point time_StartExtORB = std::chrono::steady_clock::now();
-#endif
+    // extraction of keypoints and keylines 
     
     TICKTRACK("ExtractFeatures");             
    
@@ -464,7 +342,7 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
     if(mpLineExtractorLeft)
     { 
         TICKTRACK("ExtractKeyPoints*");                  
-        std::thread threadPoints(&Frame::ExtractORB,this,0,imGray,0,0);  
+        std::thread threadPoints(&Frame::ExtractORB,this,0,imGray);  
         TICKTRACK("ExtractKeyLines-");          
         std::thread threadLines(&Frame::ExtractLSD,this,0,imGray); 
         threadPoints.join();   
@@ -476,15 +354,16 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
     {       
         TOCKTRACK("ExtractKeyPoints*");         
         // ORB extraction
-        ExtractORB(0,imGray,0,0); 
+        ExtractORB(0,imGray); 
         TOCKTRACK("ExtractKeyLines-");            
-    }   
+    }
+    
     
 #else
 
     TICKTRACK("ExtractKeyPoints*");       
     // ORB extraction
-    ExtractORB(0,imGray,0,0);
+    ExtractORB(0,imGray);
     TOCKTRACK("ExtractKeyPoints*");    
     
     if(mpLineExtractorLeft)
@@ -496,28 +375,20 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
     
 #endif 
     
-#ifdef REGISTER_TIMES
-    std::chrono::steady_clock::time_point time_EndExtORB = std::chrono::steady_clock::now();
-
-    mTimeORB_Ext = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndExtORB - time_StartExtORB).count();
-#endif
-
-
+    TOCKTRACK("ExtractFeatures");         
+    
     N = mvKeys.size();
 
-    if(mvKeys.empty())
+    if(mvKeys.empty()) 
         return;
-
+    
     UndistortKeyPoints();
 
     ComputeStereoFromRGBD(imDepth);
 
     mvpMapPoints = vector<MapPointPtr>(N,static_cast<MapPointPtr>(NULL));
-
-    mmProjectPoints.clear();
-    mmMatchedInImage.clear();
-
     mvbOutlier = vector<bool>(N,false);
+    
     
     // LSD line segments extraction 
     if(mpLineExtractorLeft)
@@ -541,35 +412,16 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
         mvpMapLines = vector<MapLinePtr>(Nlines,static_cast<MapLinePtr>(NULL));
         mvbLineOutlier = vector<bool>(Nlines,false);
         mvuNumLinePosOptFailures = vector<unsigned int>(Nlines,0);
-
-        mmProjectLines.clear();// = map<long unsigned int, LineEndPoints>(N, static_cast<LineEndPoints>(NULL));
-        mmMatchedLinesInImage.clear();
     }
-
-    TOCKTRACK("ExtractFeatures");    
-
-    mpMutexImu = new std::mutex();
-
-    //Set no stereo fisheye information
-    Nleft = -1;
-    Nright = -1;
-    mvLeftToRightMatch = vector<int>(0);
-    mvRightToLeftMatch = vector<int>(0);
-    mvStereo3Dpoints = vector<Eigen::Vector3f>(0);
-    monoLeft = -1;
-    monoRight = -1;
 
     AssignFeaturesToGrid();
 }
 
 /// < MONOCULAR 
-Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, GeometricCamera* pCamera, cv::Mat &distCoef, const float &bf, const float &thDepth, Frame* pPrevF, const IMU::Calib &ImuCalib)
-    :mpcpi(NULL),mpORBvocabulary(voc),mpORBextractorLeft(extractor),mpORBextractorRight(static_cast<ORBextractor*>(NULL)),
-     mTimeStamp(timeStamp), mK(static_cast<Pinhole*>(pCamera)->toK()), mK_(static_cast<Pinhole*>(pCamera)->toK_()), 
-     mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth),
-     mImuCalib(ImuCalib), mpImuPreintegrated(NULL),mpPrevFrame(pPrevF),mpImuPreintegratedFrame(NULL), mpReferenceKF(static_cast<KeyFramePtr>(NULL)), 
-     mbIsSet(false), mbImuPreintegrated(false), mpCamera(pCamera),
-     mpCamera2(nullptr), mbHasPose(false), mbHasVelocity(false)
+Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth)
+    :mpORBvocabulary(voc),mpORBextractorLeft(extractor),mpORBextractorRight(static_cast<ORBextractor*>(NULL)),
+     mTimeStamp(timeStamp), mK(K.clone()),mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth), Nlines(0),
+     mMedianDepth(KeyFrame::skFovCenterDistance)   
 {
     // Frame ID
     mnId=nNextId++;
@@ -584,18 +436,10 @@ Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extra
     mvInvLevelSigma2 = mpORBextractorLeft->GetInverseScaleSigmaSquares();
 
     // ORB extraction
-#ifdef REGISTER_TIMES
-    std::chrono::steady_clock::time_point time_StartExtORB = std::chrono::steady_clock::now();
-#endif
-    ExtractORB(0,imGray,0,1000);
-#ifdef REGISTER_TIMES
-    std::chrono::steady_clock::time_point time_EndExtORB = std::chrono::steady_clock::now();
-
-    mTimeORB_Ext = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndExtORB - time_StartExtORB).count();
-#endif
-
+    ExtractORB(0,imGray);
 
     N = mvKeys.size();
+
     if(mvKeys.empty())
         return;
 
@@ -604,13 +448,8 @@ Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extra
     // Set no stereo information
     mvuRight = vector<float>(N,-1);
     mvDepth = vector<float>(N,-1);
-    mnCloseMPs = 0;
 
     mvpMapPoints = vector<MapPointPtr>(N,static_cast<MapPointPtr>(NULL));
-
-    mmProjectPoints.clear();// = map<long unsigned int, cv::Point2f>(N, static_cast<cv::Point2f>(NULL));
-    mmMatchedInImage.clear();
-
     mvbOutlier = vector<bool>(N,false);
 
     // This is done only for the first Frame (or after a change in the calibration)
@@ -623,43 +462,21 @@ Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extra
 
         mfLineGridElementThetaInv=static_cast<float>(LINE_THETA_GRID_ROWS)/static_cast<float>(LINE_THETA_SPAN);
         mfLineGridElementDInv=static_cast<float>(LINE_D_GRID_COLS)/(2.0f*mnMaxDiag);
-
-        fx = static_cast<Pinhole*>(mpCamera)->toK().at<float>(0,0);
-        fy = static_cast<Pinhole*>(mpCamera)->toK().at<float>(1,1);
-        cx = static_cast<Pinhole*>(mpCamera)->toK().at<float>(0,2);
-        cy = static_cast<Pinhole*>(mpCamera)->toK().at<float>(1,2);
+        
+        fx = K.at<float>(0,0);
+        fy = K.at<float>(1,1);
+        cx = K.at<float>(0,2);
+        cy = K.at<float>(1,2);
         invfx = 1.0f/fx;
         invfy = 1.0f/fy;
 
         mbInitialComputations=false;
     }
 
-
     mb = mbf/fx;
     mbfInv = 1.f/mbf;
 
-    //Set no stereo fisheye information
-    Nleft = -1;
-    Nright = -1;
-    mvLeftToRightMatch = vector<int>(0);
-    mvRightToLeftMatch = vector<int>(0);
-    mvStereo3Dpoints = vector<Eigen::Vector3f>(0);
-    monoLeft = -1;
-    monoRight = -1;
-
     AssignFeaturesToGrid();
-
-    if(pPrevF)
-    {
-        if(pPrevF->HasVelocity())
-        {
-            SetVelocity(pPrevF->GetVelocity());
-        }
-    }
-    else
-    {
-        mVw.setZero();
-    }
 
     if(mpLineExtractorLeft)
     {
@@ -667,44 +484,25 @@ Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extra
         mvDepthLineStart  = vector<float>(Nlines,-1);
         mvuRightLineEnd   = vector<float>(Nlines,-1);
         mvDepthLineEnd    = vector<float>(Nlines,-1);
-    }        
-
-    mpMutexImu = new std::mutex();
+    } 
 }
-
 
 void Frame::AssignFeaturesToGrid()
 {
-    // Fill matrix with points
-    const int nCells = FRAME_GRID_COLS*FRAME_GRID_ROWS;
-
-    int nReserve = 0.5f*N/(nCells);
-
+    int nReserve = 0.5f*N/(FRAME_GRID_COLS*FRAME_GRID_ROWS);
     for(unsigned int i=0; i<FRAME_GRID_COLS;i++)
-        for (unsigned int j=0; j<FRAME_GRID_ROWS;j++){
+        for (unsigned int j=0; j<FRAME_GRID_ROWS;j++)
             mGrid[i][j].reserve(nReserve);
-            if(Nleft != -1){
-                mGridRight[i][j].reserve(nReserve);
-            }
-        }
-
-
 
     for(int i=0;i<N;i++)
     {
-        const cv::KeyPoint &kp = (Nleft == -1) ? mvKeysUn[i]
-                                                 : (i < Nleft) ? mvKeys[i]
-                                                                 : mvKeysRight[i - Nleft];
+        const cv::KeyPoint &kp = mvKeysUn[i];
 
         int nGridPosX, nGridPosY;
-        if(PosInGrid(kp,nGridPosX,nGridPosY)){
-            if(Nleft == -1 || i < Nleft)
-                mGrid[nGridPosX][nGridPosY].push_back(i);
-            else
-                mGridRight[nGridPosX][nGridPosY].push_back(i - Nleft);
-        }
+        if(PosInGrid(kp,nGridPosX,nGridPosY))
+            mGrid[nGridPosX][nGridPosY].push_back(i);
     }
-
+    
     if(mpLineExtractorLeft)
     {
         int nReserve = 0.5f*Nlines/(LINE_D_GRID_COLS*LINE_THETA_GRID_ROWS);
@@ -749,13 +547,12 @@ void Frame::AssignFeaturesToGrid()
     }
 }
 
-void Frame::ExtractORB(int flag, const cv::Mat &im, const int x0, const int x1)
+void Frame::ExtractORB(int flag, const cv::Mat &im)
 {
-    vector<int> vLapping = {x0,x1};
     if(flag==0)
-        monoLeft = (*mpORBextractorLeft)(im,cv::Mat(),mvKeys,mDescriptors,vLapping);
+        (*mpORBextractorLeft)(im,cv::Mat(),mvKeys,mDescriptors);
     else
-        monoRight = (*mpORBextractorRight)(im,cv::Mat(),mvKeysRight,mDescriptorsRight,vLapping);
+        (*mpORBextractorRight)(im,cv::Mat(),mvKeysRight,mDescriptorsRight);
 }
 
 void Frame::ExtractLSD(int flag, const cv::Mat &im)
@@ -804,408 +601,218 @@ void Frame::PrecomputeGaussianPyramid(int flag, const cv::Mat &im)
     }
 }
 
-bool Frame::isSet() const {
-    return mbIsSet;
-}
-
-void Frame::SetPose(const Sophus::SE3<float> &Tcw) {
-    mTcw = Tcw;
-
+void Frame::SetPose(cv::Mat Tcw)
+{
+    mTcw = Tcw.clone();
     UpdatePoseMatrices();
-    mbIsSet = true;
-    mbHasPose = true;
-}
-
-void Frame::SetNewBias(const IMU::Bias &b)
-{
-    mImuBias = b;
-    if(mpImuPreintegrated)
-        mpImuPreintegrated->SetNewBias(b);
-}
-
-void Frame::SetVelocity(Eigen::Vector3f Vwb)
-{
-    mVw = Vwb;
-    mbHasVelocity = true;
-}
-
-Eigen::Vector3f Frame::GetVelocity() const
-{
-    return mVw;
-}
-
-void Frame::SetImuPoseVelocity(const Eigen::Matrix3f &Rwb, const Eigen::Vector3f &twb, const Eigen::Vector3f &Vwb)
-{
-    mVw = Vwb;
-    mbHasVelocity = true;
-
-    Sophus::SE3f Twb(Rwb, twb);
-    Sophus::SE3f Tbw = Twb.inverse();
-
-    mTcw = mImuCalib.mTcb * Tbw;
-
-    UpdatePoseMatrices();
-    mbIsSet = true;
-    mbHasPose = true;
 }
 
 void Frame::UpdatePoseMatrices()
 {
-    Sophus::SE3<float> Twc = mTcw.inverse();
-    mRwc = Twc.rotationMatrix();
-    mOw = Twc.translation();
-    mRcw = mTcw.rotationMatrix();
-    mtcw = mTcw.translation();
-
-    //fovCw = Ow + Twc.rowRange(0,3).col(2) * skFovCenterDistance;
-    fovCw = mOw + mRwc.col(2) * mMedianDepth;
+    mRcw = mTcw.rowRange(0,3).colRange(0,3);
+    mRwc = mRcw.t();
+    mtcw = mTcw.rowRange(0,3).col(3);
+    mOw = -mRcw.t()*mtcw;
+    
+    mFovCw = mOw + mRwc.col(2) * mMedianDepth;    
 }
-
-Eigen::Matrix<float,3,1> Frame::GetImuPosition() const {
-    return mRwc * mImuCalib.mTcb.translation() + mOw;
-}
-
-Eigen::Matrix<float,3,3> Frame::GetImuRotation() {
-    return mRwc * mImuCalib.mTcb.rotationMatrix();
-}
-
-Sophus::SE3<float> Frame::GetImuPose() {
-    return mTcw.inverse() * mImuCalib.mTcb;
-}
-
-Sophus::SE3f Frame::GetRelativePoseTrl()
-{
-    return mTrl;
-}
-
-Sophus::SE3f Frame::GetRelativePoseTlr()
-{
-    return mTlr;
-}
-
-Eigen::Matrix3f Frame::GetRelativePoseTlr_rotation(){
-    return mTlr.rotationMatrix();
-}
-
-Eigen::Vector3f Frame::GetRelativePoseTlr_translation() {
-    return mTlr.translation();
-}
-
 
 bool Frame::isInFrustum(MapPointPtr& pMP, float viewingCosLimit)
 {
-    if(Nleft == -1){
-        pMP->mbTrackInView = false;
-        pMP->mTrackProjX = -1;
-        pMP->mTrackProjY = -1;
-
-        // 3D in absolute coordinates
-        Eigen::Matrix<float,3,1> P = pMP->GetWorldPos();
-
-        // 3D in camera coordinates
-        const Eigen::Matrix<float,3,1> Pc = mRcw * P + mtcw;
-        const float Pc_dist = Pc.norm();
-
-        // Check positive depth
-        const float &PcZ = Pc(2);
-        const float invz = 1.0f/PcZ;
-        if(PcZ<0.0f)
-            return false;
-
-        const Eigen::Vector2f uv = mpCamera->project(Pc);
-
-        if(uv(0)<mnMinX || uv(0)>mnMaxX)
-            return false;
-        if(uv(1)<mnMinY || uv(1)>mnMaxY)
-            return false;
-
-        pMP->mTrackProjX = uv(0);
-        pMP->mTrackProjY = uv(1);
-
-        // Check distance is in the scale invariance region of the MapPoint
-        const float maxDistance = pMP->GetMaxDistanceInvariance();
-        const float minDistance = pMP->GetMinDistanceInvariance();
-        const Eigen::Vector3f PO = P - mOw;
-        const float dist = PO.norm();
-
-        if(dist<minDistance || dist>maxDistance)
-            return false;
-
-        // Check viewing angle
-        Eigen::Vector3f Pn = pMP->GetNormal();
-
-        const float viewCos = PO.dot(Pn)/dist;
-
-        if(viewCos<viewingCosLimit)
-            return false;
-
-        // Predict scale in the image
-        const int nPredictedLevel = pMP->PredictScale(dist,this);
-
-        // Data used by the tracking
-        pMP->mbTrackInView = true;
-        pMP->mTrackProjX = uv(0);
-        pMP->mTrackProjXR = uv(0) - mbf*invz;
-
-        pMP->mTrackDepth = Pc_dist;
-
-        pMP->mTrackProjY = uv(1);
-        pMP->mnTrackScaleLevel= nPredictedLevel;
-        pMP->mTrackViewCos = viewCos;
-
-        return true;
-    }
-    else
-    {
-        pMP->mbTrackInView = false;
-        pMP->mbTrackInViewR = false;
-        pMP -> mnTrackScaleLevel = -1;
-        pMP -> mnTrackScaleLevelR = -1;
-
-        pMP->mbTrackInView = isInFrustumChecks(pMP,viewingCosLimit);
-        pMP->mbTrackInViewR = isInFrustumChecks(pMP,viewingCosLimit,true);
-
-        return pMP->mbTrackInView || pMP->mbTrackInViewR;
-    }
-}
-
-
-bool Frame::isInFrustum(MapLinePtr& pML, float viewingCosLimit)
-{    
-    /// < NOTE: Luigi add management of Right lines
-    
-    if(NlinesLeft == -1)
-    {    
-        pML->mbTrackInView = false;
-        pML->mTrackProjStartX = -1; pML->mTrackProjStartY = -1; 
-        pML->mTrackProjEndX = -1; pML->mTrackProjEndY = -1;
-        pML->mTrackProjMiddleX = -1; pML->mTrackProjMiddleY = -1; 
-
-        // 3D in absolute coordinates
-        Eigen::Vector3f p3DStart, p3DEnd;
-        pML->GetWorldEndPoints(p3DStart, p3DEnd);    
-
-        // consider the middle point  
-        const Eigen::Vector3f p3DMiddle = 0.5*(p3DStart+p3DEnd);
-
-        // 3D in camera coordinates
-        const Eigen::Vector3f p3DMc = mRcw*p3DMiddle+mtcw;
-        const float &pMcX = p3DMc(0);
-        const float &pMcY = p3DMc(1);
-        const float &pMcZ = p3DMc(2);
-
-        // Check positive depth
-        if(pMcZ<0.0f)
-            return false;
-
-        // Project in image and check it is not outside
-        const float invMz = 1.0f/pMcZ;
-        pML->mTrackProjMiddleX = fx*pMcX*invMz+cx;
-        pML->mTrackProjMiddleY = fy*pMcY*invMz+cy;
-        pML->mTrackProjMiddleXR = pML->mTrackProjMiddleX - mbf*invMz;    
-
-        const float& u = pML->mTrackProjMiddleX;
-        const float& v = pML->mTrackProjMiddleY;
-
-        if(u<mnMinX || u>mnMaxX)
-            return false;
-        if(v<mnMinY || v>mnMaxY)
-            return false;    
-
-        // Check distance is in the scale invariance region of the MapPoint
-        const float maxDistance = pML->GetMaxDistanceInvariance();
-        const float minDistance = pML->GetMinDistanceInvariance();
-        const Eigen::Vector3f PO = p3DMiddle-mOw;
-        const float dist = PO.norm();
-
-        if(dist<minDistance || dist>maxDistance)
-            return false;
-
-       // Check viewing angle
-        Eigen::Vector3f Pn = pML->GetNormal();
-
-        const float viewCos = PO.dot(Pn)/dist;
-
-        if(viewCos<viewingCosLimit)
-            return false;
-
-        // Now compute other data used by the tracking
-
-        // 3D in camera coordinates
-        const Eigen::Vector3f p3DSc = mRcw*p3DStart+mtcw;
-        const float &p3DScX = p3DSc(0);
-        const float &p3DScY = p3DSc(1);
-        const float &p3DScZ = p3DSc(2);
-
-        const Eigen::Vector3f p3DEc = mRcw*p3DEnd+mtcw;
-        const float &p3DEcX = p3DEc(0);
-        const float &p3DEcY = p3DEc(1);
-        const float &p3DEcZ = p3DEc(2);
-
-        // Project in image 
-        const float invSz = 1.0f/p3DScZ;
-        pML->mTrackProjStartX = fx*p3DScX*invSz+cx;
-        pML->mTrackProjStartY = fy*p3DScY*invSz+cy;
-        pML->mTrackStartDepth = p3DScZ;
-        pML->mTrackProjStartXR = pML->mTrackProjStartX - mbf*invSz;
-
-        // Project in image 
-        const float invEz = 1.0f/p3DEcZ;
-        pML->mTrackProjEndX = fx*p3DEcX*invEz+cx;
-        pML->mTrackProjEndY = fy*p3DEcY*invEz+cy; 
-        pML->mTrackEndDepth = p3DEcZ;        
-        pML->mTrackProjEndXR = pML->mTrackProjEndX - mbf*invEz;
-
-        /*const float deltaDepth = fabs(p3DScZ-p3DEcZ);
-        if(deltaDepth > kDeltaZForCheckingViewZAngleMin)
-        {
-            const float tgViewZAngle = sqrt( Utils::Pow2(p3DScX-p3DEcX) + Utils::Pow2(p3DScY-p3DEcY) )/deltaDepth;
-            if(tgViewZAngle<kTgViewZAngleMin)
-                return false;    
-        }*/
-
-        // Predict scale in the image
-        const int nPredictedLevel = pML->PredictScale(dist,this);
-
-        pML->mbTrackInView = true;
-        pML->mnTrackScaleLevel= nPredictedLevel;
-        pML->mTrackViewCos = viewCos;
-
-        return true;
-    }
-    else
-    {
-        pML->mbTrackInView = false;
-        pML->mbTrackInViewR = false;
-        pML->mnTrackScaleLevel = -1;
-        pML->mnTrackScaleLevelR = -1;
-
-        pML->mbTrackInView = isInFrustumChecks(pML,viewingCosLimit);
-        pML->mbTrackInViewR = isInFrustumChecks(pML,viewingCosLimit,true);
-
-        return pML->mbTrackInView || pML->mbTrackInViewR;     
-    }
-}
-
-bool Frame::ProjectPointDistort(MapPointPtr pMP, cv::Point2f &kp, float &u, float &v)
-{
+    pMP->mbTrackInView = false;
 
     // 3D in absolute coordinates
-    Eigen::Vector3f P = pMP->GetWorldPos();
+    cv::Mat P = pMP->GetWorldPos(); 
 
     // 3D in camera coordinates
-    const Eigen::Vector3f Pc = mRcw * P + mtcw;
-    const float &PcX = Pc(0);
-    const float &PcY= Pc(1);
-    const float &PcZ = Pc(2);
+    const cv::Mat Pc = mRcw*P+mtcw;
+    const float &PcX = Pc.at<float>(0);
+    const float &PcY = Pc.at<float>(1);
+    const float &PcZ = Pc.at<float>(2);
 
     // Check positive depth
     if(PcZ<0.0f)
-    {
-        cout << "Negative depth: " << PcZ << endl;
         return false;
-    }
 
     // Project in image and check it is not outside
     const float invz = 1.0f/PcZ;
-    u=fx*PcX*invz+cx;
-    v=fy*PcY*invz+cy;
+    const float u=fx*PcX*invz+cx;
+    const float v=fy*PcY*invz+cy;
 
     if(u<mnMinX || u>mnMaxX)
         return false;
     if(v<mnMinY || v>mnMaxY)
         return false;
 
-    float u_distort, v_distort;
+    // Check distance is in the scale invariance region of the MapPoint
+    const float maxDistance = pMP->GetMaxDistanceInvariance();
+    const float minDistance = pMP->GetMinDistanceInvariance();
+    const cv::Mat PO = P-mOw;
+    const float dist = cv::norm(PO);
 
-    float x = (u - cx) * invfx;
-    float y = (v - cy) * invfy;
-    float r2 = x * x + y * y;
-    float k1 = mDistCoef.at<float>(0);
-    float k2 = mDistCoef.at<float>(1);
-    float p1 = mDistCoef.at<float>(2);
-    float p2 = mDistCoef.at<float>(3);
-    float k3 = 0;
-    if(mDistCoef.total() == 5)
-    {
-        k3 = mDistCoef.at<float>(4);
-    }
+    if(dist<minDistance || dist>maxDistance)
+        return false;
 
-    // Radial distorsion
-    float x_distort = x * (1 + k1 * r2 + k2 * r2 * r2 + k3 * r2 * r2 * r2);
-    float y_distort = y * (1 + k1 * r2 + k2 * r2 * r2 + k3 * r2 * r2 * r2);
+   // Check viewing angle
+    cv::Mat Pn = pMP->GetNormal();
 
-    // Tangential distorsion
-    x_distort = x_distort + (2 * p1 * x * y + p2 * (r2 + 2 * x * x));
-    y_distort = y_distort + (p1 * (r2 + 2 * y * y) + 2 * p2 * x * y);
+    const float viewCos = PO.dot(Pn)/dist;
 
-    u_distort = x_distort * fx + cx;
-    v_distort = y_distort * fy + cy;
+    if(viewCos<viewingCosLimit)
+        return false;
 
+    // Predict scale in the image
+    const int nPredictedLevel = pMP->PredictScale(dist,this);
 
-    u = u_distort;
-    v = v_distort;
-
-    kp = cv::Point2f(u, v);
+    // Data used by the tracking
+    pMP->mbTrackInView = true;
+    pMP->mTrackProjX = u;
+    pMP->mTrackProjXR = u - mbf*invz;
+    pMP->mTrackProjY = v;
+    pMP->mnTrackScaleLevel= nPredictedLevel;
+    pMP->mTrackViewCos = viewCos;
 
     return true;
 }
 
-Eigen::Vector3f Frame::inRefCoordinates(Eigen::Vector3f pCw)
-{
-    return mRcw * pCw + mtcw;
+
+bool Frame::isInFrustum(MapLinePtr& pML, float viewingCosLimit)
+{    
+    pML->mbTrackInView = false;
+    pML->mTrackProjStartX = -1; pML->mTrackProjStartY = -1; 
+    pML->mTrackProjEndX = -1; pML->mTrackProjEndY = -1;
+    pML->mTrackProjMiddleX = -1; pML->mTrackProjMiddleY = -1; 
+    
+    // 3D in absolute coordinates
+    //const cv::Mat p3DStart = pML->GetWorldPosStart(); 
+    //const cv::Mat p3DEnd   = pML->GetWorldPosEnd();
+    cv::Mat p3DStart, p3DEnd;
+    pML->GetWorldEndPoints(p3DStart, p3DEnd);
+    
+    // consider the middle point  
+    const cv::Mat p3DMiddle = 0.5*(p3DStart+p3DEnd);
+
+    // 3D in camera coordinates
+    const cv::Mat p3DMc = mRcw*p3DMiddle+mtcw;
+    const float &pMcX = p3DMc.at<float>(0);
+    const float &pMcY = p3DMc.at<float>(1);
+    const float &pMcZ = p3DMc.at<float>(2);
+
+    // Check positive depth
+    if(pMcZ<0.0f)
+        return false;
+
+    // Project in image and check it is not outside
+    const float invMz = 1.0f/pMcZ;
+    pML->mTrackProjMiddleX = fx*pMcX*invMz+cx;
+    pML->mTrackProjMiddleY = fy*pMcY*invMz+cy;
+    pML->mTrackProjMiddleXR = pML->mTrackProjMiddleX - mbf*invMz;    
+
+    const float& u = pML->mTrackProjMiddleX;
+    const float& v = pML->mTrackProjMiddleY;
+    
+    if(u<mnMinX || u>mnMaxX)
+        return false;
+    if(v<mnMinY || v>mnMaxY)
+        return false;    
+    
+    // Check distance is in the scale invariance region of the MapPoint
+    const float maxDistance = pML->GetMaxDistanceInvariance();
+    const float minDistance = pML->GetMinDistanceInvariance();
+    const cv::Mat PO = p3DMiddle-mOw;
+    const float dist = cv::norm(PO);
+
+    if(dist<minDistance || dist>maxDistance)
+        return false;
+
+   // Check viewing angle
+    cv::Mat Pn = pML->GetNormal();
+
+    const float viewCos = PO.dot(Pn)/dist;
+
+    if(viewCos<viewingCosLimit)
+        return false;
+    
+    // Now compute other data used by the tracking
+    
+    // 3D in camera coordinates
+    const cv::Mat p3DSc = mRcw*p3DStart+mtcw;
+    const float &p3DScX = p3DSc.at<float>(0);
+    const float &p3DScY = p3DSc.at<float>(1);
+    const float &p3DScZ = p3DSc.at<float>(2);
+
+    const cv::Mat p3DEc = mRcw*p3DEnd+mtcw;
+    const float &p3DEcX = p3DEc.at<float>(0);
+    const float &p3DEcY = p3DEc.at<float>(1);
+    const float &p3DEcZ = p3DEc.at<float>(2);
+   
+    // Project in image 
+    const float invSz = 1.0f/p3DScZ;
+    pML->mTrackProjStartX = fx*p3DScX*invSz+cx;
+    pML->mTrackProjStartY = fy*p3DScY*invSz+cy;
+    pML->mTrackStartDepth = p3DScZ;    
+    pML->mTrackProjStartXR = pML->mTrackProjStartX - mbf*invSz;
+    
+    // Project in image 
+    const float invEz = 1.0f/p3DEcZ;
+    pML->mTrackProjEndX = fx*p3DEcX*invEz+cx;
+    pML->mTrackProjEndY = fy*p3DEcY*invEz+cy;
+    pML->mTrackEndDepth = p3DEcZ;         
+    pML->mTrackProjEndXR = pML->mTrackProjEndX - mbf*invEz;
+
+    /*const float deltaDepth = fabs(p3DScZ-p3DEcZ);
+    if(deltaDepth > kDeltaZForCheckingViewZAngleMin)
+    {
+        const float tgViewZAngle = sqrt( Utils::Pow2(p3DScX-p3DEcX) + Utils::Pow2(p3DScY-p3DEcY) )/deltaDepth;
+        if(tgViewZAngle<kTgViewZAngleMin)
+            return false;    
+    }*/
+    
+    // Predict scale in the image
+    const int nPredictedLevel = pML->PredictScale(dist,this);
+
+    pML->mbTrackInView = true;
+    pML->mnTrackScaleLevel= nPredictedLevel;
+    pML->mTrackViewCos = viewCos;
+
+    return true;
 }
 
-
-// TODO: Luigi optimization 
-// bring (!bRight) ? mGrid[ix][iy] : mGridRight[ix][iy]; outside the loop!
-vector<size_t> Frame::GetFeaturesInArea(const float &x, const float  &y, const float  &r, const int minLevel, const int maxLevel, const bool bRight) const
+vector<size_t> Frame::GetFeaturesInArea(const float &x, const float  &y, const float  &r, const int minLevel, const int maxLevel) const
 {
     vector<size_t> vIndices;
     vIndices.reserve(N);
 
-    float factorX = r;
-    float factorY = r;
-
-    const int nMinCellX = max(0,(int)floor((x-mnMinX-factorX)*mfGridElementWidthInv));
+    const int nMinCellX = max(0,(int)floor((x-mnMinX-r)*mfGridElementWidthInv));
     if(nMinCellX>=FRAME_GRID_COLS)
-    {
         return vIndices;
-    }
 
-    const int nMaxCellX = min((int)FRAME_GRID_COLS-1,(int)ceil((x-mnMinX+factorX)*mfGridElementWidthInv));
+    const int nMaxCellX = min((int)FRAME_GRID_COLS-1,(int)ceil((x-mnMinX+r)*mfGridElementWidthInv));
     if(nMaxCellX<0)
-    {
         return vIndices;
-    }
 
-    const int nMinCellY = max(0,(int)floor((y-mnMinY-factorY)*mfGridElementHeightInv));
+    const int nMinCellY = max(0,(int)floor((y-mnMinY-r)*mfGridElementHeightInv));
     if(nMinCellY>=FRAME_GRID_ROWS)
-    {
         return vIndices;
-    }
 
-    const int nMaxCellY = min((int)FRAME_GRID_ROWS-1,(int)ceil((y-mnMinY+factorY)*mfGridElementHeightInv));
+    const int nMaxCellY = min((int)FRAME_GRID_ROWS-1,(int)ceil((y-mnMinY+r)*mfGridElementHeightInv));
     if(nMaxCellY<0)
-    {
         return vIndices;
-    }
 
-    const bool bCheckLevels = (minLevel>0) || (maxLevel>=0);
+    //const bool bCheckLevels = (minLevel>0) || (maxLevel>=0);
+    const bool bCheckLevels = (minLevel>0) || (maxLevel<kMaxInt);
 
     for(int ix = nMinCellX; ix<=nMaxCellX; ix++)
     {
         for(int iy = nMinCellY; iy<=nMaxCellY; iy++)
         {
-            const vector<size_t>& vCell = (!bRight) ? mGrid[ix][iy] : mGridRight[ix][iy];
+            const vector<size_t>& vCell = mGrid[ix][iy];
             if(vCell.empty())
                 continue;
 
             for(size_t j=0, jend=vCell.size(); j<jend; j++)
             {
-                const cv::KeyPoint &kpUn = (Nleft == -1) ? mvKeysUn[vCell[j]]
-                                                         : (!bRight) ? mvKeys[vCell[j]]
-                                                                     : mvKeysRight[vCell[j]];
+                const cv::KeyPoint &kpUn = mvKeysUn[vCell[j]];
                 if(bCheckLevels)
                 {
                     if(kpUn.octave<minLevel)
@@ -1218,7 +825,7 @@ vector<size_t> Frame::GetFeaturesInArea(const float &x, const float  &y, const f
                 const float distx = kpUn.pt.x-x;
                 const float disty = kpUn.pt.y-y;
 
-                if(fabs(distx)<factorX && fabs(disty)<factorY)
+                if(fabs(distx)<r && fabs(disty)<r)
                     vIndices.push_back(vCell[j]);
             }
         }
@@ -1442,9 +1049,8 @@ void Frame::UndistortKeyPoints()
 
     // Undistort points
     mat=mat.reshape(2);
-    cv::undistortPoints(mat,mat, static_cast<Pinhole*>(mpCamera)->toK(),mDistCoef,cv::Mat(),mK);
+    cv::undistortPoints(mat,mat,mK,mDistCoef,cv::Mat(),mK);
     mat=mat.reshape(1);
-
 
     // Fill undistorted keypoint vector
     mvKeysUn.resize(N);
@@ -1455,7 +1061,6 @@ void Frame::UndistortKeyPoints()
         kp.pt.y=mat.at<float>(i,1);
         mvKeysUn[i]=kp;
     }
-
 }
 
 
@@ -1481,7 +1086,7 @@ void Frame::UndistortKeyLines()
 
     // Undistort points
     mat=mat.reshape(2);
-    cv::undistortPoints(mat,mat, static_cast<Pinhole*>(mpCamera)->toK(),mDistCoef,cv::Mat(),mK);
+    cv::undistortPoints(mat,mat,mK,mDistCoef,cv::Mat(),mK);
     mat=mat.reshape(1);
 
     // Fill undistorted keypoint vector
@@ -1508,11 +1113,11 @@ void Frame::ComputeImageBounds(const cv::Mat &imLeft)
         mat.at<float>(2,0)=0.0; mat.at<float>(2,1)=imLeft.rows;
         mat.at<float>(3,0)=imLeft.cols; mat.at<float>(3,1)=imLeft.rows;
 
+        // Undistort corners
         mat=mat.reshape(2);
-        cv::undistortPoints(mat,mat,static_cast<Pinhole*>(mpCamera)->toK(),mDistCoef,cv::Mat(),mK);
+        cv::undistortPoints(mat,mat,mK,mDistCoef,cv::Mat(),mK);
         mat=mat.reshape(1);
 
-        // Undistort corners
         mnMinX = min(mat.at<float>(0,0),mat.at<float>(2,0));
         mnMaxX = max(mat.at<float>(1,0),mat.at<float>(3,0));
         mnMinY = min(mat.at<float>(0,1),mat.at<float>(1,1));
@@ -1638,9 +1243,8 @@ void Frame::ComputeStereoMatches()
                              .rowRange(scaledvL - w, scaledvL + w + 1)
                              .colRange(scaleduL - w, scaleduL + w + 1);          
 #endif         
-            //Originally in ORBSLAM2
-	        //IL.convertTo(IL,CV_32F);
-            //IL = IL - IL.at<float>(w,w) *cv::Mat::ones(IL.rows,IL.cols,CV_32F);
+            IL.convertTo(IL,CV_32F);
+            IL = IL - IL.at<float>(w,w) *cv::Mat::ones(IL.rows,IL.cols,CV_32F);
 
             int bestDist = INT_MAX;
             int bestincR = 0;
@@ -1666,9 +1270,8 @@ void Frame::ComputeStereoMatches()
                         .rowRange(scaledvL - w, scaledvL + w + 1)
                         .colRange(scaleduR0 + incR - w, scaleduR0 + incR + w + 1);
 #endif
-	            //Originally in ORBSLAM2
-                //IR.convertTo(IR,CV_32F);
-                //IR = IR - IR.at<float>(w,w) *cv::Mat::ones(IR.rows,IR.cols,CV_32F);
+                IR.convertTo(IR,CV_32F);
+                IR = IR - IR.at<float>(w,w) *cv::Mat::ones(IR.rows,IR.cols,CV_32F);
 
                 float dist = cv::norm(IL,IR,cv::NORM_L1);
                 if(dist<bestDist)
@@ -2425,24 +2028,23 @@ void Frame::ComputeStereoLinesFromRGBD(const cv::Mat &imDepth)
     //std::cout << "num lines: "<< Nlines<< ", stereo lines %: " << 100.*numStereolines/Nlines << ", misaligned lines %: " << 100.*numLinesWithMisalignment/Nlines << std::endl;
 }
 
-
-bool Frame::UnprojectStereo(const int &i, Eigen::Vector3f &x3D)
+cv::Mat Frame::UnprojectStereo(const int& i)
 {
-    const float z = mvDepth[i];
-    if(z>0) {
+    const float& z = mvDepth[i];
+    if(z>0)
+    {
         const float u = mvKeysUn[i].pt.x;
         const float v = mvKeysUn[i].pt.y;
         const float x = (u-cx)*z*invfx;
         const float y = (v-cy)*z*invfy;
-        Eigen::Vector3f x3Dc(x, y, z);
-        x3D = mRwc * x3Dc + mOw;
-        return true;
-    } else
-        return false;
+        cv::Mat x3Dc = (cv::Mat_<float>(3,1) << x, y, z);
+        return mRwc*x3Dc+mOw;
+    }
+    else
+        return cv::Mat();
 }
 
-
-bool Frame::UnprojectStereoLine(const int& i, Eigen::Vector3f& p3DStart, Eigen::Vector3f& p3DEnd)
+bool Frame::UnprojectStereoLine(const int& i, cv::Mat& p3DStart, cv::Mat& p3DEnd)
 {
     bool res  = true; 
     const float& zS = mvDepthLineStart[i];
@@ -2453,15 +2055,15 @@ bool Frame::UnprojectStereoLine(const int& i, Eigen::Vector3f& p3DStart, Eigen::
         const float vS = mvKeyLinesUn[i].startPointY;
         const float xS = (uS-cx)*zS*invfx;
         const float yS = (vS-cy)*zS*invfy;
-        Eigen::Vector3f xs3Dc(xS, yS, zS);
-        p3DStart = mRwc * xs3Dc + mOw;
+        cv::Mat xs3Dc = (cv::Mat_<float>(3,1) << xS, yS, zS);
+        p3DStart = mRwc*xs3Dc+mOw;
         
         const float uE = mvKeyLinesUn[i].endPointX;
         const float vE = mvKeyLinesUn[i].endPointY;
         const float xE = (uE-cx)*zE*invfx;
         const float yE = (vE-cy)*zE*invfy;
-        Eigen::Vector3f xe3Dc(xE, yE, zE);
-        p3DEnd = mRwc * xe3Dc + mOw;
+        cv::Mat xe3Dc = (cv::Mat_<float>(3,1) << xE, yE, zE);
+        p3DEnd = mRwc*xe3Dc+mOw;
         
         res = true; 
            
@@ -2471,8 +2073,8 @@ bool Frame::UnprojectStereoLine(const int& i, Eigen::Vector3f& p3DStart, Eigen::
         std::cout << "*****************************************************************" << std::endl; 
         std::cout << "Frame::UnprojectStereoLine() - WARNING unprojecting invalid line!" << std::endl; 
         std::cout << "*****************************************************************" << std::endl;
-        p3DStart.setZero();
-        p3DEnd.setZero();
+        p3DStart = cv::Mat();
+        p3DEnd   = cv::Mat();
         
         res = false;
     }
@@ -2503,351 +2105,4 @@ float Frame::ComputeSceneMedianDepth(const int q)
     return res; 
 }
 
-bool Frame::imuIsPreintegrated()
-{
-    unique_lock<std::mutex> lock(*mpMutexImu);
-    return mbImuPreintegrated;
-}
-
-void Frame::setIntegrated()
-{
-    unique_lock<std::mutex> lock(*mpMutexImu);
-    mbImuPreintegrated = true;
-}
-
-/// < FISHEYE 
-Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeStamp, 
-             std::shared_ptr<LineExtractor>& lineExtractorLeft, std::shared_ptr<LineExtractor>& lineExtractorRight, 
-             ORBextractor* extractorLeft, ORBextractor* extractorRight, ORBVocabulary* voc, 
-             cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth, GeometricCamera* pCamera, GeometricCamera* pCamera2, Sophus::SE3f& Tlr,Frame* pPrevF, const IMU::Calib &ImuCalib)
-    :mpcpi(NULL), 
-    mpLineExtractorLeft(lineExtractorLeft),mpLineExtractorRight(lineExtractorRight),
-    mpORBvocabulary(voc),mpORBextractorLeft(extractorLeft),mpORBextractorRight(extractorRight), mTimeStamp(timeStamp), mK(K.clone()), mK_(Converter::toMatrix3f(K)),
-    mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth),
-    mImuCalib(ImuCalib), mpImuPreintegrated(NULL), mpPrevFrame(pPrevF),mpImuPreintegratedFrame(NULL), 
-    mpReferenceKF(static_cast<KeyFramePtr>(NULL)), Nlines(0),
-    mMedianDepth(KeyFrame::skFovCenterDistance),    
-    mbImuPreintegrated(false), mpCamera(pCamera), mpCamera2(pCamera2),
-    mbHasPose(false), mbHasVelocity(false)
-
-{
-    /// < TODO: Luigi add management of lines here!
-    
-    imgLeft = imLeft.clone();
-    imgRight = imRight.clone();
-
-    // Frame ID
-    mnId=nNextId++;
-
-    // Scale Level Info
-    mnScaleLevels = mpORBextractorLeft->GetLevels();
-    mfScaleFactor = mpORBextractorLeft->GetScaleFactor();
-    mfLogScaleFactor = log(mfScaleFactor);
-    mvScaleFactors = mpORBextractorLeft->GetScaleFactors();
-    mvInvScaleFactors = mpORBextractorLeft->GetInverseScaleFactors();
-    mvLevelSigma2 = mpORBextractorLeft->GetScaleSigmaSquares();
-    mvInvLevelSigma2 = mpORBextractorLeft->GetInverseScaleSigmaSquares();
-
-    if(mpLineExtractorLeft)
-    {
-        //mfLineSigma2    = mpLineExtractorLeft->GetSigmaScale2();
-        //mfInvLineSigma2 = mpLineExtractorLeft->GetInvSigmaScale2();
-        
-        mnLineScaleLevels    = mpLineExtractorLeft->GetLevels();
-        mfLineScaleFactor    = mpLineExtractorLeft->GetScaleFactor();    
-        mfLineLogScaleFactor = log(mfLineScaleFactor);        
-        mvLineScaleFactors   = mpLineExtractorLeft->GetScaleFactors();
-        mvLineLevelSigma2    = mpLineExtractorLeft->GetScaleSigmaSquares();
-        mvLineInvLevelSigma2 = mpLineExtractorLeft->GetInverseScaleSigmaSquares();
-    }   
-    
-    // ORB extraction
-#ifdef REGISTER_TIMES
-    std::chrono::steady_clock::time_point time_StartExtORB = std::chrono::steady_clock::now();
-#endif
-    thread threadLeft(&Frame::ExtractORB,this,0,imLeft,static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[0],static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[1]);
-    thread threadRight(&Frame::ExtractORB,this,1,imRight,static_cast<KannalaBrandt8*>(mpCamera2)->mvLappingArea[0],static_cast<KannalaBrandt8*>(mpCamera2)->mvLappingArea[1]);
-    threadLeft.join();
-    threadRight.join();
-#ifdef REGISTER_TIMES
-    std::chrono::steady_clock::time_point time_EndExtORB = std::chrono::steady_clock::now();
-
-    mTimeORB_Ext = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndExtORB - time_StartExtORB).count();
-#endif
-
-    Nleft = mvKeys.size();
-    Nright = mvKeysRight.size();
-    N = Nleft + Nright;
-
-    if(N == 0)
-        return;
-
-    // This is done only for the first Frame (or after a change in the calibration)
-    if(mbInitialComputations)
-    {
-        ComputeImageBounds(imLeft);
-
-        mfGridElementWidthInv=static_cast<float>(FRAME_GRID_COLS)/(mnMaxX-mnMinX);
-        mfGridElementHeightInv=static_cast<float>(FRAME_GRID_ROWS)/(mnMaxY-mnMinY);
-
-        mfLineGridElementThetaInv=static_cast<float>(LINE_THETA_GRID_ROWS)/static_cast<float>(LINE_THETA_SPAN);
-        mfLineGridElementDInv=static_cast<float>(LINE_D_GRID_COLS)/(2.0f*mnMaxDiag);
-        
-        fx = K.at<float>(0,0);
-        fy = K.at<float>(1,1);
-        cx = K.at<float>(0,2);
-        cy = K.at<float>(1,2);
-        invfx = 1.0f/fx;
-        invfy = 1.0f/fy;
-
-        mbInitialComputations=false;
-    }
-
-    mb = mbf / fx;
-
-    // Sophus/Eigen
-    mTlr = Tlr;
-    mTrl = mTlr.inverse();
-    mRlr = mTlr.rotationMatrix();
-    mtlr = mTlr.translation();
-
-#ifdef REGISTER_TIMES
-    std::chrono::steady_clock::time_point time_StartStereoMatches = std::chrono::steady_clock::now();
-#endif
-    ComputeStereoFishEyeMatches();
-#ifdef REGISTER_TIMES
-    std::chrono::steady_clock::time_point time_EndStereoMatches = std::chrono::steady_clock::now();
-
-    mTimeStereoMatch = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndStereoMatches - time_StartStereoMatches).count();
-#endif
-
-    //Put all descriptors in the same matrix
-    cv::vconcat(mDescriptors,mDescriptorsRight,mDescriptors);
-
-    //Put all the points in the same vector (N = Nleft + Nright)
-    mvpMapPoints = vector<MapPointPtr>(N,static_cast<MapPointPtr>(nullptr));
-    mvbOutlier = vector<bool>(N,false);
-
-    AssignFeaturesToGrid();
-
-    mpMutexImu = new std::mutex();
-
-    UndistortKeyPoints();
-
-}
-
-void Frame::ComputeStereoFishEyeMatches() 
-{
-    //Speed it up by matching keypoints in the lapping area
-    vector<cv::KeyPoint> stereoLeft(mvKeys.begin() + monoLeft, mvKeys.end());
-    vector<cv::KeyPoint> stereoRight(mvKeysRight.begin() + monoRight, mvKeysRight.end());
-
-    cv::Mat stereoDescLeft = mDescriptors.rowRange(monoLeft, mDescriptors.rows);
-    cv::Mat stereoDescRight = mDescriptorsRight.rowRange(monoRight, mDescriptorsRight.rows);
-
-    mvLeftToRightMatch = vector<int>(Nleft,-1);
-    mvRightToLeftMatch = vector<int>(Nright,-1);
-    mvDepth = vector<float>(Nleft,-1.0f);
-    mvuRight = vector<float>(Nleft,-1);
-    mvStereo3Dpoints = vector<Eigen::Vector3f>(Nleft);
-    mnCloseMPs = 0;
-
-    //Perform a brute force between Keypoint in the left and right image
-    vector<vector<cv::DMatch>> matches;
-
-    BFmatcher.knnMatch(stereoDescLeft,stereoDescRight,matches,2);
-
-    int nMatches = 0;
-    int descMatches = 0;
-
-    //Check matches using Lowe's ratio
-    for(vector<vector<cv::DMatch>>::iterator it = matches.begin(); it != matches.end(); ++it){
-        if((*it).size() >= 2 && (*it)[0].distance < (*it)[1].distance * 0.7){
-            //For every good match, check parallax and reprojection error to discard spurious matches
-            Eigen::Vector3f p3D;
-            descMatches++;
-            float sigma1 = mvLevelSigma2[mvKeys[(*it)[0].queryIdx + monoLeft].octave], sigma2 = mvLevelSigma2[mvKeysRight[(*it)[0].trainIdx + monoRight].octave];
-            float depth = static_cast<KannalaBrandt8*>(mpCamera)->TriangulateMatches(mpCamera2,mvKeys[(*it)[0].queryIdx + monoLeft],mvKeysRight[(*it)[0].trainIdx + monoRight],mRlr,mtlr,sigma1,sigma2,p3D);
-            if(depth > 0.0001f){
-                mvLeftToRightMatch[(*it)[0].queryIdx + monoLeft] = (*it)[0].trainIdx + monoRight;
-                mvRightToLeftMatch[(*it)[0].trainIdx + monoRight] = (*it)[0].queryIdx + monoLeft;
-                mvStereo3Dpoints[(*it)[0].queryIdx + monoLeft] = p3D;
-                mvDepth[(*it)[0].queryIdx + monoLeft] = depth;
-                nMatches++;
-            }
-        }
-    }
-}
-
-bool Frame::isInFrustumChecks(MapPointPtr pMP, float viewingCosLimit, bool bRight) 
-{
-    // 3D in absolute coordinates
-    Eigen::Vector3f P = pMP->GetWorldPos();
-
-    Eigen::Matrix3f mR;
-    Eigen::Vector3f mt, twc;
-    if(bRight){
-        Eigen::Matrix3f Rrl = mTrl.rotationMatrix();
-        Eigen::Vector3f trl = mTrl.translation();
-        mR = Rrl * mRcw;
-        mt = Rrl * mtcw + trl;
-        twc = mRwc * mTlr.translation() + mOw;
-    }
-    else{
-        mR = mRcw;
-        mt = mtcw;
-        twc = mOw;
-    }
-
-    // 3D in camera coordinates
-    Eigen::Vector3f Pc = mR * P + mt;
-    const float Pc_dist = Pc.norm();
-    const float &PcZ = Pc(2);
-
-    // Check positive depth
-    if(PcZ<0.0f)
-        return false;
-
-    // Project in image and check it is not outside
-    Eigen::Vector2f uv;
-    if(bRight) uv = mpCamera2->project(Pc);
-    else uv = mpCamera->project(Pc);
-
-    if(uv(0)<mnMinX || uv(0)>mnMaxX)
-        return false;
-    if(uv(1)<mnMinY || uv(1)>mnMaxY)
-        return false;
-
-    // Check distance is in the scale invariance region of the MapPoint
-    const float maxDistance = pMP->GetMaxDistanceInvariance();
-    const float minDistance = pMP->GetMinDistanceInvariance();
-    const Eigen::Vector3f PO = P - twc;
-    const float dist = PO.norm();
-
-    if(dist<minDistance || dist>maxDistance)
-        return false;
-
-    // Check viewing angle
-    Eigen::Vector3f Pn = pMP->GetNormal();
-
-    const float viewCos = PO.dot(Pn) / dist;
-
-    if(viewCos<viewingCosLimit)
-        return false;
-
-    // Predict scale in the image
-    const int nPredictedLevel = pMP->PredictScale(dist,this);
-
-    if(bRight){
-        pMP->mTrackProjXR = uv(0);
-        pMP->mTrackProjYR = uv(1);
-        pMP->mnTrackScaleLevelR= nPredictedLevel;
-        pMP->mTrackViewCosR = viewCos;
-        pMP->mTrackDepthR = Pc_dist;
-    }
-    else{
-        pMP->mTrackProjX = uv(0);
-        pMP->mTrackProjY = uv(1);
-        pMP->mnTrackScaleLevel= nPredictedLevel;
-        pMP->mTrackViewCos = viewCos;
-        pMP->mTrackDepth = Pc_dist;
-    }
-
-    return true;
-}
-
-bool Frame::isInFrustumChecks(MapLinePtr pML, float viewingCosLimit, bool bRight) 
-{
-    // 3D in absolute coordinates
-    Eigen::Vector3f PS, PE; 
-    pML->GetWorldEndPoints(PS,PE);
-    
-    // consider the middle point  
-    const Eigen::Vector3f PM = 0.5*(PS+PE);    
-
-    // cv::Matx33f mRx;
-    // cv::Matx31f mtx, twcx;
-
-    // cv::Matx33f Rcw = mRcwx;
-    // cv::Matx33f Rwc = mRcwx.t();
-    // cv::Matx31f tcw = mOwx;
-
-    Eigen::Matrix3f mR;
-    Eigen::Vector3f mt, twc;
-    if(bRight){
-        Eigen::Matrix3f Rrl = mTrl.rotationMatrix();
-        Eigen::Vector3f trl = mTrl.translation();
-        mR = Rrl * mRcw;
-        mt = Rrl * mtcw + trl;
-        twc = mRwc * mTlr.translation() + mOw;
-    }
-    else{
-        mR = mRcw;
-        mt = mtcw;
-        twc = mOw;
-    }
-
-    // 3D in camera coordinates
-
-    Eigen::Vector3f Pc = mR * PM + mt;
-    const float Pc_dist = Pc.norm();
-    const float PcZ = Pc(2);
-
-    // Check positive depth
-    if(PcZ<0.0f)
-        return false;
-
-    // Project in image and check it is not outside
-    Eigen::Vector2f uv;
-    if(bRight) uv = mpCamera2->project(Pc);
-    else uv = mpCamera->project(Pc);
-
-    if(uv(0)<mnMinX || uv(0)>mnMaxX)
-        return false;
-    if(uv(1)<mnMinY || uv(1)>mnMaxY)
-        return false;
-
-    // Check distance is in the scale invariance region of the MapPoint
-    const float maxDistance = pML->GetMaxDistanceInvariance();
-    const float minDistance = pML->GetMinDistanceInvariance();
-    const Eigen::Vector3f PO = PM - twc;
-    const float dist = PO.norm();
-
-    if(dist<minDistance || dist>maxDistance)
-        return false;
-
-    // Check viewing angle
-    Eigen::Vector3f Pn = pML->GetNormal();
-
-    const float viewCos = PO.dot(Pn)/dist;
-
-    if(viewCos<viewingCosLimit)
-        return false;
-
-    // Predict scale in the image
-    const int nPredictedLevel = pML->PredictScale(dist,this);
-
-    if(bRight){
-        pML->mTrackProjMiddleXR = uv(0);
-        pML->mTrackProjMiddleYR = uv(1);
-        pML->mnTrackScaleLevelR= nPredictedLevel;
-        pML->mTrackViewCosR = viewCos;
-        pML->mTrackMiddleDepthR = Pc_dist;
-    }
-    else{
-        pML->mTrackProjMiddleX = uv(0);
-        pML->mTrackProjMiddleY = uv(1);
-        pML->mnTrackScaleLevel= nPredictedLevel;
-        pML->mTrackViewCos = viewCos;
-        pML->mTrackMiddleDepth = Pc_dist;
-    }
-
-    return true;
-}
-
-Eigen::Vector3f Frame::UnprojectStereoFishEye(const int &i)
-{
-    return mRwc * mvStereo3Dpoints[i] + mOw;
-}
-
-} // namespace PLVS2
+} //namespace PLVS

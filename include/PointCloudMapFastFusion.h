@@ -30,7 +30,7 @@ class PointerMeshDraw;
 #endif 
 
 
-namespace PLVS2
+namespace PLVS
 {
 
 ///	\class PointCloudMapFastFusion
@@ -50,7 +50,7 @@ public:
 
 public:
 
-    PointCloudMapFastFusion(Map* pMap, const std::shared_ptr<PointCloudMapParameters>& params);
+    PointCloudMapFastFusion(double resolution_in = PointCloudMap<PointT>::kDefaultResolution, double min_range = 0, double max_range = 10, bool useCarving_in = false);
 
     void Init();
         
@@ -108,7 +108,7 @@ template class PointCloudMapFastFusion<pcl::PointSurfelSegment>;
 
 #endif
 
-} //namespace PLVS2
+} //namespace PLVS
 
 
 

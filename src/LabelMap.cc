@@ -20,7 +20,7 @@
 
 #include "LabelMap.h"
 
-namespace PLVS2
+namespace PLVS
 {
 
 const float LabelMap::kLabelsMatchingMinOverlaPercDefault = 0.2;
@@ -230,4 +230,4 @@ void GlobalLabelMap::PrintMatches()
     }
 }
 
-} //namespace PLVS2
+} //namespace PLVS

@@ -1,6 +1,6 @@
 /**
  * This is a modified version of TemplatedVocabulary.h from DBoW2 (see below).
- * Added functions: Save and Load from text files without using cv::FileStorage.
+ * Added functions: Save and Load from text/binary files without using cv::FileStorage.
  * Date: August 2015
  * Raúl Mur-Artal
  */

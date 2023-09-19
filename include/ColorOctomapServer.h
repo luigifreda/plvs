@@ -36,7 +36,7 @@
 
  
 
-namespace PLVS2
+namespace PLVS
 {
 
 struct ColorOctomapParameters
@@ -152,7 +152,7 @@ template class ColorOctomapServer<pcl::PointXYZRGBA>;
 template class ColorOctomapServer<pcl::PointXYZRGBNormal>;
 template class ColorOctomapServer<pcl::PointSurfelSegment>;
 
-} //namespace PLVS2
+} //namespace PLVS
 
 
 #endif

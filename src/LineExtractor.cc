@@ -30,7 +30,7 @@
 
 #define VERBOSE 0
 
-namespace PLVS2
+namespace PLVS
 {
 
 class Sharpener
@@ -284,6 +284,6 @@ void LineExtractor::detectLineFeatures(const cv::Mat& img, std::vector<cv::line_
 
 }
 
-} //namespace PLVS2
+} //namespace PLVS
 
 

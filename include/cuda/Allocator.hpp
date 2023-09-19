@@ -4,7 +4,7 @@
 
 #include <opencv2/core/cuda.hpp>
 
-namespace PLVS2
+namespace PLVS
 {
 namespace cuda
 {

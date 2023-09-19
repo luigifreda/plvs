@@ -44,7 +44,7 @@
 
 #define USE_OCTREE_SEARCH 0   
 
-namespace PLVS2
+namespace PLVS
 {
 
 
@@ -61,17 +61,17 @@ template<typename PointT>
 const float PointCloudMapOctreePointCloud<PointT>::kMinCarvingThreshold = 0.05f; // [m]
 
 template<typename PointT>
-const std::uint64_t PointCloudMapOctreePointCloud<PointT>::kDeltaTimeForCleaningUnstablePointsUs = 10 * 1e6; // [microseconds]
+const pcl::uint64_t PointCloudMapOctreePointCloud<PointT>::kDeltaTimeForCleaningUnstablePointsUs = 10 * 1e6; // [microseconds]
 
 template<typename PointT>
-PointCloudMapOctreePointCloud<PointT>::PointCloudMapOctreePointCloud(Map* pMap, const std::shared_ptr<PointCloudMapParameters>& params) : PointCloudMap<PointT>(pMap, params), octree_(params->resolution)
+PointCloudMapOctreePointCloud<PointT>::PointCloudMapOctreePointCloud(double resolution_in, int point_counter_threshold, bool useCarving_in) : PointCloudMap<PointT>(resolution_in), octree_(this->resolution_), nPointCounterThreshold_(point_counter_threshold)
 {
-    //this->bPerformCarving_ = useCarving_in;
+    this->bPerformCarving_ = useCarving_in;
 
     //carvingThreshold_ = std::min(float(kFactorCarvingThreshold * sqrt(3.0f) * resolution_in), kMinCarvingThreshold);
-    carvingThreshold_ = std::min(float(kFactorCarvingThreshold * params->resolution), kMinCarvingThreshold);
+    carvingThreshold_ = std::min(float(kFactorCarvingThreshold * resolution_in), kMinCarvingThreshold);
 
-    voxelFilter_.setLeafSize(params->resolution, params->resolution, params->resolution);
+    voxelFilter_.setLeafSize(resolution_in, resolution_in, resolution_in);
 }
 
 template<typename PointT>
@@ -223,7 +223,7 @@ void PointCloudMapOctreePointCloud<PointT>::ReinsertCloud(typename PointCloudMap
 //}
 
 template<typename PointT>
-void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthOld(typename PointCloudT::Ptr cloud_world, typename PointCloudMapInput<PointT>::Ptr pData, const Sophus::SE3f& Twc)
+void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthOld(typename PointCloudT::Ptr cloud_world, typename PointCloudMapInput<PointT>::Ptr pData, const cv::Mat& Twc)
 {
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
 
@@ -234,7 +234,7 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthOld(typename Poi
     const double max_range = pData->maxRange;
 
     TICKCLOUD("seg-cardinality");
-    if (this->pPointCloudMapParameters_->bSegmentationOn)
+    if (this->bPerformSegmentation_)
     {
         std::vector<unsigned int>& scanPcLabelsCardinality = labelMap.GetScanPCLabelsCardinality();
         if (scanPcLabelsCardinality.empty())
@@ -249,7 +249,7 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthOld(typename Poi
 
     //int count = 0;
 
-    if ((this->pPointCloudMapParameters_->bUseCarving || this->pPointCloudMapParameters_->bSegmentationOn) && !depthImage.empty() && this->pPointCloud_)
+    if ((this->bPerformCarving_ || this->bPerformSegmentation_) && !depthImage.empty() && this->pPointCloud_)
     {
 
         if (this->bMapUpdated_)
@@ -264,12 +264,10 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthOld(typename Poi
         int num_removed_points = 0;
 
         chisel::Transform transform(chisel::Transform::Identity());
-        // transform.translation()(0) = Twc.at<float>(0, 3);
-        // transform.translation()(1) = Twc.at<float>(1, 3);
-        // transform.translation()(2) = Twc.at<float>(2, 3);
-        // transform.linear() = Converter::toMatrix3f(Twc.rowRange(0, 3).colRange(0, 3));
-        transform.translation() = Twc.translation();
-        transform.linear() = Twc.rotationMatrix();
+        transform.translation()(0) = Twc.at<float>(0, 3);
+        transform.translation()(1) = Twc.at<float>(1, 3);
+        transform.translation()(2) = Twc.at<float>(2, 3);
+        transform.linear() = Converter::toMatrix3f(Twc.rowRange(0, 3).colRange(0, 3));
 
         chisel::Frustum frustum;
         chisel::AABB box;
@@ -306,13 +304,10 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthOld(typename Poi
 #endif
 
         // 2. check if point is in image and project it in index map (each pixel contains a list of tuples <point index, depth > with depth < sensed depth)
-        // cv::Mat Rwc = Twc.rowRange(0, 3).colRange(0, 3);
-        // cv::Mat twc = Twc.rowRange(0, 3).col(3);
-        // cv::Mat Rcw = Rwc.t();
-        // cv::Mat tcw = -Rcw*twc;
-        const Sophus::SE3f Tcw = Twc.inverse();
-        const Sophus::Matrix3f Rcw = Tcw.rotationMatrix(); 
-        const Sophus::Vector3f tcw = Tcw.translation();         
+        cv::Mat Rwc = Twc.rowRange(0, 3).colRange(0, 3);
+        cv::Mat twc = Twc.rowRange(0, 3).col(3);
+        cv::Mat Rcw = Rwc.t();
+        cv::Mat tcw = -Rcw*twc;
         const float fx = pDepthCameraModel_->GetIntrinsics().GetFx();
         const float fy = pDepthCameraModel_->GetIntrinsics().GetFy();
         const float cx = pDepthCameraModel_->GetIntrinsics().GetCx();
@@ -371,7 +366,7 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthOld(typename Poi
             if (sd > distanceTh)
             {
 
-                if (!this->pPointCloudMapParameters_->bUseCarving) continue;
+                if (!this->bPerformCarving_) continue;
 
 #ifdef BUILD_UNSTABLE_AS_CARVED
                 this->pPointCloudUnstable_->push_back(mapPointW);
@@ -385,7 +380,7 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthOld(typename Poi
             else
             {
 #if COMPUTE_SEGMENTS                
-                if (!this->pPointCloudMapParameters_->bSegmentationOn) continue;
+                if (!this->bPerformSegmentation_) continue;
                 if (labelMap.IsAlreadyProcessed()) continue;
 
                 if (fabs(sd) < distanceTh)
@@ -395,8 +390,8 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthOld(typename Poi
                     if (!PointUtils::isValidLabel(mapPointC)) continue;
 
                     // retrieve the closest downsampled representation 
-                    const int ud = std::min((int)lrint(u / this->pPointCloudMapParameters_->nDownsampleStep)*(this->pPointCloudMapParameters_->nDownsampleStep), pixelToPointIndexColsMin1);
-                    const int vd = std::min((int)lrint(v / this->pPointCloudMapParameters_->nDownsampleStep)*(this->pPointCloudMapParameters_->nDownsampleStep), pixelToPointIndexRowsMin1);
+                    const int ud = std::min((int)lrint(u / this->nDownsampleStep_)*(this->nDownsampleStep_), pixelToPointIndexColsMin1);
+                    const int vd = std::min((int)lrint(v / this->nDownsampleStep_)*(this->nDownsampleStep_), pixelToPointIndexRowsMin1);
 
                     const int scanIndex = pixelToPointIndex.at<int>(vd, ud);
                     if (!(scanIndex < 0)) // check if point index is valid 
@@ -406,7 +401,7 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthOld(typename Poi
                         if (!PointUtils::isValidLabel(scanPointC)) continue;
 
                         const float scalarProd = PointUtils::normalsDotProduct(mapPointC, scanPointC);
-                        if (scalarProd > this->pPointCloudMapParameters_->segmentationMinCosForNormalAssociation)
+                        if (scalarProd > this->minCosForNormalAssociation_)
                         {
                             PointUtils::updateLabelMap(labelMap, mapPointC, scanPointC);
                             //std::cout << "associating map point: " << mapPointC << " with scan point: " << scanPointC << std::endl; 
@@ -425,11 +420,11 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthOld(typename Poi
 
         TOCKCLOUD("octreepointPA");
 
-        if (this->pPointCloudMapParameters_->bUseCarving)
+        if (this->bPerformCarving_)
             std::cout << "using carving - removed " << num_removed_points << " points" << std::endl;
 
 #if COMPUTE_SEGMENTS            
-        if (this->pPointCloudMapParameters_->bSegmentationOn)
+        if (this->bPerformSegmentation_)
         {
             bool bComputeBestMatches = labelMap.ComputeBestMatches();
             if (bComputeBestMatches)
@@ -456,7 +451,7 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthOld(typename Poi
 
 
 template<typename PointT>
-void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthNoSegm(typename PointCloudT::Ptr cloud_world, typename PointCloudMapInput<PointT>::Ptr pData, const Sophus::SE3f& Twc)
+void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthNoSegm(typename PointCloudT::Ptr cloud_world, typename PointCloudMapInput<PointT>::Ptr pData, const cv::Mat& Twc)
 {
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
 
@@ -466,7 +461,7 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthNoSegm(typename 
     const double max_range = pData->maxRange;
 
     // TODO: this must be replaced by using Active-Inactive models 
-    if ( this->pPointCloudMapParameters_->bUseCarving && !depthImage.empty() && this->pPointCloud_)
+    if ( this->bPerformCarving_ && !depthImage.empty() && this->pPointCloud_)
     {
 
         if (this->bMapUpdated_)
@@ -481,12 +476,10 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthNoSegm(typename 
         int num_removed_points = 0;
 
         Eigen::Affine3f transform(Eigen::Affine3f::Identity());
-        // transform.translation()(0) = Twc.at<float>(0, 3);
-        // transform.translation()(1) = Twc.at<float>(1, 3);
-        // transform.translation()(2) = Twc.at<float>(2, 3);
-        // transform.linear() = Converter::toMatrix3f(Twc.rowRange(0, 3).colRange(0, 3));
-        transform.translation() = Twc.translation();
-        transform.linear() = Twc.rotationMatrix();
+        transform.translation()(0) = Twc.at<float>(0, 3);
+        transform.translation()(1) = Twc.at<float>(1, 3);
+        transform.translation()(2) = Twc.at<float>(2, 3);
+        transform.linear() = Converter::toMatrix3f(Twc.rowRange(0, 3).colRange(0, 3));
 
         Eigen::Matrix4f cam2robot;
         cam2robot << 0, 0, 1, 0,
@@ -523,13 +516,10 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthNoSegm(typename 
         
 
         // 2. check if point is in image and project it in index map (each pixel contains a list of tuples <point index, depth > with depth < sensed depth)
-        // const cv::Mat Rwc = Twc.rowRange(0, 3).colRange(0, 3);
-        // const cv::Mat twc = Twc.rowRange(0, 3).col(3);
-        // const cv::Mat Rcw = Rwc.t();
-        // const cv::Mat tcw = -Rcw*twc;
-        const Sophus::SE3f Tcw = Twc.inverse();
-        const Eigen::Matrix3f Rcw = Tcw.rotationMatrix(); 
-        const Eigen::Vector3f tcw = Tcw.translation(); 
+        const cv::Mat Rwc = Twc.rowRange(0, 3).colRange(0, 3);
+        const cv::Mat twc = Twc.rowRange(0, 3).col(3);
+        const cv::Mat Rcw = Rwc.t();
+        const cv::Mat tcw = -Rcw*twc;
 
         for (size_t ii = 0, iiEnd=pFilteredIndices->indices.size(); ii < iiEnd; ii++)
         {
@@ -586,7 +576,7 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthNoSegm(typename 
 
         TOCKCLOUD("octreepointPA");
 
-        if (this->pPointCloudMapParameters_->bUseCarving)
+        if (this->bPerformCarving_)
             std::cout << "using carving - removed " << num_removed_points << " points" << std::endl;
 
     } // end     if ( this->bPerformCarving_ && !depthImage.empty() && this->pPointCloud_)
@@ -597,7 +587,7 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthNoSegm(typename 
     
 
 template<typename PointT>
-void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthSegm(typename PointCloudT::Ptr cloud_world, typename PointCloudMapInput<PointT>::Ptr pData, const Sophus::SE3f& Twc)
+void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthSegm(typename PointCloudT::Ptr cloud_world, typename PointCloudMapInput<PointT>::Ptr pData, const cv::Mat& Twc)
 {
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
 
@@ -622,7 +612,7 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthSegm(typename Po
 
     //int count = 0;
 
-    if ((this->pPointCloudMapParameters_->bUseCarving || (this->pPointCloudMapParameters_->bSegmentationOn && !labelMap.IsAlreadyProcessed() )) && !depthImage.empty() && this->pPointCloud_)
+    if ((this->bPerformCarving_ || (this->bPerformSegmentation_ && !labelMap.IsAlreadyProcessed() )) && !depthImage.empty() && this->pPointCloud_)
     {
 
         if (this->bMapUpdated_)
@@ -637,12 +627,10 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthSegm(typename Po
         int num_removed_points = 0;
 
         Eigen::Affine3f transform(Eigen::Affine3f::Identity());
-        // transform.translation()(0) = Twc.at<float>(0, 3);
-        // transform.translation()(1) = Twc.at<float>(1, 3);
-        // transform.translation()(2) = Twc.at<float>(2, 3);
-        // transform.linear() = Converter::toMatrix3f(Twc.rowRange(0, 3).colRange(0, 3));
-        transform.translation() = Twc.translation(); 
-        transform.linear() = Twc.rotationMatrix(); 
+        transform.translation()(0) = Twc.at<float>(0, 3);
+        transform.translation()(1) = Twc.at<float>(1, 3);
+        transform.translation()(2) = Twc.at<float>(2, 3);
+        transform.linear() = Converter::toMatrix3f(Twc.rowRange(0, 3).colRange(0, 3));
 
         Eigen::Matrix4f cam2robot;
         cam2robot << 0, 0, 1, 0,
@@ -679,13 +667,10 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthSegm(typename Po
         
 
         // 2. check if point is in image and project it in index map (each pixel contains a list of tuples <point index, depth > with depth < sensed depth)
-        // const cv::Mat Rwc = Twc.rowRange(0, 3).colRange(0, 3);
-        // const cv::Mat twc = Twc.rowRange(0, 3).col(3);
-        // const cv::Mat Rcw = Rwc.t();
-        // const cv::Mat tcw = -Rcw*twc;
-        const Sophus::SE3f Tcw = Twc.inverse();
-        const Sophus::Matrix3f Rcw = Tcw.rotationMatrix(); 
-        const Sophus::Vector3f tcw = Tcw.translation();    
+        const cv::Mat Rwc = Twc.rowRange(0, 3).colRange(0, 3);
+        const cv::Mat twc = Twc.rowRange(0, 3).col(3);
+        const cv::Mat Rcw = Rwc.t();
+        const cv::Mat tcw = -Rcw*twc;
 
         const int pixelToPointIndexColsMin1 = pixelToPointIndex.cols-1;
         const int pixelToPointIndexRowsMin1 = pixelToPointIndex.rows-1;
@@ -731,7 +716,7 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthSegm(typename Po
             //if (PcZ < (d - (carvingThreshold_+6*Utils::SigmaZ(d)) ) )
             if (sd > distanceTh)
             {
-                if (!this->pPointCloudMapParameters_->bUseCarving) continue;
+                if (!this->bPerformCarving_) continue;
 
 #ifdef BUILD_UNSTABLE_AS_CARVED
                 this->pPointCloudUnstable_->push_back(mapPointW);
@@ -754,8 +739,8 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthSegm(typename Po
                     if (!PointUtils::isValidLabel(mapPointC)) continue;
 
                     // retrieve the closest downsampled representation 
-                    const int ud = std::min((int)lrint(u / this->pPointCloudMapParameters_->nDownsampleStep)*(this->pPointCloudMapParameters_->nDownsampleStep), pixelToPointIndexColsMin1);
-                    const int vd = std::min((int)lrint(v / this->pPointCloudMapParameters_->nDownsampleStep)*(this->pPointCloudMapParameters_->nDownsampleStep), pixelToPointIndexRowsMin1);
+                    const int ud = std::min((int)lrint(u / this->nDownsampleStep_)*(this->nDownsampleStep_), pixelToPointIndexColsMin1);
+                    const int vd = std::min((int)lrint(v / this->nDownsampleStep_)*(this->nDownsampleStep_), pixelToPointIndexRowsMin1);
 
                     const int scanIndex = pixelToPointIndex.at<int>(vd, ud);
                     if (!(scanIndex < 0)) // check if point index is valid 
@@ -765,7 +750,7 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthSegm(typename Po
                         if (!PointUtils::isValidLabel(scanPointC)) continue;
 
                         const float scalarProd = PointUtils::normalsDotProduct(mapPointC, scanPointC);
-                        if (scalarProd > this->pPointCloudMapParameters_->segmentationMinCosForNormalAssociation)
+                        if (scalarProd > this->minCosForNormalAssociation_)
                         {
                             PointUtils::updateLabelMap(labelMap, mapPointC, scanPointC);
                             //std::cout << "associating map point: " << mapPointC << " with scan point: " << scanPointC << std::endl; 
@@ -784,11 +769,11 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthSegm(typename Po
 
         TOCKCLOUD("octreepointPA");
 
-        if (this->pPointCloudMapParameters_->bUseCarving)
+        if (this->bPerformCarving_)
             std::cout << "using carving - removed " << num_removed_points << " points" << std::endl;
 
 #if COMPUTE_SEGMENTS            
-        if (this->pPointCloudMapParameters_->bSegmentationOn)
+        if (this->bPerformSegmentation_)
         {
             bool bComputeBestMatches = labelMap.ComputeBestMatches();
             if (bComputeBestMatches)
@@ -827,16 +812,16 @@ void PointCloudMapOctreePointCloud<PointT>::InsertData(typename PointCloudMapInp
     this->mapKfidPointCloudKeyFrame_[kfid] = pData->pPointCloudKeyFrame;        
 
     typename PointCloudT::Ptr pCloudWorld(new PointCloudT);
-    Sophus::SE3f Twc = pData->pPointCloudKeyFrame->GetCameraPose();
+    cv::Mat Twc = pData->pPointCloudKeyFrame->GetCameraPose();
     pData->pPointCloudKeyFrame->TwcIntegration = Twc; 
     
-    this->TransformCameraCloudInWorldFrame(pData->pPointCloudKeyFrame->pCloudCamera, Converter::toIsometry3d(Twc), pCloudWorld);
+    this->TransformCameraCloudInWorldFrame(pData->pPointCloudKeyFrame->pCloudCamera, Twc, pCloudWorld);
 
     switch (pData->type)
     {
     
         case PointCloudMapInput<PointT>::kPointCloudAndDepthImage:
-            if(this->pPointCloudMapParameters_->bSegmentationOn)
+            if(this->bPerformSegmentation_)
             {
                 this->InsertCloudWithDepthSegm(pCloudWorld, pData, Twc);
             }
@@ -854,13 +839,13 @@ void PointCloudMapOctreePointCloud<PointT>::InsertData(typename PointCloudMapInp
 template<typename PointT>
 int PointCloudMapOctreePointCloud<PointT>::UpdateMap()
 {
-    if(this->pPointCloudMapParameters_->bSegmentationOn)
+    if(this->bPerformSegmentation_)
     {
         return this->UpdateMapSegm();
     }
     else
     {
-        if(this->pPointCloudMapParameters_->bRemoveUnstablePoints)
+        if(this->bRemoveUnstablePoints_)
         {
             return this->UpdateMapNoSegm();
         }
@@ -893,7 +878,7 @@ int PointCloudMapOctreePointCloud<PointT>::UpdateMapNoSegmNoRemoveUnstable()
     //        this->pPointCloud_->push_back(voxel_center_list[ii]);
 
     //const int threshold = this->nPointCounterThreshold_ - 1;
-    const unsigned int threshold = std::max(this->pPointCloudMapParameters_->nPointCounterThreshold - 1, 0);    
+    const unsigned int threshold = std::max(this->nPointCounterThreshold_ - 1, 0);    
     
     typename OctreeType::LeafNodeIterator it, itEnd;
     for (it = octree_.leaf_begin(), itEnd = octree_.leaf_end(); it != itEnd; it++)
@@ -943,7 +928,7 @@ int PointCloudMapOctreePointCloud<PointT>::UpdateMapNoSegm()
     //        this->pPointCloud_->push_back(voxel_center_list[ii]);
 
     //const int threshold = this->nPointCounterThreshold_ - 1;
-    const unsigned int threshold = std::max(this->pPointCloudMapParameters_->nPointCounterThreshold - 1, 0);    
+    const unsigned int threshold = std::max(this->nPointCounterThreshold_ - 1, 0);    
 
     typename OctreeType::LeafNodeIterator it, itEnd;
     for (it = octree_.leaf_begin(), itEnd = octree_.leaf_end(); it != itEnd; it++)
@@ -967,7 +952,7 @@ int PointCloudMapOctreePointCloud<PointT>::UpdateMapNoSegm()
 #ifndef BUILD_UNSTABLE_AS_CARVED                
                 this->pPointCloudUnstable_->push_back(point);
 #endif                
-                std::uint64_t deltaT = this->lastTimestamp_ - leaf.getTimestamp();
+                pcl::uint64_t deltaT = this->lastTimestamp_ - leaf.getTimestamp();
                 //std::cout << "deltaT: " << deltaT << "pt: " << leaf.getTimestamp() << ", lt:" << this->lastTimestamp_ << std::endl; 
                 // clean old unstable points 
                 if (deltaT > kDeltaTimeForCleaningUnstablePointsUs)
@@ -1026,7 +1011,7 @@ int PointCloudMapOctreePointCloud<PointT>::UpdateMapSegm()
             typename OctreeType::LeafContainer& leaf = it.getLeafContainer();
 
             //if(octree_.isVoxelOccupiedAtPoint(point))
-            if (leaf.getCounter() >= this->pPointCloudMapParameters_->nPointCounterThreshold)
+            if (leaf.getCounter() >= this->nPointCounterThreshold_)
             {
                 PointT& mapPoint = leaf.getCentroid();
 
@@ -1044,7 +1029,7 @@ int PointCloudMapOctreePointCloud<PointT>::UpdateMapSegm()
 #ifndef BUILD_UNSTABLE_AS_CARVED                
                 this->pPointCloudUnstable_->push_back(point);
 #endif                
-                std::uint64_t deltaT = this->lastTimestamp_ - leaf.getTimestamp();
+                pcl::uint64_t deltaT = this->lastTimestamp_ - leaf.getTimestamp();
                 //std::cout << "deltaT: " << deltaT << "pt: " << leaf.getTimestamp() << ", lt:" << this->lastTimestamp_ << std::endl; 
                 // clean old unstable points 
                 if (deltaT > kDeltaTimeForCleaningUnstablePointsUs)
@@ -1069,7 +1054,7 @@ void PointCloudMapOctreePointCloud<PointT>::Clear()
 {
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
 
-    octree_ = OctreeType(this->pPointCloudMapParameters_->resolution);
+    octree_ = OctreeType(this->resolution_);
 
     /// < clear basic class !
     PointCloudMap<PointT>::Clear();
@@ -1080,10 +1065,10 @@ void PointCloudMapOctreePointCloud<PointT>::OnMapChange()
 {
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
 
-    if (this->pPointCloudMapParameters_->bResetOnSparseMapChange)
+    if (this->bResetOnSparseMapChange_)
     {
         std::cout << "PointCloudMapOctreePointCloud<PointT>::OnMapChange() - octree reset *** " << std::endl;
-        octree_ = OctreeType(this->pPointCloudMapParameters_->resolution);
+        octree_ = OctreeType(this->resolution_);
     }
 }
     
@@ -1096,13 +1081,13 @@ void PointCloudMapOctreePointCloud<pcl::PointSurfelSegment>::OnMapChange()
     
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
 
-    if (this->pPointCloudMapParameters_->bResetOnSparseMapChange)
+    if (this->bResetOnSparseMapChange_)
     {
         std::cout << "PointCloudMapOctreePointCloud<PointT>::OnMapChange() - octree reset *** " << std::endl;
-        octree_ = OctreeType(this->pPointCloudMapParameters_->resolution);
+        octree_ = OctreeType(this->resolution_);
     }  
     
-    if(this->pPointCloudMapParameters_->bCloudDeformationOnSparseMapChange)
+    if(this->bCloudDeformationOnSparseMapChange_)
     {
         std::cout << "PointCloudMapVoxelGridFilterActive<PointT>::OnMapChange() - point cloud KF adjustment" << std::endl;
         
@@ -1123,11 +1108,11 @@ void PointCloudMapOctreePointCloud<pcl::PointSurfelSegment>::OnMapChange()
         
         // once recollected all the points, let's clear the map 
         PointCloudMap<PointT>::Clear();
-        octree_ = OctreeType(this->pPointCloudMapParameters_->resolution);
+        octree_ = OctreeType(this->resolution_);
                 
         PointCloudT::Ptr pkfCloudWorldNew( new PointCloudT );
         PointCloudT& kfCloudWorldNew = *pkfCloudWorldNew;
-        //const cv::Mat identity = cv::Mat::eye(4,4,CV_32F);
+        const cv::Mat identity = cv::Mat::eye(4,4,CV_32F);
         MapKfidCloud::iterator itc=mapKfidToPointCloud.begin(), itcEnd=mapKfidToPointCloud.end();
         for(;itc!=itcEnd; itc++)
         {
@@ -1141,29 +1126,27 @@ void PointCloudMapOctreePointCloud<pcl::PointSurfelSegment>::OnMapChange()
             if(pKF->isBad()) continue;
             
             // let's correct the cloud 
-            const Sophus::SE3f& TwcIntegration = pcKF->TwcIntegration; // pose at the last time of integration 
+            const cv::Mat& TwcIntegration = pcKF->TwcIntegration; // pose at the last time of integration 
             
-            // cv::Mat TcwIntegration = cv::Mat::eye(4,4,CV_32F);
-            // // invert by taking into account the structure of the homogeneous transformation matrix
-            // cv::Mat RcwIntegration =  TwcIntegration.rowRange(0,3).colRange(0,3).t();
-            // cv::Mat tcwIntegration = -RcwIntegration*TwcIntegration.rowRange(0,3).col(3);
-            // RcwIntegration.copyTo(TcwIntegration.rowRange(0,3).colRange(0,3));
-            // tcwIntegration.copyTo(TcwIntegration.rowRange(0,3).col(3));
-            Sophus::SE3f TcwIntegration = TwcIntegration.inverse();
+            cv::Mat TcwIntegration = cv::Mat::eye(4,4,CV_32F);
+            // invert by taking into account the structure of the homogeneous transformation matrix
+            cv::Mat RcwIntegration =  TwcIntegration.rowRange(0,3).colRange(0,3).t();
+            cv::Mat tcwIntegration = -RcwIntegration*TwcIntegration.rowRange(0,3).col(3);
+            RcwIntegration.copyTo(TcwIntegration.rowRange(0,3).colRange(0,3));
+            tcwIntegration.copyTo(TcwIntegration.rowRange(0,3).col(3));
             
-            Sophus::SE3f TwcNew =  pKF->GetPoseInverse();  // new corrected pose 
+            cv::Mat TwcNew =  pKF->GetPoseInverse();  // new corrected pose 
             
             // let's compute the correction transformation 
             //cv::Mat Twnwo= TwcNew * TwcIntegration.inv(); // from world old to world new             
-            Sophus::SE3f Twnwo= TwcNew * TcwIntegration; // from world old to world new 
+            cv::Mat Twnwo= TwcNew * TcwIntegration; // from world old to world new 
             
             // check if the transformation is "big" enough otherwise do not re-transform the cloud 
-            //double norm = cv::norm(Twnwo - identity);
-            double norm = (Twnwo.matrix3x4() - Sophus::SE3f().matrix3x4()).norm();
+            double norm = cv::norm(Twnwo - identity);
             std::cout << "norm: " << norm << std::endl; 
             if( norm > kNormThresholdForEqualMatrices)
             {            
-                this->TransformCameraCloudInWorldFrame(kfCloudWorld, Converter::toIsometry3d(Twnwo), kfCloudWorldNew);   
+                this->TransformCameraCloudInWorldFrame(kfCloudWorld, Twnwo, kfCloudWorldNew);   
             }
             else
             {
@@ -1187,7 +1170,7 @@ void PointCloudMapOctreePointCloud<pcl::PointSurfelSegment>::OnMapChange()
                 typename OctreeType::LeafContainer& leaf = it.getLeafContainer();
 
                 unsigned int& counter = leaf.getCounter(); 
-                counter = this->pPointCloudMapParameters_->nPointCounterThreshold;
+                counter = this->nPointCounterThreshold_;
                 
                 PointT& mapPoint = leaf.getCentroid();
            
@@ -1210,7 +1193,7 @@ void PointCloudMapOctreePointCloud<PointT>::SetIntProperty(unsigned int property
     switch (property)
     {
     case PointCloudMapOctreePointCloud<PointT>::kPointCounterThreshold:
-        this->pPointCloudMapParameters_->nPointCounterThreshold = val;
+        nPointCounterThreshold_ = val;
         break;
     default:
         ; //nop
@@ -1237,7 +1220,7 @@ bool PointCloudMapOctreePointCloud<PointT>::LoadMap(const std::string& filename)
                 typename OctreeType::LeafContainer& leaf = it.getLeafContainer();
 
                 unsigned int& counter = leaf.getCounter(); 
-                counter = this->pPointCloudMapParameters_->nPointCounterThreshold;
+                counter = this->nPointCounterThreshold_;
             }
         }
 
@@ -1255,4 +1238,4 @@ bool PointCloudMapOctreePointCloud<PointT>::LoadMap(const std::string& filename)
 
 
 
-} //namespace PLVS2
+} //namespace PLVS

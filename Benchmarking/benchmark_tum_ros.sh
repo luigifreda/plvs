@@ -73,7 +73,7 @@ while IFS=$'\n' read -r line || [[ -n "$line" ]]; do
         xterm -T "system stats logger" -e "$MAIN_DIR/Scripts/system_stats_logger.py -p RGBD -o Resources.txt --sleep-start 5; exit" &
 		xterm -T "RGBD" -e "rosrun $DEBUG_PREFIX plvs RGBD \
             $MAIN_DIR/Vocabulary/ORBvoc.txt \
-            $MAIN_DIR/Settings/ros/$TUM_YAML \
+            $MAIN_DIR/Settings/$TUM_YAML \
             $REMAP_COLOR_TOPIC $REMAP_DEPTH_TOPIC 2>&1 >> $OUTPUT_LOG; exit"
 
 		echo "Done with run $i"; sleep 1
@@ -89,7 +89,7 @@ while IFS=$'\n' read -r line || [[ -n "$line" ]]; do
     done
 
     # copy the settings 
-    cp $MAIN_DIR/Settings/ros/$TUM_YAML . 
+    cp $MAIN_DIR/Settings/$TUM_YAML . 
 
     cd ../
 	mv $DATASET results/$DATASET

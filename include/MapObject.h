@@ -33,17 +33,14 @@
 
 #include "Pointers.h"
 
-#include "Eigen/Core"
-#include "Thirdparty/Sophus/sophus/se3.hpp"
-#include "Thirdparty/Sophus/sophus/sim3.hpp"
-
-namespace PLVS2
+namespace PLVS
 {
 
 class KeyFrame;
 class Map;
 class Frame;
 class MapPoint;
+
 
 
 class ObjectObservation
@@ -58,7 +55,7 @@ public:
     ObjectObservation& operator=(const ObjectObservation& other);    
     
     // Get observation Sim3 transformation Tko (from Object to KeyFrame)
-    Sophus::SE3f GetSE3() const; 
+    cv::Mat GetSE3() const; 
     
 public: // friends    
     
@@ -69,12 +66,11 @@ public:
     
     int nId; // id of the observed object 
     
-    Sophus::SE3f Tkc; // by default this is the identity, (optionally) observing Frame camera w.r.t. reference KeyFrame (see bFromK)
-    //cv::Mat Rco; // object w.r.t camera: pc = Rco * po + tco
-    //cv::Mat tco; 
-    Sophus::SE3f Tco;
+    cv::Mat Tkc; // by default this is the identity, (optionally) observing Frame camera w.r.t. reference KeyFrame (see bFromK)
+    cv::Mat Rco; // object w.r.t camera pc = Rco * po + tco
+    cv::Mat tco; 
     
-    float fScale; // scale s in the Sim(3) transformation Swo = [s*Rwo, two; 0, 1]
+    float fScale;
     
     float fDistance; // distance camera-object 
     
@@ -89,7 +85,6 @@ public:
 };
 
 
-// TODO: add serialization? (objects could be moved)
 class MapObject 
 {
 public: 
@@ -111,7 +106,6 @@ public:
     typedef std::shared_ptr<const MapObject> ConstPtr;        
     
 public: 
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     MapObject(Map* pMap, cv::Mat& imgObject, cv::Mat& K, cv::Mat& distCoeff, float matchRatio = skMatchRatio);
     
     void InitFeatures(int nfeatures, float scaleFactor, int nlevels, int iniThFAST, int minThFAST);
@@ -150,23 +144,20 @@ public:
     
     void Update3DCorners(); 
     
-    void SetSim3Pose(const Sophus::Sim3f &Sow);    
-    void SetSim3InversePose(const Eigen::Matrix3f& Rwo, const Eigen::Vector3f& two, const double scale);        
+    void SetSim3Pose(const cv::Mat &Sow);    
+    void SetSim3InversePose(const cv::Mat &Rwo, const cv::Mat &two, const double scale);        
         
-    Sophus::Sim3f GetSim3Pose();
-    Sophus::Sim3f GetSim3PoseInverse();
-    Eigen::Vector3f GetObjectCenter();
+    cv::Mat GetSim3Pose();
+    cv::Mat GetSim3PoseInverse();
+    cv::Mat GetObjectCenter();
     
-    Eigen::Matrix3f GetRotation();
-    Eigen::Vector3f GetTranslation();
+    cv::Mat GetRotation();
+    cv::Mat GetTranslation();
     double GetScale();
     
-    Eigen::Matrix3f GetInverseRotation();
-    Eigen::Vector3f GetInverseTranslation();    
-
-    Map* GetMap();
-    void UpdateMap(Map* pMap);
-    
+    cv::Mat GetInverseRotation();
+    cv::Mat GetInverseTranslation();    
+        
 protected:
 
     void UndistortReferenceKeyPoints();  
@@ -198,17 +189,11 @@ public:
     long unsigned int mnLoopPointForKF;
     long unsigned int mnCorrectedByKF;
     long unsigned int mnCorrectedReference;    
-    Sophus::Sim3f mSowGBA;
+    cv::Mat mSowGBA;
     long unsigned int mnBAGlobalForKF;
-    long unsigned int mnBALocalForMerge;
     
     static std::mutex mGlobalMutex;      
 
-    // Variable used by merging
-    Eigen::Matrix3f mRwoMerge;
-    Eigen::Vector3f mtwoMerge;
-    double mScaleMerge;
-    
 protected: 
     
     cv::Mat mImgRef;  // reference image of the object  
@@ -225,14 +210,14 @@ protected:
     std::vector<cv::Point2f> mvImgCornersRef; // corners in the reference image [top-left, top-right, bottom-right, bottom-left]
     std::vector<cv::Point2f> mvImCornersDetectedInCurrentFrame; // corners detected in the current frame
             
-    std::vector<Eigen::Vector3f> mv3dRefPoints; // 3D reference points in object frame 
-    std::vector<Eigen::Vector3f> mv3dRefCorners; // 3D reference corners in object frame    
+    std::vector<cv::Point3f> mv3dRefPoints; // 3D reference points in object frame 
+    std::vector<cv::Mat> mv3dRefCorners; // 3D reference corners in object frame    
     
     std::mutex mMutexImgCornersReprojected;
     std::vector<cv::Point2f> mvImCornersReprojected; // 3D reference corners reprojected in the current frame    
     
     std::mutex m3dCornersMutex;    
-    std::vector<Eigen::Vector3f> mv3dCorners; // 3D corners in world frame     
+    std::vector<cv::Mat> mv3dCorners; // 3D corners in world frame     
             
     cv::Mat mK;
     cv::Mat mDistCoef;  
@@ -256,21 +241,15 @@ protected:
     KeyFramePtr mpRefKF;
     
     // Sim3 object configuration 
-    // NOTE 1: when transforming the object points: 
-    //  1) first, we scale them by using s (or 1/s in the direction from "world" to "object")
-    //  2) then, we roto-translate them by using [Rwo, two]  (or [Row, tow] where tow = -(Row* two)/s)
-    // NOTE 2: here, we represent both transformation directions with a simple mapping p2 = scale*R*p1 + t  (where t possibly includes other scaling "effects")
-    //         This allows to simplify and decouple the management of s,R,t in both the directions 
-    Sophus::Sim3f mSow; // Sow = [Row/s, tow; 0, 1]   ("object" frame contains mv3dRefPoints)   NOTE: tow = -(Row* two)/s  (when comparing Sow with Swo)
-    Sophus::Sim3f mSwo; // Swo = [s*Rwo, two; 0, 1]   
-    double mdScale;     // scale s (used in the above mSow and mSwo); s is used as a multiplication factor in the direction from "object" to "world"
-    Eigen::Vector3f mOw;// object center (two)
-    
+    cv::Mat mSow; // Sow = [Row/s, tow; 0, 1]   ("object" frame contains mv3dRefPoints)
+    cv::Mat mSwo; // Swo = [s*Rwo, two; 0, 1]   
+    double mdScale; // scale (in mSow and mSwo)  from Object to World 
+    cv::Mat mOw;  // center 
+
     bool mbBad;
     
     std::mutex mMutexPose;
-    std::mutex mMutexMap;
-     
+         
     Map* mpMap;
          
     bool mbActive; 

@@ -38,22 +38,22 @@
 #include "Stopwatch.h"
 #include "KeyFrame.h"
 
-namespace PLVS2
+namespace PLVS
 {
 
 
 template<typename PointT>
-PointCloudMapChisel<PointT>::PointCloudMapChisel(Map* pMap, const std::shared_ptr<PointCloudMapParameters>& params) : PointCloudMap<PointT>(pMap, params)
+PointCloudMapChisel<PointT>::PointCloudMapChisel(double resolution_in, double min_range, double max_range, bool useCarving_in) : PointCloudMap<PointT>(resolution_in)//,octree_(this->resolution_)
 {
-    //this->bPerformCarving_ = useCarving_in;
+    this->bPerformCarving_ = useCarving_in;
 
     pChiselServerParams_ = std::make_shared<chisel_server::ChiselServerParams>();
     pChiselServerParams_->chunkSizeX = pChiselServerParams_->chunkSizeY = pChiselServerParams_->chunkSizeZ = 16; 
-    pChiselServerParams_->voxelResolution = params->resolution;
+    pChiselServerParams_->voxelResolution = resolution_in;
     pChiselServerParams_->useColor = true;
-    pChiselServerParams_->nearPlaneDist = params->minDepthDistance;
-    pChiselServerParams_->farPlaneDist = params->maxDepthDistance;
-    pChiselServerParams_->useCarving = params->bUseCarving;
+    pChiselServerParams_->nearPlaneDist = min_range;
+    pChiselServerParams_->farPlaneDist = max_range;
+    pChiselServerParams_->useCarving = useCarving_in;
     pChiselServerParams_->carvingDist = 0.05;
     pChiselServerParams_->fusionMode = (int) chisel_server::ChiselServer::FusionMode::PointCloud;
 
@@ -73,19 +73,17 @@ void PointCloudMapChisel<PointT>::SetColorCameraModel(const CameraModelParams& p
 }
 
 template<typename PointT>
-void PointCloudMapChisel<PointT>::InsertCloud(typename PointCloudMap<PointT>::PointCloudT::ConstPtr cloud_camera, const Sophus::SE3f& Twc, double max_range)
+void PointCloudMapChisel<PointT>::InsertCloud(typename PointCloudMap<PointT>::PointCloudT::ConstPtr cloud_camera, const cv::Mat& Twc, double max_range)
 {
     std::cout << "PointCloudMapChisel<PointT>::InsertCloud()" << std::endl;
 
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
 
     chisel::Transform transform(chisel::Transform::Identity());
-    // transform.translation()(0) = Twc.at<float>(0, 3);
-    // transform.translation()(1) = Twc.at<float>(1, 3);
-    // transform.translation()(2) = Twc.at<float>(2, 3);
-    transform.translation() = Twc.translation(); 
-    //transform.linear() = Converter::toMatrix3f(Twc.rowRange(0, 3).colRange(0, 3));
-    transform.linear() = Twc.rotationMatrix();
+    transform.translation()(0) = Twc.at<float>(0, 3);
+    transform.translation()(1) = Twc.at<float>(1, 3);
+    transform.translation()(2) = Twc.at<float>(2, 3);
+    transform.linear() = Converter::toMatrix3f(Twc.rowRange(0, 3).colRange(0, 3));
 
     this->pChiselServer_->SetPointCloud(*cloud_camera, transform);
     this->pChiselServer_->IntegrateLastPointCloud(false);
@@ -97,19 +95,17 @@ void PointCloudMapChisel<PointT>::InsertCloud(typename PointCloudMap<PointT>::Po
 }
 
 template<typename PointT>
-void PointCloudMapChisel<PointT>::InsertCloudWithDepth(typename PointCloudT::ConstPtr cloud_camera, const Sophus::SE3f& Twc, const cv::Mat& depthImage, double max_range)
+void PointCloudMapChisel<PointT>::InsertCloudWithDepth(typename PointCloudT::ConstPtr cloud_camera, const cv::Mat& Twc, const cv::Mat& depthImage, double max_range)
 {
     std::cout << "PointCloudMapChisel<PointT>::InsertCloud() - with depth " << std::endl;
 
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
 
     chisel::Transform transform(chisel::Transform::Identity());
-    // transform.translation()(0) = Twc.at<float>(0, 3);
-    // transform.translation()(1) = Twc.at<float>(1, 3);
-    // transform.translation()(2) = Twc.at<float>(2, 3);
-    transform.translation() = Twc.translation(); 
-    //transform.linear() = Converter::toMatrix3f(Twc.rowRange(0, 3).colRange(0, 3));
-    transform.linear() = Twc.rotationMatrix();
+    transform.translation()(0) = Twc.at<float>(0, 3);
+    transform.translation()(1) = Twc.at<float>(1, 3);
+    transform.translation()(2) = Twc.at<float>(2, 3);
+    transform.linear() = Converter::toMatrix3f(Twc.rowRange(0, 3).colRange(0, 3));
 
     const int depthWidth = depthImage.cols;
     const int detphHeight = depthImage.rows;
@@ -132,19 +128,17 @@ void PointCloudMapChisel<PointT>::InsertCloudWithDepth(typename PointCloudT::Con
 }
 
 template<typename PointT>
-void PointCloudMapChisel<PointT>::InsertDepthScanColor(const cv::Mat& depthImage, const cv::Mat& colorImage, const Sophus::SE3f& Twc, boost::uint64_t timestamp)
+void PointCloudMapChisel<PointT>::InsertDepthScanColor(const cv::Mat& depthImage, const cv::Mat& colorImage, const cv::Mat& Twc, boost::uint64_t timestamp)
 {
     std::cout << "PointCloudMapChisel<PointT>::InsertDepthScanColor()" << std::endl;
 
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
 
     chisel::Transform transform(chisel::Transform::Identity());
-    // transform.translation()(0) = Twc.at<float>(0, 3);
-    // transform.translation()(1) = Twc.at<float>(1, 3);
-    // transform.translation()(2) = Twc.at<float>(2, 3);
-    transform.translation() = Twc.translation();
-    // transform.linear() = Converter::toMatrix3f(Twc.rowRange(0, 3).colRange(0, 3));
-    transform.linear() = Twc.rotationMatrix(); 
+    transform.translation()(0) = Twc.at<float>(0, 3);
+    transform.translation()(1) = Twc.at<float>(1, 3);
+    transform.translation()(2) = Twc.at<float>(2, 3);
+    transform.linear() = Converter::toMatrix3f(Twc.rowRange(0, 3).colRange(0, 3));
 
     if (!depthImage.empty() && !colorImage.empty())
     {
@@ -195,7 +189,7 @@ void PointCloudMapChisel<PointT>::InsertData(typename PointCloudMapInput<PointT>
 
     this->lastTimestamp_ = pData->timestamp;
 
-    Sophus::SE3f Twc = pData->pPointCloudKeyFrame->GetCameraPose();
+    cv::Mat Twc = pData->pPointCloudKeyFrame->GetCameraPose();
     pData->pPointCloudKeyFrame->TwcIntegration = Twc; 
     
     KeyFramePtr pKF = pData->pPointCloudKeyFrame->pKF;
@@ -265,7 +259,7 @@ void PointCloudMapChisel<PointT>::OnMapChange()
 
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
 
-    if (this->pPointCloudMapParameters_->bResetOnSparseMapChange)
+    if (this->bResetOnSparseMapChange_)
     {
         std::cout << "PointCloudMapChisel<PointT>::OnMapChange() - chisel reset *** " << std::endl;
         this->pChiselServer_->Reset();
@@ -286,7 +280,7 @@ void PointCloudMapChisel<pcl::PointSurfelSegment>::OnMapChange()
 
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
 
-    if (this->pPointCloudMapParameters_->bResetOnSparseMapChange)
+    if (this->bResetOnSparseMapChange_)
     {
         std::cout << "PointCloudMapChisel<PointT>::OnMapChange() - chisel reset *** " << std::endl;
         this->pChiselServer_->Reset();
@@ -320,7 +314,7 @@ void PointCloudMapChisel<pcl::PointSurfelSegment>::OnMapChange()
         
         PointCloudT::Ptr pkfCloudWorldNew( new PointCloudT );
         PointCloudT& kfCloudWorldNew = *pkfCloudWorldNew;
-        //const cv::Mat identity = cv::Mat::eye(4,4,CV_32F);
+        const cv::Mat identity = cv::Mat::eye(4,4,CV_32F);
         MapKfidCloud::iterator itc=mapKfidToPointCloud.begin(), itcEnd=mapKfidToPointCloud.end();
         for(;itc!=itcEnd; itc++)
         {
@@ -334,29 +328,27 @@ void PointCloudMapChisel<pcl::PointSurfelSegment>::OnMapChange()
             if(pKF->isBad()) continue;
             
             // let's correct the cloud 
-            const Sophus::SE3f& TwcIntegration = pcKF->TwcIntegration; // pose at the last time of integration 
+            const cv::Mat& TwcIntegration = pcKF->TwcIntegration; // pose at the last time of integration 
             
-            //cv::Mat TcwIntegration = cv::Mat::eye(4,4,CV_32F);
+            cv::Mat TcwIntegration = cv::Mat::eye(4,4,CV_32F);
             // invert by taking into account the structure of the homogeneous transformation matrix
-            // cv::Mat RcwIntegration =  TwcIntegration.rowRange(0,3).colRange(0,3).t();
-            // cv::Mat tcwIntegration = -RcwIntegration*TwcIntegration.rowRange(0,3).col(3);
-            // RcwIntegration.copyTo(TcwIntegration.rowRange(0,3).colRange(0,3));
-            // tcwIntegration.copyTo(TcwIntegration.rowRange(0,3).col(3));
-            Sophus::SE3f TcwIntegration = TwcIntegration.inverse();
+            cv::Mat RcwIntegration =  TwcIntegration.rowRange(0,3).colRange(0,3).t();
+            cv::Mat tcwIntegration = -RcwIntegration*TwcIntegration.rowRange(0,3).col(3);
+            RcwIntegration.copyTo(TcwIntegration.rowRange(0,3).colRange(0,3));
+            tcwIntegration.copyTo(TcwIntegration.rowRange(0,3).col(3));
             
-            Sophus::SE3f TwcNew =  pKF->GetPoseInverse();  // new corrected pose 
+            cv::Mat TwcNew =  pKF->GetPoseInverse();  // new corrected pose 
             
             // let's compute the correction transformation 
             //cv::Mat Twnwo= TwcNew * TwcIntegration.inv(); // from world old to world new             
-            Sophus::SE3f Twnwo = TwcNew * TcwIntegration; // from world old to world new 
+            cv::Mat Twnwo= TwcNew * TcwIntegration; // from world old to world new 
             
             // check if the transformation is "big" enough otherwise do not re-transform the cloud 
-            //double norm = cv::norm(Twnwo - identity);
-            double norm = (Twnwo.matrix3x4() - Sophus::SE3f().matrix3x4()).norm();
+            double norm = cv::norm(Twnwo - identity);
             std::cout << "norm: " << norm << std::endl; 
             if( norm > kNormThresholdForEqualMatrices)
             {            
-                this->TransformCameraCloudInWorldFrame(kfCloudWorld, Converter::toIsometry3d(Twnwo), kfCloudWorldNew);   
+                this->TransformCameraCloudInWorldFrame(kfCloudWorld, Twnwo, kfCloudWorldNew);   
             }
             else
             {
@@ -396,14 +388,14 @@ void PointCloudMapChisel<pcl::PointSurfelSegment>::OnMapChange()
 
     std::unique_lock<std::recursive_timed_mutex> lck(this->pointCloudMutex_);
 
-    if (this->pPointCloudMapParameters_->bResetOnSparseMapChange)
+    if (this->bResetOnSparseMapChange_)
     {
         std::cout << "PointCloudMapChisel<PointT>::OnMapChange() - chisel reset *** " << std::endl;
         this->pChiselServer_->Reset();
         std::cout << "PointCloudMapChisel<PointT>::OnMapChange() - chisel reset done! " << std::endl;
     }
     
-    if(this->pPointCloudMapParameters_->bCloudDeformationOnSparseMapChange)
+    if(this->bCloudDeformationOnSparseMapChange_)
     {
         std::cout << "PointCloudMapChisel<PointT>::OnMapChange() - point cloud KF adjustment" << std::endl;
         
@@ -417,7 +409,7 @@ void PointCloudMapChisel<pcl::PointSurfelSegment>::OnMapChange()
         const cv::Mat identity = cv::Mat::eye(4,4,CV_32F);
         
         uint32_t lastKfid = 0;
-        Sophus::SE3f lastTwnwo; // = cv::Mat::eye(4,4,CV_32F);
+        cv::Mat lastTwnwo = cv::Mat::eye(4,4,CV_32F);
         
         auto itc=mapKfidPointCloudKeyFrame_.begin(), itcEnd=mapKfidPointCloudKeyFrame_.end();
         for(;itc!=itcEnd; itc++)
@@ -425,31 +417,29 @@ void PointCloudMapChisel<pcl::PointSurfelSegment>::OnMapChange()
             const uint32_t kfid = itc->first;            
             typename PointCloudKeyFrameT::Ptr pcKF = itc->second;
             
-            Sophus::SE3f Twnwo;
+            cv::Mat Twnwo;
                     
             KeyFramePtr pKF = pcKF->pKF;
             if(pcKF->bIsValid && !pKF->isBad())
             {            
                 // let's compute the transformation for kfid 
-                const Sophus::SE3f& TwcIntegration = pcKF->TwcIntegration; // pose at the last time of integration 
+                const cv::Mat& TwcIntegration = pcKF->TwcIntegration; // pose at the last time of integration 
 
                 // invert TwcIntegration by taking into account the structure of the homogeneous transformation matrix                
-                // cv::Mat TcwIntegration = cv::Mat::eye(4,4,CV_32F); // inverse of TwcIntegration
-                // cv::Mat RcwIntegration =  TwcIntegration.rowRange(0,3).colRange(0,3).t();
-                // cv::Mat tcwIntegration = -RcwIntegration*TwcIntegration.rowRange(0,3).col(3);
-                // RcwIntegration.copyTo(TcwIntegration.rowRange(0,3).colRange(0,3));
-                // tcwIntegration.copyTo(TcwIntegration.rowRange(0,3).col(3));
-                Sophus::SE3f TcwIntegration = TwcIntegration.inverse();
+                cv::Mat TcwIntegration = cv::Mat::eye(4,4,CV_32F); // inverse of TwcIntegration
+                cv::Mat RcwIntegration =  TwcIntegration.rowRange(0,3).colRange(0,3).t();
+                cv::Mat tcwIntegration = -RcwIntegration*TwcIntegration.rowRange(0,3).col(3);
+                RcwIntegration.copyTo(TcwIntegration.rowRange(0,3).colRange(0,3));
+                tcwIntegration.copyTo(TcwIntegration.rowRange(0,3).col(3));
 
-                Sophus::SE3f TwcNew =  pKF->GetPoseInverse();  // new corrected pose 
+                cv::Mat TwcNew =  pKF->GetPoseInverse();  // new corrected pose 
 
                 // let's compute the correction transformation 
                 //cv::Mat Twnwo= TwcNew * TwcIntegration.inv(); // from world old to world new             
                 Twnwo = TwcNew * TcwIntegration; // from world old (last integration) to world new 
 
                 // check if the transformation is "big" enough otherwise do not re-transform the cloud 
-                //double norm = cv::norm(Twnwo - identity);
-                double norm = (Twnwo.matrix3x4() - Sophus::SE3f().matrix3x4()).norm();
+                double norm = cv::norm(Twnwo - identity);
                 std::cout << "kfid: " << kfid << ", norm: " << norm << std::endl; 
 
                 // update integration pose  
@@ -469,13 +459,12 @@ void PointCloudMapChisel<pcl::PointSurfelSegment>::OnMapChange()
             }
             
             chisel::TransformRt& Rt = mapKfidToRt[kfid];
-            // Rt.R << Twnwo(0,0), Twnwo(0,1), Twnwo(0,2), 
-            //         Twnwo(1,0), Twnwo(1,1), Twnwo(1,2),
-            //         Twnwo(2,0), Twnwo(2,1), Twnwo(2,2);
-            Rt.R = Twnwo.rotationMatrix();
+            Rt.R << Twnwo.at<float>(0,0), Twnwo.at<float>(0,1), Twnwo.at<float>(0,2), 
+                    Twnwo.at<float>(1,0), Twnwo.at<float>(1,1), Twnwo.at<float>(1,2),
+                    Twnwo.at<float>(2,0), Twnwo.at<float>(2,1), Twnwo.at<float>(2,2);
             
-            //Rt.t << Twnwo(0,3), Twnwo(1,3), Twnwo(2,3);
-            Rt.t = Twnwo.translation();
+            Rt.t << Twnwo.at<float>(0,3), Twnwo.at<float>(1,3), Twnwo.at<float>(2,3);
+            
             
             // reintegrate the cloud           
             //*(pCloudWorldNew) += kfCloudWorldNew; // push the corrected cloud               
@@ -548,4 +537,4 @@ bool PointCloudMapChisel<PointT>::LoadMap(const std::string& filename)
 
 
 
-} //namespace PLVS2
+} //namespace PLVS

@@ -26,7 +26,7 @@
 #include "GlObject.h"
 
 
-namespace PLVS2
+namespace PLVS
 {
 
 
@@ -121,6 +121,6 @@ protected:
 };
 
 
-} //namespace PLVS2
+} //namespace PLVS
 
 #endif

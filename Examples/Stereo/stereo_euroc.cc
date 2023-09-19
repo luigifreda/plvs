@@ -1,20 +1,23 @@
 /**
-* This file is part of ORB-SLAM3
+* This file is part of ORB-SLAM2.
 *
-* Copyright (C) 2017-2021 Carlos Campos, Richard Elvira, Juan J. Gómez Rodríguez, José M.M. Montiel and Juan D. Tardós, University of Zaragoza.
-* Copyright (C) 2014-2016 Raúl Mur-Artal, José M.M. Montiel and Juan D. Tardós, University of Zaragoza.
+* Copyright (C) 2014-2016 Raúl Mur-Artal <raulmur at unizar dot es> (University of Zaragoza)
+* For more information see <https://github.com/raulmur/ORB_SLAM2>
 *
-* ORB-SLAM3 is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
-* License as published by the Free Software Foundation, either version 3 of the License, or
+* ORB-SLAM2 is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
 * (at your option) any later version.
 *
-* ORB-SLAM3 is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
-* the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* ORB-SLAM2 is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 * GNU General Public License for more details.
 *
-* You should have received a copy of the GNU General Public License along with ORB-SLAM3.
-* If not, see <http://www.gnu.org/licenses/>.
+* You should have received a copy of the GNU General Public License
+* along with ORB-SLAM2. If not, see <http://www.gnu.org/licenses/>.
 */
+
 
 #include<iostream>
 #include<algorithm>
@@ -22,11 +25,16 @@
 #include<iomanip>
 #include<chrono>
 
+#include <unistd.h>
+
+#include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
 #include "System.h"
+#include "Tracking.h"
 #include "Utils.h"
+
 
 using namespace std;
 
@@ -34,14 +42,36 @@ void LoadImages(const string &strPathLeft, const string &strPathRight, const str
                 vector<string> &vstrImageLeft, vector<string> &vstrImageRight, vector<double> &vTimeStamps);
 
 int main(int argc, char **argv)
-{  
-    if(argc < 5)
+{
+    if(argc != 6)
     {
-        cerr << endl << "Usage: ./stereo_euroc path_to_vocabulary path_to_settings path_to_sequence_folder_1 path_to_times_file_1 (path_to_image_folder_2 path_to_times_file_2 ... path_to_image_folder_N path_to_times_file_N) (trajectory_file_name)" << endl;
-
+        cerr << endl << "Usage: ./stereo_euroc path_to_vocabulary path_to_settings path_to_left_folder path_to_right_folder path_to_times_file" << endl;
         return 1;
     }
 
+    cout << "running..." << endl;
+
+    // Retrieve paths to images
+    vector<string> vstrImageLeft;
+    vector<string> vstrImageRight;
+    vector<double> vTimeStamp;
+    LoadImages(string(argv[3]), string(argv[4]), string(argv[5]), vstrImageLeft, vstrImageRight, vTimeStamp);
+
+    cout << "retrieve paths to images ..." << endl;
+
+    if(vstrImageLeft.empty() || vstrImageRight.empty())
+    {
+        cerr << "ERROR: No images in provided path." << endl;
+        return 1;
+    }
+
+    if(vstrImageLeft.size()!=vstrImageRight.size())
+    {
+        cerr << "ERROR: Different number of left and right images." << endl;
+        return 1;
+    }
+
+    // Read rectification parameters
     cv::FileStorage fsSettings(argv[2], cv::FileStorage::READ);
     if(!fsSettings.isOpened())
     {
@@ -49,131 +79,123 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    bool bUseViewer = static_cast<int> (PLVS2::Utils::GetParam(fsSettings, "Viewer.on", 1)) != 0;    
+    bool bUseViewer = static_cast<int> (PLVS::Utils::GetParam(fsSettings, "Viewer.on", 1)) != 0;
 
-    const int num_seq = (argc-3)/2;
-    cout << "num_seq = " << num_seq << endl;
-    bool bFileName= (((argc-3) % 2) == 1);
-    string file_name;
-    if (bFileName)
+
+    cv::Mat K_l, K_r, P_l, P_r, R_l, R_r, D_l, D_r;
+    fsSettings["LEFT.K"] >> K_l;
+    fsSettings["RIGHT.K"] >> K_r;
+
+    fsSettings["LEFT.P"] >> P_l;
+    fsSettings["RIGHT.P"] >> P_r;
+
+    fsSettings["LEFT.R"] >> R_l;
+    fsSettings["RIGHT.R"] >> R_r;
+
+    fsSettings["LEFT.D"] >> D_l;
+    fsSettings["RIGHT.D"] >> D_r;
+
+    int rows_l = fsSettings["LEFT.height"];
+    int cols_l = fsSettings["LEFT.width"];
+    int rows_r = fsSettings["RIGHT.height"];
+    int cols_r = fsSettings["RIGHT.width"];
+
+    if(K_l.empty() || K_r.empty() || P_l.empty() || P_r.empty() || R_l.empty() || R_r.empty() || D_l.empty() || D_r.empty() ||
+            rows_l==0 || rows_r==0 || cols_l==0 || cols_r==0)
     {
-        file_name = string(argv[argc-1]);
-        cout << "file name: " << file_name << endl;
+        cerr << "ERROR: Calibration parameters to rectify stereo are missing!" << endl;
+        return -1;
     }
 
-    // Load all sequences:
-    int seq;
-    vector< vector<string> > vstrImageLeft;
-    vector< vector<string> > vstrImageRight;
-    vector< vector<double> > vTimestampsCam;
-    vector<int> nImages;
+    cv::Mat M1l,M2l,M1r,M2r;
+    cv::initUndistortRectifyMap(K_l,D_l,R_l,P_l.rowRange(0,3).colRange(0,3),cv::Size(cols_l,rows_l),CV_32F,M1l,M2l);
+    cv::initUndistortRectifyMap(K_r,D_r,R_r,P_r.rowRange(0,3).colRange(0,3),cv::Size(cols_r,rows_r),CV_32F,M1r,M2r);
 
-    vstrImageLeft.resize(num_seq);
-    vstrImageRight.resize(num_seq);
-    vTimestampsCam.resize(num_seq);
-    nImages.resize(num_seq);
 
-    int tot_images = 0;
-    for (seq = 0; seq<num_seq; seq++)
-    {
-        cout << "Loading images for sequence " << seq << "...";
+    const int nImages = vstrImageLeft.size();
 
-        string pathSeq(argv[(2*seq) + 3]);
-        string pathTimeStamps(argv[(2*seq) + 4]);
-
-        string pathCam0 = pathSeq + "/mav0/cam0/data";
-        string pathCam1 = pathSeq + "/mav0/cam1/data";
-
-        LoadImages(pathCam0, pathCam1, pathTimeStamps, vstrImageLeft[seq], vstrImageRight[seq], vTimestampsCam[seq]);
-        cout << "LOADED!" << endl;
-
-        nImages[seq] = vstrImageLeft[seq].size();
-        tot_images += nImages[seq];
-    }
+    // Create SLAM system. It initializes all system threads and gets ready to process frames.
+    PLVS::System SLAM(argv[1],argv[2],PLVS::System::STEREO,true);
 
     // Vector for tracking time statistics
     vector<float> vTimesTrack;
-    vTimesTrack.resize(tot_images);
+    vTimesTrack.resize(nImages);
 
     cout << endl << "-------" << endl;
-    cout.precision(17);
+    cout << "Start processing sequence ..." << endl;
+    cout << "Images in the sequence: " << nImages << endl << endl;
 
-    // Create SLAM system. It initializes all system threads and gets ready to process frames.
-    PLVS2::System SLAM(argv[1],argv[2],PLVS2::System::STEREO, bUseViewer);
-
-    cv::Mat imLeft, imRight;
-    for (seq = 0; seq<num_seq; seq++)
+    int numImgsNoInit = 0; 
+    int numImgsLost = 0; 
+    
+    // Main loop
+    cv::Mat imLeft, imRight, imLeftRect, imRightRect;
+    for(int ni=0; ni<nImages; ni++)
     {
+        // Read left and right images from file
+        imLeft = cv::imread(vstrImageLeft[ni],cv::IMREAD_UNCHANGED);
+        imRight = cv::imread(vstrImageRight[ni],cv::IMREAD_UNCHANGED);
 
-        // Seq loop
-        double t_resize = 0;
-        double t_rect = 0;
-        double t_track = 0;
-        int num_rect = 0;
-        int proccIm = 0;
-        for(int ni=0; ni<nImages[seq]; ni++, proccIm++)
+        if(imLeft.empty())
         {
-            // Read left and right images from file
-            imLeft = cv::imread(vstrImageLeft[seq][ni],cv::IMREAD_UNCHANGED); //,cv::IMREAD_UNCHANGED);
-            imRight = cv::imread(vstrImageRight[seq][ni],cv::IMREAD_UNCHANGED); //,cv::IMREAD_UNCHANGED);
+            cerr << endl << "Failed to load image at: "
+                 << string(vstrImageLeft[ni]) << endl;
+            return 1;
+        }
 
-            if(imLeft.empty())
-            {
-                cerr << endl << "Failed to load image at: "
-                     << string(vstrImageLeft[seq][ni]) << endl;
-                return 1;
-            }
+        if(imRight.empty())
+        {
+            cerr << endl << "Failed to load image at: "
+                 << string(vstrImageRight[ni]) << endl;
+            return 1;
+        }
 
-            if(imRight.empty())
-            {
-                cerr << endl << "Failed to load image at: "
-                     << string(vstrImageRight[seq][ni]) << endl;
-                return 1;
-            }
+        cv::remap(imLeft,imLeftRect,M1l,M2l,cv::INTER_LINEAR);
+        cv::remap(imRight,imRightRect,M1r,M2r,cv::INTER_LINEAR);
 
-            double tframe = vTimestampsCam[seq][ni];
+        double tframe = vTimeStamp[ni];
 
-    #ifdef COMPILEDWITHC11
-            std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
-    #else
-            std::chrono::monotonic_clock::time_point t1 = std::chrono::monotonic_clock::now();
-    #endif
 
-            // Pass the images to the SLAM system
-            SLAM.TrackStereo(imLeft,imRight,tframe, vector<PLVS2::IMU::Point>(), vstrImageLeft[seq][ni]);
-
-    #ifdef COMPILEDWITHC11
-            std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
-    #else
-            std::chrono::monotonic_clock::time_point t2 = std::chrono::monotonic_clock::now();
-    #endif
-
-#ifdef REGISTER_TIMES
-            t_track = t_resize + t_rect + std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(t2 - t1).count();
-            SLAM.InsertTrackTime(t_track);
+#ifdef COMPILEDWITHC11
+        std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+#else
+        std::chrono::monotonic_clock::time_point t1 = std::chrono::monotonic_clock::now();
 #endif
 
-            double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
+        // Pass the images to the SLAM system
+        SLAM.TrackStereo(imLeftRect,imRightRect,tframe);
+        
+        int trackingState = SLAM.GetTrackingState();
+        if(trackingState == PLVS::Tracking::NOT_INITIALIZED) numImgsNoInit++;
+        if(trackingState == PLVS::Tracking::LOST) numImgsLost++;        
 
-            vTimesTrack[ni]=ttrack;
+#ifdef COMPILEDWITHC11
+        std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
+#else
+        std::chrono::monotonic_clock::time_point t2 = std::chrono::monotonic_clock::now();
+#endif
 
-            // Wait to load the next frame
-            double T=0;
-            if(ni<nImages[seq]-1)
-                T = vTimestampsCam[seq][ni+1]-tframe;
-            else if(ni>0)
-                T = tframe-vTimestampsCam[seq][ni-1];
+        double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
 
-            if(ttrack<T)
-                usleep((T-ttrack)*1e6); // 1e6
-        }
+        vTimesTrack[ni]=ttrack;
 
-        if(seq < num_seq - 1)
+        // Wait to load the next frame
+        double T=0;
+        if(ni<nImages-1)
+            T = vTimeStamp[ni+1]-tframe;
+        else if(ni>0)
+            T = tframe-vTimeStamp[ni-1];
+
+#if 1
+        if(ttrack<T)
+            usleep((T-ttrack)*1e6);
+#else
+        std::cout<<"img " << ni << std::endl;
+        if(SLAM.GetTrackingState() != PLVS::Tracking::NOT_INITIALIZED)
         {
-            cout << "Changing the dataset" << endl;
-
-            SLAM.ChangeDataset();
+            getchar(); // step by step
         }
+#endif
 
     }
 
@@ -188,19 +210,26 @@ int main(int argc, char **argv)
     // Stop all threads
     SLAM.Shutdown();
 
+    // Tracking time statistics
+    sort(vTimesTrack.begin(),vTimesTrack.end());
+    float totaltime = 0;
+    for(int ni=0; ni<nImages; ni++)
+    {
+        totaltime+=vTimesTrack[ni];
+    }
+    cout << "-------" << endl << endl;
+    cout << "median tracking time: " << vTimesTrack[nImages/2] << endl;
+    cout << "mean tracking time: " << totaltime/nImages << endl;
+
+    cout << "perc images lost: " << (float(numImgsLost)/nImages)*100. << std::endl; 
+    cout << "perc images no init: " << (float(numImgsNoInit)/nImages)*100. << std::endl;  
+    
+    cout << "-------" << endl << endl;
+    SLAM.PrintMapStatistics();
+    
     // Save camera trajectory
-    if (bFileName)
-    {
-        const string kf_file =  "kf_" + string(argv[argc-1]) + ".txt";
-        const string f_file =  "f_" + string(argv[argc-1]) + ".txt";
-        SLAM.SaveTrajectoryEuRoC(f_file);
-        SLAM.SaveKeyFrameTrajectoryEuRoC(kf_file);
-    }
-    else
-    {
-        SLAM.SaveTrajectoryEuRoC("CameraTrajectory.txt");
-        SLAM.SaveKeyFrameTrajectoryEuRoC("KeyFrameTrajectory.txt");
-    }
+    SLAM.SaveTrajectoryTUM("CameraTrajectory.txt");
+    SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
 
     return 0;
 }
@@ -210,6 +239,12 @@ void LoadImages(const string &strPathLeft, const string &strPathRight, const str
 {
     ifstream fTimes;
     fTimes.open(strPathTimes.c_str());
+    if (!fTimes.is_open())
+    {
+        std::cerr << "unable to open " << strPathTimes;
+        quick_exit(-1);
+    }
+
     vTimeStamps.reserve(5000);
     vstrImageLeft.reserve(5000);
     vstrImageRight.reserve(5000);

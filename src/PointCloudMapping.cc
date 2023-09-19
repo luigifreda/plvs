@@ -34,9 +34,8 @@
 #include "PointCloudMapping.h"
 #include "Map.h"
 #include "LocalMapping.h"
-#include "PointCloudMap.h"
-#include "PointCloudAtlas.h"
 #include "ColorOctomapServer.h"
+#include "PointCloudMap.h"
 #include "PointCloudMapFastFusion.h"
 #include "PointCloudMapVoxblox.h"
 #include "PointCloudMapChisel.h"
@@ -59,7 +58,7 @@
 
 //#define _DEBUG // for activating debugging in opencv
 
-namespace PLVS2
+namespace PLVS
 {
 
 int PointCloudMapping::skDownsampleStep = 2;
@@ -96,11 +95,11 @@ typedef EigthNeighborhoodIndicesFast NeighborhoodT;
 
 
 
-PointCloudMapping::PointCloudMapping(const string &strSettingPath, Atlas* atlas, LocalMapping* localMap): 
-mpAtlas(atlas), mpLocalMapping(localMap), bInitCamGridPoints_(false),bFinished_(true),mnSaveMapCount_(0)
+PointCloudMapping::PointCloudMapping(const string &strSettingPath, Map* map, LocalMapping* localMap): 
+mpMap(map), mpLocalMapping(localMap), bInitCamGridPoints_(false),bFinished_(true),mnSaveMapCount(0)
 {
     cv::FileStorage fsSettings(strSettingPath, cv::FileStorage::READ);
-    
+
     // < StereoDense
     std::cout << std::endl  << "StereoDense Parameters: " << std::endl; 
     std::string stereoDenseStringType = Utils::GetParam(fsSettings, "StereoDense.type", std::string("libelas")); 
@@ -113,38 +112,81 @@ mpAtlas(atlas), mpLocalMapping(localMap), bInitCamGridPoints_(false),bFinished_(
     std::cout << std::endl  << "PointCloudMapping Parameters: " << std::endl;   
     bActive_ = static_cast<int> (Utils::GetParam(fsSettings, "PointCloudMapping.on", 0)) != 0;
     
-    // read the desired map model 
-    std::string pointCloudMapTypeStringDefault = PointCloudMapTypes::kPointCloudMapTypeStrings[PointCloudMapTypes::kOctreePoint];
-    std::string pointCloudMapStringType = Utils::GetParam(fsSettings, "PointCloudMapping.type", pointCloudMapTypeStringDefault);
-    std::cout << "point cloud map type: " << pointCloudMapStringType << std::endl;
-    
     numKeyframesToQueueBeforeProcessing_ = Utils::GetParam(fsSettings, "PointCloudMapping.numKeyframesToQueueBeforeProcessing", kNumKeyframesToQueueBeforeProcessing);
     
     skDownsampleStep = Utils::GetParam(fsSettings, "PointCloudMapping.downSampleStep", 2);
     
-    double resolution = Utils::GetParam(fsSettings, "PointCloudMapping.resolution", kGridMapDefaultResolution);
+    resolution_ = Utils::GetParam(fsSettings, "PointCloudMapping.resolution", kGridMapDefaultResolution);
     
-    std::cout << "PointCloudMapping::PointCloudMapping() - resolution: " <<  resolution << std::endl;
+    std::cout << "PointCloudMapping::PointCloudMapping() - resolution: " <<  resolution_ << std::endl;
 
-    double maxDepthDistance = Utils::GetParam(fsSettings, "PointCloudMapping.maxDepth", kMaxDepthDistance);
-    double minDepthDistance = Utils::GetParam(fsSettings, "PointCloudMapping.minDepth", kMinDepthDistance);
+    maxDepthDistance_ = Utils::GetParam(fsSettings, "PointCloudMapping.maxDepth", kMaxDepthDistance);
+    minDepthDistance_ = Utils::GetParam(fsSettings, "PointCloudMapping.minDepth", kMinDepthDistance);
     
-    KeyFrame::skFovCenterDistance = 0.5*(minDepthDistance + maxDepthDistance);
+    KeyFrame::skFovCenterDistance = 0.5*(minDepthDistance_ + maxDepthDistance_);
     
-    double imageDepthScale = Utils::GetParam(fsSettings, "DepthMapFactor", 1.);
+    imageDepthScale_ = Utils::GetParam(fsSettings, "DepthMapFactor", 1.);
 
     // read parameters for specific map models 
-    bool bUseCarving = static_cast<int> (Utils::GetParam(fsSettings, "PointCloudMapping.useCarving", 1)) != 0;
+    bUseCarving_ = static_cast<int> (Utils::GetParam(fsSettings, "PointCloudMapping.useCarving", 1)) != 0;
     
     bool bRemoveUnstablePoints = static_cast<int> (Utils::GetParam(fsSettings, "PointCloudMapping.removeUnstablePoints", 1)) != 0;
     
     bool bResetOnSparseMapChange = static_cast<int> (Utils::GetParam(fsSettings, "PointCloudMapping.resetOnSparseMapChange", 1)) != 0;
-    bool bCloudDeformationOnSparseMapChange = static_cast<int> (Utils::GetParam(fsSettings, "PointCloudMapping.cloudDeformationOnSparseMapChange", 0)) != 0;
-    if(bCloudDeformationOnSparseMapChange) bResetOnSparseMapChange = false;
+    bCloudDeformationOnSparseMapChange_ = static_cast<int> (Utils::GetParam(fsSettings, "PointCloudMapping.cloudDeformationOnSparseMapChange", 0)) != 0;
+    if(bCloudDeformationOnSparseMapChange_) bResetOnSparseMapChange = false;
     
-    int nPointCounterThreshold = Utils::GetParam(fsSettings, "PointCloudMapping.pointCounterThreshold", kGridMapDefaultPointCounterThreshold);
+    int point_counter_threshold = Utils::GetParam(fsSettings, "PointCloudMapping.pointCounterThreshold", kGridMapDefaultPointCounterThreshold);
 
     PointCloudMapVoxblox<PointT>::skIntegrationMethod = Utils::GetParam(fsSettings, "PointCloudMapping.voxbloxIntegrationMethod", PointCloudMapVoxblox<PointT>::skIntegrationMethod);
+    
+    // read the desired map model 
+    std::string pointCloudMapTypeStringDefault = "octree_point";
+    pointCloudMapType_ = kVoxelGrid;
+
+    std::string pointCloudMapStringType = Utils::GetParam(fsSettings, "PointCloudMapping.type", pointCloudMapTypeStringDefault);
+    std::cout << "point cloud map type: " << pointCloudMapStringType << std::endl;
+
+    if (pointCloudMapStringType == "voxelgrid")
+    {
+        //pPointCloudMap_ = std::make_shared<PointCloudMapVoxelGridFilter<PointT> >(resolution_);
+        pPointCloudMap_ = std::make_shared<PointCloudMapVoxelGridFilterActive<PointT> >(resolution_);
+        pointCloudMapType_ = kVoxelGrid;
+    }
+    else if (pointCloudMapStringType == "octomap")
+    {
+        pPointCloudMap_ = std::make_shared<PointCloudMapOctomap<PointT> >(resolution_, maxDepthDistance_);
+        pointCloudMapType_ = kOctomap;
+    }
+    else if (pointCloudMapStringType == "octree_point")
+    {
+        pPointCloudMap_ = std::make_shared<PointCloudMapOctreePointCloud<PointT> >(resolution_, point_counter_threshold, bUseCarving_);
+        pointCloudMapType_ = kOctreePoint;
+    }
+    else if (pointCloudMapStringType == "chisel")
+    {
+        pPointCloudMap_ = std::make_shared<PointCloudMapChisel<PointT> >(resolution_, minDepthDistance_, maxDepthDistance_, bUseCarving_);
+        pointCloudMapType_ = kChisel;
+    }
+    else if (pointCloudMapStringType == "fastfusion")
+    {
+        pPointCloudMap_ = std::make_shared<PointCloudMapFastFusion<PointT> >(resolution_, minDepthDistance_, maxDepthDistance_, bUseCarving_);
+        pointCloudMapType_ = kFastFusion;
+    }
+    else if (pointCloudMapStringType == "voxblox")
+    {
+        pPointCloudMap_ = std::make_shared<PointCloudMapVoxblox<PointT> >(resolution_, minDepthDistance_, maxDepthDistance_, bUseCarving_);
+        pointCloudMapType_ = kVoxblox;
+    }    
+    else
+    {
+        // default 
+        pPointCloudMap_ = std::make_shared<PointCloudMapVoxelGridFilter<PointT> >(resolution_);
+        pointCloudMapType_ = kVoxelGrid;
+        
+        std::cout << "PointCloudMapping::PointCloudMapping() - selecting default point map PointCloudMapVoxelGridFilter " << std::endl; 
+    }
+
 
     /// < NOTE: here we manage a simple model (without distortion) which is used for projecting point clouds;
     /// <       it assumes input rectified images; in particular chisel framework works under these assumptions
@@ -155,12 +197,12 @@ mpAtlas(atlas), mpLocalMapping(localMap), bInitCamGridPoints_(false),bFinished_(
     pCameraParams->cy = fsSettings["Camera.cy"];
     pCameraParams->width = fsSettings["Camera.width"];
     pCameraParams->height = fsSettings["Camera.height"];
-    pCameraParams->minDist = minDepthDistance;
-    pCameraParams->maxDist = maxDepthDistance;
+    pCameraParams->minDist = minDepthDistance_;
+    pCameraParams->maxDist = maxDepthDistance_;
     
-//    /// < NOTE: we assume frames are already rectified and depth camera and rgb camera have the same projection models 
-//    pPointCloudMap_->SetColorCameraModel(*pCameraParams);
-//    pPointCloudMap_->SetDepthCameraModel(*pCameraParams);
+    /// < NOTE: we assume frames are already rectified and depth camera and rgb camera have the same projection models 
+    pPointCloudMap_->SetColorCameraModel(*pCameraParams);
+    pPointCloudMap_->SetDepthCameraModel(*pCameraParams);
     
     pointCloudTimestamp_ = 0;
 
@@ -169,111 +211,62 @@ mpAtlas(atlas), mpLocalMapping(localMap), bInitCamGridPoints_(false),bFinished_(
     
     vecImages_.resize(5);
 
-    bool bFilterDepthImages = static_cast<int> (Utils::GetParam(fsSettings, "PointCloudMapping.filterDepth.on", 0)) != 0;
-    int depthFilterDiameter = Utils::GetParam(fsSettings, "PointCloudMapping.filterDepth.diameter", kDepthFilterDiamater);  
-    double depthFilterSigmaDepth = Utils::GetParam(fsSettings, "PointCloudMapping.filterDepth.sigmaDepth", kDepthFilterSigmaDepth); 
-    double depthSigmaSpace = Utils::GetParam(fsSettings, "PointCloudMapping.filterDepth.sigmaSpace", kDepthSigmaSpace); 
+    bFilterDepthImages_ = static_cast<int> (Utils::GetParam(fsSettings, "PointCloudMapping.filterDepth.on", 0)) != 0;
+    depthFilterDiamater_ = Utils::GetParam(fsSettings, "PointCloudMapping.filterDepth.diameter", kDepthFilterDiamater);  
+    depthFilterSigmaDepth_ = Utils::GetParam(fsSettings, "PointCloudMapping.filterDepth.sigmaDepth", kDepthFilterSigmaDepth); 
+    depthSigmaSpace_ = Utils::GetParam(fsSettings, "PointCloudMapping.filterDepth.sigmaSpace", kDepthSigmaSpace); 
     
     mbLoadDensemap_ = static_cast<int> (Utils::GetParam(fsSettings, "PointCloudMapping.loadMap", 0)) != 0;
-    msLoadFilename_ = Utils::GetParam(fsSettings, "PointCloudMapping.loadFilename", std::string()); 
+    msLoadFilename = Utils::GetParam(fsSettings, "PointCloudMapping.loadFilename", std::string()); 
     
     cout << endl  << "Segmentation Parameters: " << endl; 
-    bool bSegmentationOn = static_cast<int> (Utils::GetParam(fsSettings, "Segmentation.on", 0)) != 0;
+    bSegmentationOn_ = static_cast<int> (Utils::GetParam(fsSettings, "Segmentation.on", 0)) != 0;
     
     // < disable segmentation if you are not using octreepoint
-    //if( (bSegmentationOn) && (pPointCloudMapParameters_->pointCloudMapType != PointCloudMapTypes::kOctreePoint) )
-    if( (bSegmentationOn) && (pointCloudMapStringType != PointCloudMapTypes::kPointCloudMapTypeStrings[PointCloudMapTypes::kOctreePoint]) )    
+    if( (bSegmentationOn_) && (pointCloudMapType_ != kOctreePoint) )
     {
         cout << endl  << "!!!WARNING: segmentation disabled without octree_point!!!" << endl; 
-        bSegmentationOn = false; 
+        bSegmentationOn_ = false; 
+        
     }
     
-    if(bSegmentationOn)
+    if(bSegmentationOn_)
     {
         std::cout << "WARNING: forcing numKeyframesToQueueBeforeProcessing to 1" << std::endl; 
         numKeyframesToQueueBeforeProcessing_ = 1; 
         
         std::cout << "WARNING: forcing filter depth on" << std::endl; 
-        bFilterDepthImages = true; 
-    }    
-    bool bSegmentationErosionDilationOn = static_cast<int> (Utils::GetParam(fsSettings, "Segmentation.erosionDilationOn", 1)) != 0;
+        bFilterDepthImages_ = true; 
+    }
     
-    float sementationMaxDepth = Utils::GetParam(fsSettings, "Segmentation.maxDepth", kSementationMaxDepth);
-    float segmentationMinFi = Utils::GetParam(fsSettings, "Segmentation.minFi", kSegmentationMinFi);
-    float segmentationMaxDelta = Utils::GetParam(fsSettings, "Segmentation.maxDelta", kSegmentationMaxDelta);
-    int segmentationSingleDepthMinComponentArea = Utils::GetParam(fsSettings, "Segmentation.singleDepth.minComponentArea", kSegmentationSingleDepthMinComponentArea);
-    int segmentationLineDrawThinckness = Utils::GetParam(fsSettings, "Segmentation.lineDrawThinckness", 2);
+    bSegmentationErosionDilationOn_ = static_cast<int> (Utils::GetParam(fsSettings, "Segmentation.erosionDilationOn", 1)) != 0;
     
-    int segmentationLabelConfidenceThreshold = Utils::GetParam(fsSettings, "Segmentation.labelConfidenceThreshold", kSegmenentationLabelConfidenceThreshold);
+    sementationMaxDepth_ = Utils::GetParam(fsSettings, "Segmentation.maxDepth", kSementationMaxDepth);
+    segmentationMinFi_ = Utils::GetParam(fsSettings, "Segmentation.minFi", kSegmentationMinFi);
+    segmentationMaxDelta_ = Utils::GetParam(fsSettings, "Segmentation.maxDelta", kSegmentationMaxDelta);
+    segmentationSingleDepthMinComponentArea_ = Utils::GetParam(fsSettings, "Segmentation.singleDepth.minComponentArea", kSegmentationSingleDepthMinComponentArea);
+    segmentationLineDrawThinckness_ = Utils::GetParam(fsSettings, "Segmentation.lineDrawThinckness", 2);
+    
+    segmentationLabelConfidenceThreshold_ = Utils::GetParam(fsSettings, "Segmentation.labelConfidenceThreshold", kSegmenentationLabelConfidenceThreshold);
    
-    float segmentationMaxAngleForNormalAssociation = Utils::GetParam(fsSettings, "Segmentation.maxAngleForNormalAssociation", 20);
+    float maxAngleForNormalAssociation = Utils::GetParam(fsSettings, "Segmentation.maxAngleForNormalAssociation", 20);
     LabelMap::skLabelsMatchingMinOverlapPerc = Utils::GetParam(fsSettings, "Segmentation.labelsMatchingMinOverlapPerc", LabelMap::kLabelsMatchingMinOverlaPercDefault);
     LabelMap::skLabelsMatchingMinOverlapPoints = Utils::GetParam(fsSettings, "Segmentation.labelsMatchingMinOverlapPoints", LabelMap::kLabelsMatchingMinOverlapPointsDefault);
     GlobalLabelMap::skLabelsMatchingMinOverlapPerc = Utils::GetParam(fsSettings, "Segmentation.globalLabelsMatchingMinOverlapPerc", GlobalLabelMap::kLabelsMatchingMinOverlaPercDefault);
     
-    /// < Fill in the point cloud map params 
+    pPointCloudMap_->SetDownsampleStep(skDownsampleStep);
+    pPointCloudMap_->SetPerformCarving(bUseCarving_);
+    pPointCloudMap_->SetRemoveUnstablePoints(bRemoveUnstablePoints);
+    pPointCloudMap_->SetResetOnMapChange(bResetOnSparseMapChange);
+    pPointCloudMap_->SetKfAdjustmentOnMapChange(bCloudDeformationOnSparseMapChange_);
+    pPointCloudMap_->SetPerformSegmentation(bSegmentationOn_);
     
-    pPointCloudMapParameters_ = std::make_shared<PointCloudMapParameters>();
-    pPointCloudMapParameters_->pointCloudMapStringType = pointCloudMapStringType;
-    //pPointCloudMapParameters_->pointCloudMapType  // this is set in PointCloudAtlas<PointT>::NewPointCloudMap()
-    pPointCloudMapParameters_->resolution = resolution;
-    
-    pPointCloudMapParameters_->minDepthDistance = minDepthDistance;    
-    pPointCloudMapParameters_->maxDepthDistance = maxDepthDistance;
-    pPointCloudMapParameters_->maxDepthDistance = maxDepthDistance;   
-    pPointCloudMapParameters_->imageDepthScale = imageDepthScale;
-    
-    pPointCloudMapParameters_->bUseCarving = bUseCarving;
-    
-    pPointCloudMapParameters_->nPointCounterThreshold = nPointCounterThreshold;   
-    pPointCloudMapParameters_->bRemoveUnstablePoints = bRemoveUnstablePoints;
-    pPointCloudMapParameters_->bResetOnSparseMapChange = bResetOnSparseMapChange;
-    
-    pPointCloudMapParameters_->bCloudDeformationOnSparseMapChange = bCloudDeformationOnSparseMapChange;
-    
-    pPointCloudMapParameters_->bFilterDepthImages = bFilterDepthImages;
-    pPointCloudMapParameters_->depthFilterDiameter = depthFilterDiameter;  // diameter of the depth filter  
-    pPointCloudMapParameters_->depthFilterSigmaDepth = depthFilterSigmaDepth;  
-    pPointCloudMapParameters_->depthSigmaSpace = depthSigmaSpace;     
-     
-    pPointCloudMapParameters_->bSegmentationOn = bSegmentationOn;
-    pPointCloudMapParameters_->sementationMaxDepth = sementationMaxDepth;  // [m]
-    pPointCloudMapParameters_->segmentationMinFi = segmentationMinFi;    // dot product in [0,1]
-    pPointCloudMapParameters_->segmentationMaxDelta = segmentationMaxDelta; // [m] max allowed distance of two vertices on a convex surface 
-    pPointCloudMapParameters_->segmentationSingleDepthMinComponentArea = segmentationSingleDepthMinComponentArea;
-    pPointCloudMapParameters_->segmentationLineDrawThinckness = segmentationLineDrawThinckness;
-    pPointCloudMapParameters_->segmentationMaxAngleForNormalAssociation = segmentationMaxAngleForNormalAssociation;
-    pPointCloudMapParameters_->segmentationMinCosForNormalAssociation = cos(segmentationMaxAngleForNormalAssociation*M_PI/180.);
-        
-    pPointCloudMapParameters_->segmentationLabelConfidenceThreshold = segmentationLabelConfidenceThreshold;
-    pPointCloudMapParameters_->bSegmentationErosionDilationOn = bSegmentationErosionDilationOn;      
-    
-    pPointCloudMapParameters_->nDownsampleStep = skDownsampleStep;
-    
-    
-    /// < Create and set the first point cloud map 
-    mpPointCloudAtlas = make_shared<PointCloudAtlas<PointT> >(atlas, pPointCloudMapParameters_);    
-    unique_lock<recursive_timed_mutex> lck(pointCloudMutex_);  
-    pPointCloudMap_ = mpPointCloudAtlas->GetCurrentMap();    
-    //NOTE: each new pPointCloudMap will be set with pPointCloudMapParameters_ by mpPointCloudAtlas
-    
-    /// < NOTE: we assume frames are already rectified and depth camera and rgb camera have the same projection models 
-    pPointCloudMap_->SetColorCameraModel(*pCameraParams);
-    pPointCloudMap_->SetDepthCameraModel(*pCameraParams);
-    
-    //TODO: Luigi these can be removed since now we should use pPointCloudMapParameters_
-//    pPointCloudMap_->SetDownsampleStep(skDownsampleStep);
-//    pPointCloudMap_->SetPerformCarving(bUseCarving);
-//    pPointCloudMap_->SetRemoveUnstablePoints(bRemoveUnstablePoints);
-//    pPointCloudMap_->SetResetOnMapChange(bResetOnSparseMapChange);
-//    pPointCloudMap_->SetKfAdjustmentOnMapChange(bCloudDeformationOnSparseMapChange);
-//    pPointCloudMap_->SetPerformSegmentation(bSegmentationOn);
-//    pPointCloudMap_->SetMinCosForNormalAssociation(cos(segmentationMaxAngleForNormalAssociation*M_PI/180.));
+    pPointCloudMap_->SetMinCosForNormalAssociation(cos(maxAngleForNormalAssociation*M_PI/180.));
         
     // load dense map 
-    if( !msLoadFilename_.empty() &&  mbLoadDensemap_ )
+    if( !msLoadFilename.empty() &&  mbLoadDensemap_ )
     {
-        pPointCloudMap_->LoadMap(msLoadFilename_);
+        pPointCloudMap_->LoadMap(msLoadFilename);
     }
     
     /// < last, launch the thread
@@ -324,11 +317,11 @@ void PointCloudMapping::InsertKeyFrame(PointCloudKeyFrame<PointT>::Ptr pcKeyFram
 {
     if (!bActive_) return;
 
+    cout << "receive a keyframe, id = " << pcKeyFrame->pKF->mnId << endl;
+    if(baseKeyframeId_< 0) baseKeyframeId_ = pcKeyFrame->pKF->mnId; 
+
     unique_lock<mutex> lck(keyframesMutex_);
 
-    cout << "Received a keyframe, id = " << pcKeyFrame->pKF->mnId << " (# queued: " << pcKeyframesIn_.size() << ")" << endl;
-    if(baseKeyframeId_< 0) baseKeyframeId_ = pcKeyFrame->pKF->mnId; 
-     
 #if INIT_PCKF_ON_INSERT    
     pcKeyFrame->Init(); // N.B.: no memory sharing for color and depth  
 #endif 
@@ -373,11 +366,6 @@ void PointCloudMapping::PrepareNewKeyFrames()
     unique_lock<mutex> lck(keyframesMutex_);
     
     if(pcKeyframesIn_.empty()) return; 
-    
-    if(mpAtlas->isInertial())
-    {
-        if(!mpAtlas->isImuInitialized()) return; 
-    }
 
     for (auto it=pcKeyframesIn_.begin(); it != pcKeyframesIn_.end(); )
     {
@@ -443,7 +431,6 @@ void PointCloudMapping::Run()
 #ifdef PCL_VIEWER        
         {
             unique_lock<recursive_timed_mutex> lck(pointCloudMutex_);
-            pPointCloudMap_ = mpPointCloudAtlas->GetCurrentMap();
             viewer.showCloud(pPointCloudMap_->GetMap());
         }
 #endif
@@ -464,16 +451,12 @@ bool PointCloudMapping::UpdateMap()
     int num_keyframes_inserted_in_map = 0;
     bool b_have_time_to_reinsert_old_frames = true; 
 
-    // get all the new keyframes!
-    Map* map = mpAtlas->GetCurrentMap();
-    set<KeyFramePtr> set_pKFs = map->GetSetKeyFrames();
+    set<KeyFramePtr> set_pKFs = mpMap->GetSetKeyFrames();
     mpLocalMapping->AddNewKeyFramesToSet(set_pKFs);
     
 
     unique_lock<recursive_timed_mutex> lck_globalMap(pointCloudMutex_);
     unique_lock<mutex> lck_pcKeyframes(pcKeyframesMutex_);
-    
-    pPointCloudMap_ = mpPointCloudAtlas->GetCurrentMap();
 
     size_t i, iEnd;
         
@@ -551,9 +534,7 @@ bool PointCloudMapping::UpdateMap()
 
 void PointCloudMapping::UpdatePointCloudTimestamp()
 {
-    unique_lock<recursive_timed_mutex> lck_globalMap(pointCloudMutex_);
-    pPointCloudMap_ = mpPointCloudAtlas->GetCurrentMap();    
-    std::uint64_t timestamp = pPointCloudMap_->GetMapTimestamp();
+    pcl::uint64_t timestamp = pPointCloudMap_->GetMapTimestamp();
 
     unique_lock<mutex> lck(pointCloudTimestampMutex_); //shared with drawing thread 
     pointCloudTimestamp_ = timestamp;    
@@ -570,30 +551,29 @@ bool PointCloudMapping::IntegratePointCloudKeyframe(const std::set<KeyFramePtr>&
     {
         if (!pcKeyframe->bInMap)
         {
-            cout << "Integrating point cloud of KF " << pcKeyframe->pKF->mnId << "/" << (pcKeyframes_.size()-1) + baseKeyframeId_ << " (Map: "<<  pcKeyframe->pKF->GetMap()->GetId() << ")" << endl;
+            cout << "integrating point cloud for kf " << pcKeyframe->pKF->mnId << "/" << (pcKeyframes_.size()-1) + baseKeyframeId_ << endl;
    
             PointCloudT::Ptr pCloudCamera = GeneratePointCloudInCameraFrame(pcKeyframe);  
             
             std::shared_ptr<PointCloudMapInput<PointT> > pPointCloudMapInput = std::make_shared<PointCloudMapInput<PointT> >(
-                    pcKeyframe, pPointCloudMapParameters_->minDepthDistance, pPointCloudMapParameters_->maxDepthDistance, 
-                    pPointCloudMapParameters_->imageDepthScale, pCloudCamera->header.stamp);
+                    pcKeyframe, minDepthDistance_, maxDepthDistance_, imageDepthScale_, pCloudCamera->header.stamp);
                     
-            switch (pPointCloudMapParameters_->pointCloudMapType) 
+            switch (pointCloudMapType_) 
             {
-            case PointCloudMapTypes::kChisel:            
+            case kChisel:            
                 // two possible modes   
-                if(pPointCloudMapParameters_->bUseCarving)
+                if(bUseCarving_)
                     pPointCloudMapInput->type = PointCloudMapInput<PointT>::kPointCloudAndDepthImage;
                 else
                     pPointCloudMapInput->type = PointCloudMapInput<PointT>::kPointCloud;                    
                 //pPointCloudMapInput->type = PointCloudMapInput<PointT>::kColorAndDepthImages;  /// < NOTE: much sloweeer that inserting with pointcloud!!!!
                 break;
                 
-            case PointCloudMapTypes::kFastFusion:
+            case kFastFusion:
                 pPointCloudMapInput->type = PointCloudMapInput<PointT>::kColorAndDepthImages;
                 break;
                    
-            case PointCloudMapTypes::kOctreePoint:
+            case kOctreePoint:
                 pPointCloudMapInput->type = PointCloudMapInput<PointT>::kPointCloudAndDepthImage;
                 break;
 
@@ -602,21 +582,8 @@ bool PointCloudMapping::IntegratePointCloudKeyframe(const std::set<KeyFramePtr>&
             }
             
             TICKCLOUD("PC::InsertData");
-            
-            // check the correspondence between entry KF and current point cloud map
-            if(pcKeyframe->pKF->GetMap() == pPointCloudMap_->GetCorrespodingSparseMap())
-            {
-                pPointCloudMap_->InsertData(pPointCloudMapInput);
-            }
-#if 1           
-            else
-            {
-                std::cout << "WARNING: integrating the point cloud for KF in different map!" << std::endl; 
-                auto pPointCloudMapOld = mpPointCloudAtlas->GetCorrespondingPointCloudMap(pcKeyframe->pKF->GetMap());
-                if(!pPointCloudMapOld->IsBad())
-                    pPointCloudMapOld->InsertData(pPointCloudMapInput);                
-            }
-#endif 
+                    
+            pPointCloudMap_->InsertData(pPointCloudMapInput);
             
             TOCKCLOUD("PC::InsertData");
                     
@@ -661,31 +628,28 @@ bool PointCloudMapping::IntegratePointCloudKeyframe(const std::set<KeyFramePtr>&
 
 void PointCloudMapping::Reset()
 {
-    std::cout << "PointCloudMapping::Reset() - start " << std::endl;
+    std::cout << "PointCloudMapping::reset() - start " << std::endl;
 
-    
-    unique_lock<recursive_timed_mutex> lckPc(pointCloudMutex_); // NOTE: this is needed in order to sync w.r.t. other point cloud processing ops
+    unique_lock<mutex> lck(keyframesMutex_); // block the insertion of new frames
 
-    /// < NOTE: the following line is commented since Atlas::clearAtlas() is directly connected to PointCloudAtlas::clearAtlas()
-    //mpPointCloudAtlas->clearAtlas();
-
-    /// < NOTE: the following two lines are commented since Atlas::clearMap() is directly connected to PointCloudAtlas::clearMap()
-    //pPointCloudMap_ = mpPointCloudAtlas->GetCurrentMap();
-    //pPointCloudMap_->Clear();
-    
-    unique_lock<mutex> lckKFs(keyframesMutex_); // block the insertion of new frames
     bKeyframesAvailable_ = false;
     bKeyframesToInsertInMap_ = false; 
+    
     pcKeyframesIn_.clear();
-    
-    
-    unique_lock<mutex> lckPcKFs(pcKeyframesMutex_);
-    pcKeyframes_.clear();
-    lastKeyframeIndex_ = 0;
-    
-    pcKeyframesToReinsert_.clear();
 
-    std::cout << "PointCloudMapping::Reset() - end" << std::endl;    
+    {
+        unique_lock<recursive_timed_mutex> lck(pointCloudMutex_);
+        pPointCloudMap_->Clear();
+    }
+
+    {
+        unique_lock<mutex> lck(pcKeyframesMutex_);
+        pcKeyframes_.clear();
+        lastKeyframeIndex_ = 0;
+        
+        pcKeyframesToReinsert_.clear();
+    }
+    std::cout << "PointCloudMapping::reset() - end" << std::endl;    
 }
 
 void PointCloudMapping::RebuildMap()
@@ -700,12 +664,11 @@ void PointCloudMapping::RebuildMap()
 
     {
         unique_lock<recursive_timed_mutex> lck(pointCloudMutex_);
-        pPointCloudMap_ = mpPointCloudAtlas->GetCurrentMap();
         //pPointCloudMap_->Clear();
         pPointCloudMap_->OnMapChange();
     }
 
-    if(!pPointCloudMapParameters_->bCloudDeformationOnSparseMapChange)
+    if(!bCloudDeformationOnSparseMapChange_)
     {
         unique_lock<mutex> lck(pcKeyframesMutex_);
 #if 0        
@@ -845,9 +808,9 @@ PointCloudMapping::PointCloudT::Ptr PointCloudMapping::GeneratePointCloudInCamer
     int kfid = kf->mnId; 
     
     TICKCLOUD("PC::DepthFilter");  
-    if(pPointCloudMapParameters_->bFilterDepthImages) 
+    if(bFilterDepthImages_) 
     {
-        FilterDepthimage(depth,  pPointCloudMapParameters_->depthFilterDiameter, pPointCloudMapParameters_->depthFilterSigmaDepth, pPointCloudMapParameters_->depthSigmaSpace);
+        FilterDepthimage(depth,  depthFilterDiamater_, depthFilterSigmaDepth_, depthSigmaSpace_);
     }
     TOCKCLOUD("PC::DepthFilter");  
     
@@ -873,7 +836,7 @@ PointCloudMapping::PointCloudT::Ptr PointCloudMapping::GeneratePointCloudInCamer
         {
             const float& d = depth_row_m[n];
 
-            if ((d > pPointCloudMapParameters_->minDepthDistance) && (d < pPointCloudMapParameters_->maxDepthDistance))
+            if ((d > minDepthDistance_) && (d < maxDepthDistance_))
             {
                 PointT p;
                 p.z = d;
@@ -945,7 +908,7 @@ PointCloudMapping::PointCloudT::Ptr PointCloudMapping::GeneratePointCloudInCamer
     
 #if COMPUTE_SEGMENTS
 
-    if(pPointCloudMapParameters_->bSegmentationOn)
+    if(bSegmentationOn_)
     {        
         static const int downsampleRows = (int) ceil( float(depth.rows)/skDownsampleStep);
         static const int downsampleCols = (int) ceil( float(depth.cols)/skDownsampleStep);
@@ -958,7 +921,7 @@ PointCloudMapping::PointCloudT::Ptr PointCloudMapping::GeneratePointCloudInCamer
         vecImages_[3].bReady = true;  // comment this in order to hide the lines image
         for(size_t ii=0, iiEnd=keyLines.size(); ii<iiEnd; ii++)
         {
-            cv::line(linesImg, keyLines[ii].getStartPoint()/skDownsampleStep, keyLines[ii].getEndPoint()/skDownsampleStep,cv::Scalar(255), pPointCloudMapParameters_->segmentationLineDrawThinckness);
+            cv::line(linesImg, keyLines[ii].getStartPoint()/skDownsampleStep, keyLines[ii].getEndPoint()/skDownsampleStep,cv::Scalar(255),segmentationLineDrawThinckness_);
         }
        
         vecImages_[0].name = "fi";
@@ -986,7 +949,7 @@ PointCloudMapping::PointCloudT::Ptr PointCloudMapping::GeneratePointCloudInCamer
                     PointT& pc = cloud_camera->points[idxCloud[ii]];
                     const Eigen::Vector3d vpc(pc.x,pc.y,pc.z);
                     const Eigen::Vector3d normal(pc.normal_x,pc.normal_y,pc.normal_z);
-                    if(pc.z > pPointCloudMapParameters_->sementationMaxDepth) continue; 
+                    if(pc.z > sementationMaxDepth_) continue; 
 
                     // get the other points in the neighborhood 
                     for(int kk=0;kk<NeighborhoodT::kSize;kk++)
@@ -1025,13 +988,13 @@ PointCloudMapping::PointCloudT::Ptr PointCloudMapping::GeneratePointCloudInCamer
                     }
 
                     matFi.at<uchar>(md,nd) = static_cast<uchar>(std::min(minFi,1.0f)*255); 
-                    if(maxDelta > pPointCloudMapParameters_->segmentationMaxDelta)
+                    if(maxDelta > segmentationMaxDelta_)
                         matGamma.at<uchar>(md,nd) = 255;
                     
                     const bool lineEdge = (linesImg.at<uchar>(md,nd) == 255);
                     
                     // here we mark the areas which are supposed to be convex and made of contiguous vertices
-                    if( (minFi > pPointCloudMapParameters_->segmentationMinFi) && (maxDelta <= pPointCloudMapParameters_->segmentationMaxDelta) && !lineEdge) 
+                    if( (minFi > segmentationMinFi_) && (maxDelta <= segmentationMaxDelta_) && !lineEdge) 
                     {
                         matFiBinaryTh.at<uchar>(md,nd) = 255;
                     }
@@ -1041,7 +1004,7 @@ PointCloudMapping::PointCloudT::Ptr PointCloudMapping::GeneratePointCloudInCamer
         
 
         TICKCLOUD("erosion-dilation");        
-        if(pPointCloudMapParameters_->bSegmentationErosionDilationOn)
+        if(bSegmentationErosionDilationOn_)
         {
             /// < apply erosion dilation 
             const int erosionSize = 1; 
@@ -1074,7 +1037,7 @@ PointCloudMapping::PointCloudT::Ptr PointCloudMapping::GeneratePointCloudInCamer
         for(int label = 1; label < nLabels; ++label) /// < N.B.: starting from 1!
         {
             const int area  = stats.at<int>(label, cv::CC_STAT_AREA);
-            if(area > pPointCloudMapParameters_->segmentationSingleDepthMinComponentArea)
+            if(area > segmentationSingleDepthMinComponentArea_)
             {
                 isLabelValid[label] = true;
                 
@@ -1155,7 +1118,7 @@ PointCloudMapping::PointCloudT::Ptr PointCloudMapping::GeneratePointCloudInWorld
 {
     GeneratePointCloudInCameraFrame(pcKeyframe);
 
-    Eigen::Isometry3d T = PLVS2::Converter::toSE3Quat(pcKeyframe->pKF->GetPose());
+    Eigen::Isometry3d T = PLVS::Converter::toSE3Quat(pcKeyframe->pKF->GetPose());
 
     PointCloudT::Ptr p_cloud_world(new PointCloudT);
     pcl::transformPointCloud(*(pcKeyframe->pCloudCamera), *p_cloud_world, T.inverse().matrix());
@@ -1172,7 +1135,6 @@ PointCloudMapping::PointCloudT::Ptr PointCloudMapping::GetMap()
     unique_lock<recursive_timed_mutex> lck(pointCloudMutex_, timeout);
     if (lck.owns_lock())
     {
-        pPointCloudMap_ = mpPointCloudAtlas->GetCurrentMap();
         return pPointCloudMap_->GetMapWithTimeout(timeout);
     }
     else
@@ -1189,7 +1151,6 @@ void PointCloudMapping::GetMap(typename PointCloudT::Ptr& pCloud, typename Point
     unique_lock<recursive_timed_mutex> lck(pointCloudMutex_, timeout);
     if (lck.owns_lock())
     {
-        pPointCloudMap_ = mpPointCloudAtlas->GetCurrentMap();
         //std::cout << "PointCloudMapping::GetMap() - getting map in " << timeout.count() << " milliseconds " << std::endl;
         pPointCloudMap_->GetMapWithTimeout(pCloud, pCloudUnstable, faces, timeout, copyUnstable);
     }
@@ -1201,7 +1162,7 @@ void PointCloudMapping::GetMap(typename PointCloudT::Ptr& pCloud, typename Point
     }
 }
 
-std::uint64_t PointCloudMapping::GetMapTimestamp()
+pcl::uint64_t PointCloudMapping::GetMapTimestamp()
 {
     unique_lock<mutex> lck(pointCloudTimestampMutex_);
     return pointCloudTimestamp_;
@@ -1210,10 +1171,9 @@ std::uint64_t PointCloudMapping::GetMapTimestamp()
 void PointCloudMapping::SaveMap()
 {
     unique_lock<recursive_timed_mutex> lck(pointCloudMutex_);
-    pPointCloudMap_ = mpPointCloudAtlas->GetCurrentMap();
-    
+
     std::stringstream map_name;
-    map_name << "volumetric_map_out_" << mnSaveMapCount_++ << ".ply";
+    map_name << "volumetric_map_out_" << mnSaveMapCount++ << ".ply";
 
     return pPointCloudMap_->SaveMap(map_name.str());
 }
@@ -1291,8 +1251,6 @@ void PointCloudMapping::FilterDepthimage(cv::Mat &image,  const int diamater , c
 void PointCloudMapping::SetCameraCalibration(float fx, float fy, float cx, float cy )
 {
     unique_lock<recursive_timed_mutex> lck(pointCloudMutex_);    
-    pPointCloudMap_ = mpPointCloudAtlas->GetCurrentMap();
-    
     pCameraParams->fx = fx;
     pCameraParams->fy = fy;
     pCameraParams->cx = cx;
@@ -1304,7 +1262,7 @@ void PointCloudMapping::SetCameraCalibration(float fx, float fy, float cx, float
 }
 
 
-} //namespace PLVS2
+} //namespace PLVS
 
 
 
@@ -1320,7 +1278,7 @@ void PointCloudMapping::SetCameraCalibration(float fx, float fy, float cx, float
 //        for (int n = 0; n < depth.cols; n += downsampleStep_)
 //        {
 //            float d = depth.ptr<float>(m)[n];
-//            if ((d < pPointCloudMapParameters_->minDepthDistance) || (d > pPointCloudMapParameters_->maxDepthDistance))
+//            if ((d < minDepthDistance_) || (d > maxDepthDistance_))
 //                continue;
 //
 //            PointT p;
@@ -1340,7 +1298,7 @@ void PointCloudMapping::SetCameraCalibration(float fx, float fy, float cx, float
 //    
 //    cloud_camera->header.stamp = getTimestampfromSec(kf->mTimeStamp);
 //
-//    Eigen::Isometry3d T = PLVS2::Converter::toSE3Quat(kf->GetPose());
+//    Eigen::Isometry3d T = PLVS::Converter::toSE3Quat(kf->GetPose());
 //    PointCloudT::Ptr cloud(new PointCloudT);
 //    pcl::transformPointCloud(*cloud_camera, *cloud, T.inverse().matrix());
 //    cloud->is_dense = false;

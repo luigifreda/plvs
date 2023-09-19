@@ -23,12 +23,9 @@
 #include "Logger.h"
 #include "Converter.h"
 
-#include "MapPoint.h"
 #include "KeyFrame.h"
 #include "Frame.h"
 #include "Map.h"
-#include "Atlas.h"
-#include "Utils.h"
 
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
@@ -40,11 +37,11 @@
 #define VERBOSE 1
 #define USE_FLANN_MATCHER 1
 
-namespace PLVS2
+namespace PLVS
 {
 
 ObjectObservation::ObjectObservation():
-nId(-1), fScale(1.0f), fDistance(std::numeric_limits<float>::max()),
+nId(-1), Tkc(cv::Mat_<float>::eye(4,4)), fScale(1.0f), fDistance(std::numeric_limits<float>::max()),
 nInliers(0),nMatchedMapPoints(0), fReprojectionError(0.f), fSim3Error(-1.f), bFromKF(false)
 {};
     
@@ -59,10 +56,9 @@ ObjectObservation& ObjectObservation::operator=(const ObjectObservation& other)
     if (this != &other) 
     { 
         nId = other.nId;
-        Tkc = other.Tkc;
-        //Rco = other.Rco.clone();
-        //tco = other.tco.clone();   
-        Tco = other.Tco;
+        Tkc = other.Tkc.clone();
+        Rco = other.Rco.clone();
+        tco = other.tco.clone();   
 
         fScale = other.fScale;
         fDistance = other.fDistance;
@@ -78,19 +74,19 @@ ObjectObservation& ObjectObservation::operator=(const ObjectObservation& other)
 }
 
 // Get observation SE3 transformation Tko (from Object to KeyFrame)
-Sophus::SE3f ObjectObservation::GetSE3() const 
+cv::Mat ObjectObservation::GetSE3() const 
 {
-    //cv::Mat_<float> Tco = cv::Mat_<float>::eye(4,4);    
-    // this->Rco.copyTo( Tco.rowRange(0,3).colRange(0,3) );  
-    // this->tco.copyTo( Tco.rowRange(0,3).col(3) );             
+    cv::Mat_<float> Tco = cv::Mat_<float>::eye(4,4);    
+    this->Rco.copyTo( Tco.rowRange(0,3).colRange(0,3) );  
+    this->tco.copyTo( Tco.rowRange(0,3).col(3) );             
 
     if(bFromKF)
     {
-        return this->Tco;  // here Tkc is the identity 
+        return Tco;  // here Tkc is the identity 
     }
     else
     {    
-        return (this->Tkc)*(this->Tco);
+        return (this->Tkc)*Tco;
     }
 }
 
@@ -110,10 +106,9 @@ std::ostream &operator<<( std::ostream &out, const ObjectObservation &obs )
 {
     out << "from KF: " << (int)obs.bFromKF << std::endl;   
     out << "object ID: " << obs.nId << std::endl;
-    //out << "Tkc: " << obs.Tkc << std::endl;         
-    // out << "Rco: " << obs.Rco << std::endl; 
-    // out << "tco: " << obs.tco << std::endl;      
-    //out << "Tco: " << obs.Tco << std::endl;  
+    out << "Tkc: " << obs.Tkc << std::endl;         
+    out << "Rco: " << obs.Rco << std::endl; 
+    out << "tco: " << obs.tco << std::endl;      
     out << "scale: " << obs.fScale << std::endl; 
     out << "distance: " << obs.fDistance << std::endl; 
     out << "num inliers:" << obs.nInliers << std::endl; 
@@ -172,8 +167,8 @@ mbScaleFixed(false), mbLocalized(false), mpRefKF(static_cast<KeyFramePtr>(NULL))
     mpMatcher = std::make_shared<cv::BFMatcher>(cv::NORM_HAMMING);
 #endif
     
-    //mSow = cv::Mat_<float>::eye(4,4);
-    //mSwo = cv::Mat_<float>::eye(4,4);  
+    mSow = cv::Mat_<float>::eye(4,4);
+    mSwo = cv::Mat_<float>::eye(4,4);  
     
     unique_lock<mutex> lock(mpMap->mMutexObjectCreation);
     mnId=nNextId++;    
@@ -184,8 +179,7 @@ void MapObject::InitFeatures(int nfeatures, float scaleFactor, int nlevels, int 
 {
     // Detect the keypoints using ORB Detector
     ORBextractor extractor(nfeatures, scaleFactor, nlevels, iniThFAST, minThFAST);
-    vector<int> vLapping = {0,0};
-    extractor( mImgRef, cv::Mat(), mvKeys, mDescriptors, vLapping);       
+    extractor( mImgRef, cv::Mat(), mvKeys, mDescriptors);       
     
     std::cout << "MapObject - init num features: " << mvKeys.size() << std::endl;
     
@@ -257,23 +251,23 @@ void MapObject::Init3DRefPoints()
     mv3dRefPoints.resize(N); 
     for(size_t jj=0; jj<N; jj++)
     {
-        mv3dRefPoints[jj].x() =  (mvKeysUn[jj].pt.x - cx)*scale;
-        mv3dRefPoints[jj].y() = -(mvKeysUn[jj].pt.y - cy)*scale;
-        mv3dRefPoints[jj].z() = 0;
+        mv3dRefPoints[jj].x =  (mvKeysUn[jj].pt.x - cx)*scale;
+        mv3dRefPoints[jj].y = -(mvKeysUn[jj].pt.y - cy)*scale;
+        mv3dRefPoints[jj].z = 0;
     }    
     
     mv3dRefCorners.resize(4);
     mv3dCorners.resize(4);
     
-    // for(int jj=0;jj<4;jj++)
-    // { 
-    //     mv3dRefCorners[jj] = cv::Mat_<float>(3,1);
-    //     mv3dCorners[jj] = cv::Mat_<float>(3,1);        
-    // }    
-    mv3dRefCorners[0](0) = (0. - cx)*scale;            mv3dRefCorners[0](1) = -(0. - cy)*scale;           mv3dRefCorners[0](2) = 0.;
-    mv3dRefCorners[1](0) = (mImgRef.cols - cx)*scale;  mv3dRefCorners[1](1) = -(0. - cy)*scale;           mv3dRefCorners[1](2) = 0.;
-    mv3dRefCorners[2](0) = (mImgRef.cols - cx)*scale;  mv3dRefCorners[2](1) = -(mImgRef.rows - cy)*scale; mv3dRefCorners[2](2) = 0.;
-    mv3dRefCorners[3](0) = (0. - cx)*scale;            mv3dRefCorners[3](1) = -(mImgRef.rows - cy)*scale; mv3dRefCorners[3](2) = 0.;
+    for(int jj=0;jj<4;jj++)
+    { 
+        mv3dRefCorners[jj] = cv::Mat_<float>(3,1);
+        mv3dCorners[jj] = cv::Mat_<float>(3,1);        
+    }    
+    mv3dRefCorners[0].at<float>(0) = (0. - cx)*scale;            mv3dRefCorners[0].at<float>(1) = -(0. - cy)*scale;           mv3dRefCorners[0].at<float>(2) = 0.;
+    mv3dRefCorners[1].at<float>(0) = (mImgRef.cols - cx)*scale;  mv3dRefCorners[1].at<float>(1) = -(0. - cy)*scale;           mv3dRefCorners[1].at<float>(2) = 0.;
+    mv3dRefCorners[2].at<float>(0) = (mImgRef.cols - cx)*scale;  mv3dRefCorners[2].at<float>(1) = -(mImgRef.rows - cy)*scale; mv3dRefCorners[2].at<float>(2) = 0.;
+    mv3dRefCorners[3].at<float>(0) = (0. - cx)*scale;            mv3dRefCorners[3].at<float>(1) = -(mImgRef.rows - cy)*scale; mv3dRefCorners[3].at<float>(2) = 0.;
     
     mvMPs = std::vector<MapPointPtr>(N,static_cast<MapPointPtr>(NULL));  
 }
@@ -424,8 +418,8 @@ void MapObject::Detect(Frame* pFrame)
             objInliers.push_back( mvKeysUn[match.trainIdx].pt );
             sceneInliers.push_back( frameKeysUn[match.queryIdx].pt );
             
-            const Eigen::Vector3f& refP3 = mv3dRefPoints[match.trainIdx];
-            obj3DRefInliers.push_back(cv::Point3f(refP3.x()*mdScale,refP3.y()*mdScale,refP3.z()*mdScale));            
+            const cv::Point3f& refP3 = mv3dRefPoints[match.trainIdx];
+            obj3DRefInliers.push_back(cv::Point3f(refP3.x*mdScale,refP3.y*mdScale,refP3.z*mdScale));            
             
             MapPointPtr pMP = frameMapPoints[match.queryIdx];
             if(pMP)  mvMPs[match.trainIdx] = pMP; // update the matched point           
@@ -454,7 +448,7 @@ void MapObject::Detect(Frame* pFrame)
     cv::perspectiveTransform(objInliers, obj_reproj, H);    
     for(size_t ii=0, iiEnd=sceneInliers.size(); ii<iiEnd; ii++)
     {
-        mCurrentObservation.fReprojectionError += PLVS2::Utils::Pow2(sceneInliers[ii].x - obj_reproj[ii].x) + PLVS2::Utils::Pow2(sceneInliers[ii].y - obj_reproj[ii].y);
+        mCurrentObservation.fReprojectionError += PLVS::Utils::Pow2(sceneInliers[ii].x - obj_reproj[ii].x) + PLVS::Utils::Pow2(sceneInliers[ii].y - obj_reproj[ii].y);
     }
     mCurrentObservation.fReprojectionError = sqrt( mCurrentObservation.fReprojectionError/(2.*sceneInliers.size()) ); // residual (error in one image)
 #if VERBOSE        
@@ -491,10 +485,10 @@ void MapObject::Detect(Frame* pFrame)
             // update reference descriptors 
             mDescriptors.row(ii) = mvMPs[ii]->GetDescriptor();
             
-            Eigen::Vector3f p3Dmap = mvMPs[ii]->GetWorldPos();
-            Eigen::Vector3f& p3Dref = mv3dRefPoints[ii];             
-            points1.push_back( cv::Vec3d( p3Dref.x(), p3Dref.y(), p3Dref.z()) );
-            points2.push_back( cv::Vec3d( p3Dmap(0), p3Dmap(1), p3Dmap(2) ) );
+            cv::Mat p3Dmap = mvMPs[ii]->GetWorldPos();
+            cv::Point3f& p3Dref = mv3dRefPoints[ii];             
+            points1.push_back( cv::Vec3d( p3Dref.x, p3Dref.y, p3Dref.z) );
+            points2.push_back( cv::Vec3d( p3Dmap.at<float>(0), p3Dmap.at<float>(1), p3Dmap.at<float>(2) ) );
             idxMap.push_back(ii);
             mCurrentObservation.nMatchedMapPoints++;
         }        
@@ -529,7 +523,7 @@ void MapObject::Detect(Frame* pFrame)
             mbLocalizedInCurrentFrame = true; 
             //ApplyScaleTo3DRef(mCurrentObservation.fScale); // we do not modify anymore the scale of the reference object 
 #if VERBOSE                
-            std::cout << "object width: " << ( scale*(mv3dRefCorners[0] - mv3dRefCorners[1]) ).norm() << std::endl;            
+            std::cout << "object width: " << cv::norm( scale*(mv3dRefCorners[0] - mv3dRefCorners[1]) ) << std::endl;            
 #endif
         }
         
@@ -553,43 +547,36 @@ void MapObject::Detect(Frame* pFrame)
     if(mbLocalizedInCurrentFrame) 
     {
         // transform current corner 
-        const Eigen::Matrix3f Rwc = pFrame->GetRotationInverse();
-        const Eigen::Vector3f twc = pFrame->GetCameraCenter();
-                
+        const cv::Mat Rwc = pFrame->GetRotationInverse();
+        const cv::Mat twc = pFrame->GetCameraCenter();
+        
+        cv::Mat Rwo, two;
+        
         // use the current scale estimation 
-        //Rswo.convertTo(Rwo,CV_32F);
-        //tswo.convertTo(two,CV_32F);   
+        Rswo.convertTo(Rwo,CV_32F);
+        tswo.convertTo(two,CV_32F);     
 
-        Eigen::Matrix3f Rwo = Converter::toMatrix3f(Rswo);
-        Eigen::Vector3f two = Converter::toVector3f(tswo);
-
-
-        const Eigen::Matrix3f Rwct = Rwc.transpose();
-        Eigen::Matrix3f Rco;
-        Eigen::Vector3f tco;
-        Rco = Rwct * Rwo; 
-        tco = Rwct * (two - twc);
+        const cv::Mat Rwct = Rwc.t();
+        mCurrentObservation.Rco = Rwct * Rwo; 
+        mCurrentObservation.tco = Rwct * (two - twc);
 
 #if 0
         {
             // use PnP to estimate the pose 
             cv::Mat rvec;
-            cv::Mat cvRco; 
-            cv::Mat cvtco;
 
-            cv::solvePnP(obj3DRefInliers, sceneInliers, mK, mDistCoef, rvec, cvtco, /*useExtrinsicGuess*/ false, cv::SOLVEPNP_ITERATIVE);    
+            cv::solvePnP(obj3DRefInliers, sceneInliers, mK, mDistCoef, rvec, mCurrentObservation.tco, /*useExtrinsicGuess*/ false, cv::SOLVEPNP_ITERATIVE);    
 
-            cv::Rodrigues(rvec, cvRco);
-            Rco.convertToRco, CV_32F);  
-            tco.convertTotco, CV_32F);
+            cv::Rodrigues(rvec, mCurrentObservation.Rco);
+            mCurrentObservation.Rco.convertTo(mCurrentObservation.Rco, CV_32F);  
+            mCurrentObservation.tco.convertTo(mCurrentObservation.tco, CV_32F);
 
-            Rwo = Rwc * Converter::Matrix3f(Rco);
-            two = Rwc * Converter::Vector3f(tco) + twc;
+            Rwo = Rwc*mCurrentObservation.Rco;
+            two = Rwc*mCurrentObservation.tco + twc;
         }
 #endif        
-        mCurrentObservation.Tco = Sophus::SE3f(Rco, tco);
 
-        mCurrentObservation.fDistance = two.norm();
+        mCurrentObservation.fDistance = cv::norm(two);
         
         KeyFramePtr pRefKF;
         {
@@ -619,11 +606,10 @@ void MapObject::Detect(Frame* pFrame)
             SetSim3Pose(Sow2);*/
         }
                 
-        // cv::Mat Twc = cv::Mat_<float>::eye(4,4);
-        // Rwc.copyTo(Twc.rowRange(0,3).colRange(0,3));
-        // twc.copyTo(Twc.rowRange(0,3).col(3));    
-        Sophus::SE3f Twc = Sophus::SE3f(Rwc, twc); 
-        Sophus::SE3f Tkw = pRefKF->GetPose();
+        cv::Mat Twc = cv::Mat_<float>::eye(4,4);
+        Rwc.copyTo(Twc.rowRange(0,3).colRange(0,3));
+        twc.copyTo(Twc.rowRange(0,3).col(3));    
+        cv::Mat Tkw = pRefKF->GetPose();
         mCurrentObservation.Tkc = Tkw*Twc; 
         
         this->AddObservation(pRefKF, mCurrentObservation);
@@ -654,8 +640,8 @@ std::vector<cv::Point3f> MapObject::GetCurrent3DCorners()
     std::vector<cv::Point3f> points(4);
     for(size_t ii=0;ii<4;ii++)
     {
-        const Eigen::Vector3f& pointMat = mv3dCorners[ii];
-        points[ii] = cv::Point3f(pointMat(0),pointMat(1),pointMat(2));
+        const cv::Mat& pointMat = mv3dCorners[ii];
+        points[ii] = cv::Point3f(pointMat.at<float>(0),pointMat.at<float>(1),pointMat.at<float>(2));
     }
     return points; 
 }
@@ -682,8 +668,8 @@ void MapObject::ApplyScaleTo3DRef(double scale)
     size_t N = mv3dRefPoints.size();
     for(size_t jj=0; jj<N; jj++)
     {
-        mv3dRefPoints[jj].x() *= scale;
-        mv3dRefPoints[jj].y() *= scale;
+        mv3dRefPoints[jj].x *= scale;
+        mv3dRefPoints[jj].y *= scale;
         //mv3dRefPoints[jj].z = 0;
     }    
    
@@ -704,22 +690,20 @@ void MapObject::Project3DCorners(Frame* pFrame)
     const float cx = pFrame->cx;
     const float cy = pFrame->cy;
     
-    // const cv::Mat Rcw = pFrame->GetRotation();
-    // const cv::Mat tcw = pFrame->GetTranslation();
-    const Sophus::SE3f Tcw = pFrame->GetPose();
+    const cv::Mat Rcw = pFrame->GetRotation();
+    const cv::Mat tcw = pFrame->GetTranslation();
         
     unique_lock<mutex> lock(mMutexImgCornersReprojected);  
     unique_lock<mutex> lock2(m3dCornersMutex);
     for(size_t ii=0; ii<4; ii++)
     {
-        const Eigen::Vector3f& p3Dw = mv3dCorners[ii];    
+        const cv::Mat& p3Dw = mv3dCorners[ii];    
     
         // 3D in camera coordinates
-        //const cv::Mat p3Dc = Rcw*p3Dw+tcw;
-        const Eigen::Vector3f p3Dc = Tcw*p3Dw;
-        const float &pcX = p3Dc(0);
-        const float &pcY = p3Dc(1);
-        const float &pcZ = p3Dc(2);
+        const cv::Mat p3Dc = Rcw*p3Dw+tcw;
+        const float &pcX = p3Dc.at<float>(0);
+        const float &pcY = p3Dc.at<float>(1);
+        const float &pcZ = p3Dc.at<float>(2);
     
         const float invz = 1.0f/pcZ;
         const double u = fx*pcX*invz+cx;
@@ -814,7 +798,7 @@ void MapObject::AddKeyFrameObservation(const KeyFramePtr& pKF)
         //ObjectObservation observation = GetCurrentObservation();  
         // N.B.: this is used in the Tracking thread, the same which calls Detect() => no need to copy the current observation 
         unique_lock<mutex> lock(mMutexCurrentObservation);
-        mCurrentObservation.Tkc = Sophus::SE3f();//cv::Mat_<float>::eye(4,4);
+        mCurrentObservation.Tkc = cv::Mat_<float>::eye(4,4);
         mCurrentObservation.bFromKF = true;
 
         UpdateRefKeyFrame(pKF);     
@@ -904,17 +888,17 @@ void MapObject::SaveRefObservations()
     if(mbLocalized)
     {
         // save Swo = [s*Rwo, two; 0, 1] 
-        //ss << "Swo: " << mSwo << std::endl;
-        Eigen::Matrix3f Rwo = GetInverseRotation();
-        Eigen::Vector3f two = GetInverseTranslation();    
+        ss << "Swo: " << mSwo << std::endl;
+        cv::Mat Rwo = GetInverseRotation();
+        cv::Mat two = GetInverseTranslation();    
         ss << "Rwo: " << Rwo << std::endl;
         ss << "two: " << two << std::endl;  
         ss << "scale: " << mdScale << std::endl; 
         
-        //Eigen::Matrix<double,3,3> eigRot = Converter::toMatrix3d(Rwo);        
-        //Eigen::Vector3d ea = Rwo.eulerAngles(0, 1, 2); 
-        //ss << "Euler angles (X,Y,Z) from Rwo:" << endl;
-        //ss << ea << endl;
+        Eigen::Matrix<double,3,3> eigRot = Converter::toMatrix3d(Rwo);        
+        Eigen::Vector3d ea = eigRot.eulerAngles(0, 1, 2); 
+        ss << "Euler angles (X,Y,Z) from Rwo:" << endl;
+        ss << ea << endl;
                 
         // now save all the observation 
         std::vector< std::pair<KeyFramePtr,ObjectObservation> > vObjectObservations; 
@@ -934,15 +918,15 @@ void MapObject::SaveRefObservations()
             KeyFramePtr pKF = obs.first; 
             ObjectObservation& observation = obs.second; 
 
-            const Sophus::SE3f Twk = pKF->GetPoseInverse();
-            Sophus::SE3f Two = Twk * observation.GetSE3();
+            const cv::Mat Twk = pKF->GetPoseInverse();
+            cv::Mat Two = Twk * observation.GetSE3();
 
             ss << "----------------------------------------------" << std::endl;
-            if(pKF == mpRefKF) ss << " **** reference KeyFramePtr ** " << std::endl;        
+            if(pKF == mpRefKF) ss << " **** reference keyframe *** " << std::endl;        
             ss << "KF id: " << pKF->mnId << std::endl;  
             ss << "bad: " << (int)mbBad << std::endl;
             ss << observation << std::endl;
-            //ss << "Two: " << Two << std::endl; 
+            ss << "Two: " << Two << std::endl; 
 
         }
     }
@@ -964,24 +948,22 @@ void MapObject::Update3DCorners()
     // transform current corners
     
     unique_lock<mutex> lock(mMutexPose);     
-    // const cv::Mat Rwo = mSwo.rowRange(0,3).colRange(0,3);
-    // const cv::Mat two = mSwo.rowRange(0,3).col(3);    
+    const cv::Mat Rwo = mSwo.rowRange(0,3).colRange(0,3);
+    const cv::Mat two = mSwo.rowRange(0,3).col(3);    
 
     {
     unique_lock<mutex> lock2(m3dCornersMutex);
     for(int jj=0;jj<4;jj++)
     {
         // < N.B.: here the scale is taken into account by Rwo (coming from a Sim3 configuration)
-        //mv3dCorners[jj] =  Rwo * mv3dRefCorners[jj] + two;                      
-        mv3dCorners[jj] =  mSwo * mv3dRefCorners[jj];     
+        mv3dCorners[jj] =  Rwo * mv3dRefCorners[jj] + two;                        
     }
     }    
     
 }
 
 
-//  Sow = [Row/s, tow; 0, 1]  where tow = -(Row* two)/s  (when comparing Sow with Swo)
-void MapObject::SetSim3Pose(const Sophus::Sim3f &Sow)
+void MapObject::SetSim3Pose(const cv::Mat &Sow)
 {
     {
     unique_lock<mutex> lock(mMutexPose);
@@ -991,28 +973,23 @@ void MapObject::SetSim3Pose(const Sophus::Sim3f &Sow)
     std::cout << "MapObject::SetSim3Pose() - before: " << sqrt(3.0)/cv::norm(mSow.rowRange(0,3).colRange(0,3)) << std::endl; 
 #endif
     
-    mSow = Sow;
+    Sow.copyTo(mSow);
     
-    //float m33 = mSow.at<float>(3,3);
-    //if(m33 != 1.f)  mSow/=m33; // Sow = [Row/s, tow; 0, 1] 
+    float m33 = mSow.at<float>(3,3);
+    if(m33 != 1.f)  mSow/=m33; // Sow = [Row/s, tow; 0, 1] 
     
-    //const cv::Mat Rsow = mSow.rowRange(0,3).colRange(0,3);  // Row/s
-    //mdScale = sqrt(3.0)/cv::norm(Rsow); 
+    const cv::Mat Rsow = mSow.rowRange(0,3).colRange(0,3);  // Row/s
+    mdScale = sqrt(3.0)/cv::norm(Rsow); 
     //std::cout << "MapObject::SetSim3Pose() - after: " << mdScale << std::endl;    
-    //const cv::Mat Row = Rsow*mdScale;
-    mdScale = 1.0/mSow.scale();
+    const cv::Mat Row = Rsow*mdScale;
     
-    // const cv::Mat tow = mSow.rowRange(0,3).col(3);
-    // const cv::Mat Rswo = Row.t()*mdScale; // s*Rwo
-    // Eigen::Vector3f tow = mSow.translation();
-    // Eigen::Matrix3f Rswo = mSow.getRotationMatrix().transpose()*mdScale; // s*Rwo
-    // mOw = -Rswo*tow; // two
+    const cv::Mat tow = mSow.rowRange(0,3).col(3);
+    const cv::Mat Rswo = Row.t()*mdScale; // s*Rwo
+    mOw = -Rswo*tow; // two
 
-    // mSwo = cv::Mat::eye(4,4,mSow.type()); // Swo = [s*Rwo, two; 0, 1] 
-    // Rswo.copyTo(mSwo.rowRange(0,3).colRange(0,3));
-    // mOw.copyTo(mSwo.rowRange(0,3).col(3));
-    mSwo = mSow.inverse();
-    mOw = mSwo.translation(); // two
+    mSwo = cv::Mat::eye(4,4,mSow.type()); // Swo = [s*Rwo, two; 0, 1] 
+    Rswo.copyTo(mSwo.rowRange(0,3).colRange(0,3));
+    mOw.copyTo(mSwo.rowRange(0,3).col(3));
     
 #if 0    
     std::cout << "MapObject::SetSim3Pose() - mSwo: " << mSwo << std::endl;        
@@ -1026,31 +1003,26 @@ void MapObject::SetSim3Pose(const Sophus::Sim3f &Sow)
     Update3DCorners();
 }
 
- // Swo = [s*Rwo, two; 0, 1]  
-void MapObject::SetSim3InversePose(const Eigen::Matrix3f &Rwo, const Eigen::Vector3f &two, const double scale) 
+void MapObject::SetSim3InversePose(const cv::Mat &Rwo, const cv::Mat &two, const double scale) 
 {
     {
     unique_lock<mutex> lock(mMutexPose);
             
     mdScale = scale;     
     
-    //mSwo = cv::Mat::eye(4,4,mSwo.type()); // Swo = [s*Rwo, two; 0, 1] 
-    mSwo = Sophus::Sim3f(Sophus::RxSO3f(scale, Rwo), two);
-
-    //Eigen::Matrix3f Rswo = Rwo*scale; 
-    //Rswo.copyTo(mSwo.rowRange(0,3).colRange(0,3));
-    //two.copyTo(mSwo.rowRange(0,3).col(3));    
-    //two.copyTo(mOw);
-    mOw = two;
+    mSwo = cv::Mat::eye(4,4,mSwo.type()); // Swo = [s*Rwo, two; 0, 1] 
     
-    // mSow = cv::Mat::eye(4,4,mSow.type()); // Sow = [Row/s, tow; 0, 1] 
+    const cv::Mat Rswo = Rwo*scale; 
+    Rswo.copyTo(mSwo.rowRange(0,3).colRange(0,3));
+    two.copyTo(mSwo.rowRange(0,3).col(3));    
+    two.copyTo(mOw);
     
-    // const cv::Mat Rsow = Rwo.t()/scale;
-    // const cv::Mat tow = -Rsow*two;    
-    // Rsow.copyTo(mSow.rowRange(0,3).colRange(0,3));
-    // tow.copyTo(mSow.rowRange(0,3).col(3));    
-
-    mSow = mSwo.inverse();
+    mSow = cv::Mat::eye(4,4,mSow.type()); // Sow = [Row/s, tow; 0, 1] 
+    
+    const cv::Mat Rsow = Rwo.t()/scale;
+    const cv::Mat tow = -Rsow*two;    
+    Rsow.copyTo(mSow.rowRange(0,3).colRange(0,3));
+    tow.copyTo(mSow.rowRange(0,3).col(3));    
 
 #if 0    
     std::cout << "MapObject::SetSim3InversePose() - mSwo: " << mSwo << std::endl;        
@@ -1066,41 +1038,38 @@ void MapObject::SetSim3InversePose(const Eigen::Matrix3f &Rwo, const Eigen::Vect
     Update3DCorners();
 }
 
-Sophus::Sim3f MapObject::GetSim3Pose()
+cv::Mat MapObject::GetSim3Pose()
 {
     unique_lock<mutex> lock(mMutexPose);
-    return mSow;
+    return mSow.clone();
 }
 
-Sophus::Sim3f MapObject::GetSim3PoseInverse()
+cv::Mat MapObject::GetSim3PoseInverse()
 {
     unique_lock<mutex> lock(mMutexPose);
-    return mSwo;
+    return mSwo.clone();
 }
 
-Eigen::Vector3f MapObject::GetObjectCenter()
+cv::Mat MapObject::GetObjectCenter()
 {
     unique_lock<mutex> lock(mMutexPose);
-    return mOw; // two
+    return mOw.clone();
 }
  
-Eigen::Matrix3f MapObject::GetRotation()
+cv::Mat MapObject::GetRotation()
 {
     // Sow = [Row/s, tow; 0, 1]
     unique_lock<mutex> lock(mMutexPose);    
-    // cv::Mat Row = mSow.rowRange(0,3).colRange(0,3)*mdScale;
-    // return Row; 
-    return mSow.rotationMatrix(); 
+    cv::Mat Row = mSow.rowRange(0,3).colRange(0,3)*mdScale;
+    return Row; 
 }
 
-// Sow = [Row/s, tow; 0, 1]   ("object" frame contains mv3dRefPoints)   NOTE: tow = -(Row* two)/s  (when comparing Sow with Swo)
-Eigen::Vector3f MapObject::GetTranslation()
+cv::Mat MapObject::GetTranslation()
 {
     // Sow = [Row/s, tow; 0, 1]    
     unique_lock<mutex> lock(mMutexPose);    
-    // cv::Mat tow = mSow.rowRange(0,3).col(3).clone();
-    // return tow; 
-    return mSow.translation(); 
+    cv::Mat tow = mSow.rowRange(0,3).col(3).clone();
+    return tow; 
 }
 
 double MapObject::GetScale()
@@ -1109,22 +1078,20 @@ double MapObject::GetScale()
     return mdScale;
 }    
 
-Eigen::Matrix3f MapObject::GetInverseRotation()
+cv::Mat MapObject::GetInverseRotation()
 {
     // Swo = [s*Rwo, tow; 0, 1]
-    // unique_lock<mutex> lock(mMutexPose);    
-    // cv::Mat Rwo = mSwo.rowRange(0,3).colRange(0,3).clone()/mdScale;
-    // return Rwo; 
-    return mSwo.rotationMatrix(); 
+    unique_lock<mutex> lock(mMutexPose);    
+    cv::Mat Rwo = mSwo.rowRange(0,3).colRange(0,3).clone()/mdScale;
+    return Rwo; 
 }
 
-Eigen::Vector3f MapObject::GetInverseTranslation()
+cv::Mat MapObject::GetInverseTranslation()
 {
     // Swo = [s*Rwo, tow; 0, 1]  
     unique_lock<mutex> lock(mMutexPose);    
-    // cv::Mat two = mSwo.rowRange(0,3).col(3).clone();
-    // return two; 
-    return mSwo.translation(); 
+    cv::Mat two = mSwo.rowRange(0,3).col(3).clone();
+    return two; 
 }  
 
 bool MapObject::isBad()
@@ -1152,19 +1119,7 @@ void MapObject::SetBadFlag()
     }
 
     mpMap->EraseMapObject(WrapPtr(this)); // N.B.: 1) we use a wrap pointer (empty deleter) since the raw ptr 'this' has not been created with the wrap pointer 
-                                          //       2) the comparison operators for shared_ptr simply compare pointer values
+                                                         //       2) the comparison operators for shared_ptr simply compare pointer values
 }
 
-Map* MapObject::GetMap()
-{
-    unique_lock<mutex> lock(mMutexMap);
-    return mpMap;
-}
-
-void MapObject::UpdateMap(Map* pMap)
-{
-    unique_lock<mutex> lock(mMutexMap);
-    mpMap = pMap;
-}
-
-} //namespace PLVS2
+} //namespace PLVS

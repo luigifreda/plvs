@@ -107,7 +107,7 @@ public:
      * \param[in] new_point the new point to add  
      */    
     template <class PointType, typename std::enable_if<!pcl::traits::has_field<PointType, pcl::fields::normal_x>::value>::type* = nullptr>
-    void addPoint(const PointType& new_point, const std::uint64_t time_stamp = 0)
+    void addPoint(const PointType& new_point, const pcl::uint64_t time_stamp = 0)
     {
         using namespace pcl::common;
         
@@ -125,13 +125,13 @@ public:
     template <class PointType, typename std::enable_if<
     pcl::traits::has_field<PointType, pcl::fields::normal_x>::value && !pcl::traits::has_field<PointType, pcl::fields::label>::value 
                                                       >::type* = nullptr> 
-    void addPoint(const PointType& new_point, const std::uint64_t time_stamp = 0)
+    void addPoint(const PointType& new_point, const pcl::uint64_t time_stamp = 0)
     {
         updateXYZRGBAndNormal(new_point, time_stamp);
     }
 
     template <class PointType, typename std::enable_if<pcl::traits::has_field<PointType, pcl::fields::normal_x>::value>::type* = nullptr> 
-    void updateXYZRGBAndNormal(const PointType& new_point, const std::uint64_t time_stamp = 0)
+    void updateXYZRGBAndNormal(const PointType& new_point, const pcl::uint64_t time_stamp = 0)
     {
         //std::cout << "addPoint with normals " << std::endl; 
         using namespace pcl::common;
@@ -175,7 +175,7 @@ public:
     template <class PointType, typename std::enable_if< 
     pcl::traits::has_all_fields<PointType, boost::mpl::vector<pcl::fields::normal_x, pcl::fields::label> >::value
                                                       >::type* = nullptr> 
-    void addPoint(const PointType& new_point, const std::uint64_t time_stamp = 0)
+    void addPoint(const PointType& new_point, const pcl::uint64_t time_stamp = 0)
     {
         point_centroid_.kfid = new_point.kfid;
         updateLabel(new_point);  // TODO: add more efficient insertion without updateLabel() when no segmentation is required 
@@ -263,7 +263,7 @@ public:
     }
     
     template <class PointType, typename std::enable_if<pcl::traits::has_field<PointType, pcl::fields::label>::value>::type* = nullptr> 
-    void reinsertPoint(const PointType& new_point, const std::uint64_t time_stamp = 0)
+    void reinsertPoint(const PointType& new_point, const pcl::uint64_t time_stamp = 0)
     {    
         point_centroid_.kfid = new_point.kfid;
         point_centroid_.label = new_point.label;        
@@ -277,7 +277,7 @@ public:
 #endif // end if COMPUTE_NORMALS
     
     template <class PointType, typename std::enable_if<!pcl::traits::has_field<PointType, pcl::fields::label>::value>::type* = nullptr> 
-    void reinsertPoint(const PointType& new_point, const std::uint64_t time_stamp = 0)
+    void reinsertPoint(const PointType& new_point, const pcl::uint64_t time_stamp = 0)
     {    
         this->addPoint(new_point, time_stamp);
     }      
@@ -304,7 +304,7 @@ public:
         return point_counter_;
     }    
         
-    std::uint64_t getTimestamp() const 
+    pcl::uint64_t getTimestamp() const 
     {
         return time_stamp_;
     }
@@ -322,7 +322,7 @@ public:
 private:
     unsigned int point_counter_;
     PointT point_centroid_;
-    std::uint64_t time_stamp_;
+    pcl::uint64_t time_stamp_;
 };
 
 
@@ -356,10 +356,10 @@ public:
     {
     }
 
-    void addPointIdx(const int point_idx_arg, const std::uint64_t& time_stamp);
+    void addPointIdx(const int point_idx_arg, const pcl::uint64_t& time_stamp);
     void addPointsFromInputCloud();
     
-    void reinserPointIdx(const int point_idx_arg, const std::uint64_t& time_stamp);    
+    void reinserPointIdx(const int point_idx_arg, const pcl::uint64_t& time_stamp);    
     void reinsertPointsFromInputCloud();
     
     
@@ -422,7 +422,7 @@ template class OctreePointCloudCentroid<pcl::PointSurfelSegment>;
 //    /** \brief Add new point to voxel. 
 //     * \param[in] new_point the new point to add 
 //     */
-//    void addPoint(const pcl::PointXYZRGBA& new_point, std::uint64_t time_stamp = 0)
+//    void addPoint(const pcl::PointXYZRGBA& new_point, pcl::uint64_t time_stamp = 0)
 //    {
 //        const float weight = std::min(point_counter_, kMaxPointCounterValForMovingAverage);
 //        const float fc = 1. / (weight + 1.0f);
@@ -476,7 +476,7 @@ template class OctreePointCloudCentroid<pcl::PointSurfelSegment>;
 //    /** \brief Calculate centroid of voxel. 
 //     * \param[out] centroid_arg the resultant centroid of the voxel 
 //     */
-//    std::uint64_t getTimeStamp() const
+//    pcl::uint64_t getTimeStamp() const
 //    {
 //        return time_stamp_;
 //    }
@@ -507,7 +507,7 @@ template class OctreePointCloudCentroid<pcl::PointSurfelSegment>;
 //    float y_sum_;
 //    float z_sum_;
 //
-//    std::uint64_t time_stamp_;
+//    pcl::uint64_t time_stamp_;
 //};
 
 #endif 

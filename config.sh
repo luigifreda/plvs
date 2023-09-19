@@ -22,9 +22,10 @@ export USE_LOCAL_OPENCV=1   # use a local installation of OpenCV
 
 # or you can set manullay OpenCV_DIR
 # export OpenCV_DIR="path to my OpenCV folder"
+export OpenCV_DIR="/media/microsd/ubuntu18/Work/slam_rgbd_wss/plvs3/Thirdparty/opencv/install/lib/cmake/opencv4"
 # export OpenCV_DIR  # here not set 
 
-#export OPENCV_VERSION=4
+export OPENCV_VERSION=4
 
 # ====================================================
 # CUDA Settings

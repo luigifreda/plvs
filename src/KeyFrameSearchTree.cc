@@ -22,7 +22,7 @@
 #include "KeyFrame.h"
 
 
-namespace PLVS2
+namespace PLVS
 {
 
 template<typename PointT>
@@ -39,12 +39,12 @@ template<typename PointT>
 void KeyFrameSearchTree<PointT>::AddKeyFrame(KeyFramePtr& pKF)
 {    
     //cv::Mat Ow = pKF->GetCameraCenter();
-    Eigen::Vector3f Ow = pKF->GetFovCenter();
+    cv::Mat Ow = pKF->GetFovCenter();
     
     PointT point;
-    point.x = Ow(0);
-    point.y = Ow(1);    
-    point.z = Ow(2); 
+    point.x = Ow.at<float>(0);
+    point.y = Ow.at<float>(1);    
+    point.z = Ow.at<float>(2); 
     point.label = pKF->mnId;  //  label is used to store the KeyFrame Id
     
     this->AddPoint(point);
@@ -58,12 +58,12 @@ template<typename PointT>
 void KeyFrameSearchTree<PointT>::GetCloseKeyFrames(KeyFramePtr& pKF, std::set<KeyFramePtr>& setActiveKFs, std::set<uint32_t> &setIds)
 {
     //cv::Mat Ow = pKF->GetCameraCenter();
-    Eigen::Vector3f Ow = pKF->GetFovCenter();
+    cv::Mat Ow = pKF->GetFovCenter();
     
     PointT point;
-    point.x = Ow(0);
-    point.y = Ow(1);    
-    point.z = Ow(2); 
+    point.x = Ow.at<float>(0);
+    point.y = Ow.at<float>(1);    
+    point.z = Ow.at<float>(2); 
     point.label = pKF->mnId;  //  label is used to store the KeyFrame Id    
     
     std::vector<int> k_indices;
@@ -98,12 +98,12 @@ void KeyFrameSearchTree<PointT>::AddPoint(const PointT& point)
 }
 
 template<typename PointT>
-void KeyFrameSearchTree<PointT>::AddPoint(const Eigen::Vector3f& Ow)
+void KeyFrameSearchTree<PointT>::AddPoint(const cv::Mat& Ow)
 {
     PointT point;
-    point.x = Ow(0);
-    point.y = Ow(1);    
-    point.z = Ow(2);    
+    point.x = Ow.at<float>(0);
+    point.y = Ow.at<float>(1);    
+    point.z = Ow.at<float>(2);    
     this->AddPoint(point);
 }
 
@@ -115,16 +115,16 @@ void KeyFrameSearchTree<PointT>::RadiusSearch(const PointT& point, double radius
 }
 
 template<typename PointT>
-void KeyFrameSearchTree<PointT>::RadiusSearch(const Eigen::Vector3f& Ow, double radius, std::vector<int> &k_indices, std::vector<float> &k_sqr_distances)
+void KeyFrameSearchTree<PointT>::RadiusSearch(const cv::Mat& Ow, double radius, std::vector<int> &k_indices, std::vector<float> &k_sqr_distances)
 {
     PointT point;
-    point.x = Ow(0);
-    point.y = Ow(1);    
-    point.z = Ow(2);        
+    point.x = Ow.at<float>(0);
+    point.y = Ow.at<float>(1);    
+    point.z = Ow.at<float>(2);        
     this->RadiusSearch(point, radius, k_indices, k_sqr_distances);
 }
 
-} //namespace PLVS2
+} //namespace PLVS
 
 
 

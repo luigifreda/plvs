@@ -22,7 +22,7 @@
 
 #include "StereoDisparity.h"
 
-namespace PLVS2
+namespace PLVS
 {
 
 static cv::Rect computeROI(cv::Size2i src_sz, cv::Ptr<cv::StereoMatcher> matcher_instance)

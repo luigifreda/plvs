@@ -23,7 +23,7 @@
 #include "GlPointCloud.h"
 #include "Utils.h"
 
-namespace PLVS2
+namespace PLVS
 {
 
 bool GlObjectList::Load(const std::string& fileStorageName)
@@ -70,7 +70,7 @@ bool GlObjectList::Load(const std::string& fileStorageName)
         
 }
 
-} //namespace PLVS2
+} //namespace PLVS
 
 
 

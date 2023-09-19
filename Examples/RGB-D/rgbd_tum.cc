@@ -1,44 +1,55 @@
 /**
-* This file is part of ORB-SLAM3
+* This file is part of ORB-SLAM2.
 *
-* Copyright (C) 2017-2021 Carlos Campos, Richard Elvira, Juan J. Gómez Rodríguez, José M.M. Montiel and Juan D. Tardós, University of Zaragoza.
-* Copyright (C) 2014-2016 Raúl Mur-Artal, José M.M. Montiel and Juan D. Tardós, University of Zaragoza.
+* Copyright (C) 2014-2016 Raúl Mur-Artal <raulmur at unizar dot es> (University of Zaragoza)
+* For more information see <https://github.com/raulmur/ORB_SLAM2>
 *
-* ORB-SLAM3 is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
-* License as published by the Free Software Foundation, either version 3 of the License, or
+* ORB-SLAM2 is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
 * (at your option) any later version.
 *
-* ORB-SLAM3 is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
-* the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* ORB-SLAM2 is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 * GNU General Public License for more details.
 *
-* You should have received a copy of the GNU General Public License along with ORB-SLAM3.
-* If not, see <http://www.gnu.org/licenses/>.
+* You should have received a copy of the GNU General Public License 
+* along with ORB-SLAM2. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include<iostream>
-#include<algorithm>
-#include<fstream>
-#include<chrono>
+
+#include <iostream>
+#include <algorithm>
+#include <fstream>
+#include <chrono>
+
+#include <unistd.h>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-#include<System.h>
+#include "System.h"
+#include "Tracking.h"
+#include "Logger.h"
+#include "Utils.h"
 
 using namespace std;
 
 void LoadImages(const string &strAssociationFilename, vector<string> &vstrImageFilenamesRGB,
                 vector<string> &vstrImageFilenamesD, vector<double> &vTimestamps);
 
-int main(int argc, char **argv)
+int main(int argc, char **argv) 
 {
     if(argc != 5)
     {
         cerr << endl << "Usage: ./rgbd_tum path_to_vocabulary path_to_settings path_to_sequence path_to_association" << endl;
         return 1;
     }
-
+    
+    cout << "running..." << endl;
+    cout << "retrieve paths to images ..." << endl;
+    
     // Retrieve paths to images
     vector<string> vstrImageFilenamesRGB;
     vector<string> vstrImageFilenamesD;
@@ -46,6 +57,7 @@ int main(int argc, char **argv)
     string strAssociationFilename = string(argv[4]);
     LoadImages(strAssociationFilename, vstrImageFilenamesRGB, vstrImageFilenamesD, vTimestamps);
 
+    cout << "check consistency in the number of images and depthmaps ..." << endl;
     // Check consistency in the number of images and depthmaps
     int nImages = vstrImageFilenamesRGB.size();
     if(vstrImageFilenamesRGB.empty())
@@ -59,9 +71,11 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    cv::FileStorage fSettings(argv[2], cv::FileStorage::READ);
+    bool bUseViewer = static_cast<int> (PLVS::Utils::GetParam(fSettings, "Viewer.on", 1)) != 0;
+    
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
-    PLVS2::System SLAM(argv[1],argv[2],PLVS2::System::RGBD,true);
-    float imageScale = SLAM.GetImageScale();
+    PLVS::System SLAM(argv[1],argv[2],PLVS::System::RGBD,bUseViewer);
 
     // Vector for tracking time statistics
     vector<float> vTimesTrack;
@@ -70,14 +84,19 @@ int main(int argc, char **argv)
     cout << endl << "-------" << endl;
     cout << "Start processing sequence ..." << endl;
     cout << "Images in the sequence: " << nImages << endl << endl;
-
+    
+    int numImgsNoInit = 0; 
+    int numImgsLost = 0; 
+    
+    //nImages = 30; // force exit after few images 
+    
     // Main loop
     cv::Mat imRGB, imD;
     for(int ni=0; ni<nImages; ni++)
     {
         // Read image and depthmap from file
-        imRGB = cv::imread(string(argv[3])+"/"+vstrImageFilenamesRGB[ni],cv::IMREAD_UNCHANGED); //,cv::IMREAD_UNCHANGED);
-        imD = cv::imread(string(argv[3])+"/"+vstrImageFilenamesD[ni],cv::IMREAD_UNCHANGED); //,cv::IMREAD_UNCHANGED);
+        imRGB = cv::imread(string(argv[3])+"/"+vstrImageFilenamesRGB[ni],cv::IMREAD_UNCHANGED);
+        imD = cv::imread(string(argv[3])+"/"+vstrImageFilenamesD[ni],cv::IMREAD_UNCHANGED);
         double tframe = vTimestamps[ni];
 
         if(imRGB.empty())
@@ -85,14 +104,6 @@ int main(int argc, char **argv)
             cerr << endl << "Failed to load image at: "
                  << string(argv[3]) << "/" << vstrImageFilenamesRGB[ni] << endl;
             return 1;
-        }
-
-        if(imageScale != 1.f)
-        {
-            int width = imRGB.cols * imageScale;
-            int height = imRGB.rows * imageScale;
-            cv::resize(imRGB, imRGB, cv::Size(width, height));
-            cv::resize(imD, imD, cv::Size(width, height));
         }
 
 #ifdef COMPILEDWITHC11
@@ -103,6 +114,10 @@ int main(int argc, char **argv)
 
         // Pass the image to the SLAM system
         SLAM.TrackRGBD(imRGB,imD,tframe);
+        
+        int trackingState = SLAM.GetTrackingState();
+        if(trackingState == PLVS::Tracking::NOT_INITIALIZED) numImgsNoInit++;
+        if(trackingState == PLVS::Tracking::LOST) numImgsLost++;
 
 #ifdef COMPILEDWITHC11
         std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
@@ -120,14 +135,30 @@ int main(int argc, char **argv)
             T = vTimestamps[ni+1]-tframe;
         else if(ni>0)
             T = tframe-vTimestamps[ni-1];
-
+#if 1
         if(ttrack<T)
             usleep((T-ttrack)*1e6);
+#else        
+        std::cout<<"img " << ni << std::endl; 
+        if(SLAM.GetTrackingState() != PLVS::Tracking::NOT_INITIALIZED)
+        {
+            getchar(); // step by step
+        }
+#endif
+        
+    }
+    
+    if(bUseViewer)
+    {
+        std::cout << "\n******************\n" << std::endl;
+        std::cout << "press a key to end" << std::endl;
+        std::cout << "\n******************\n" << std::endl;
+        getchar();
     }
 
     // Stop all threads
     SLAM.Shutdown();
-
+        
     // Tracking time statistics
     sort(vTimesTrack.begin(),vTimesTrack.end());
     float totaltime = 0;
@@ -136,13 +167,29 @@ int main(int argc, char **argv)
         totaltime+=vTimesTrack[ni];
     }
     cout << "-------" << endl << endl;
+    
     cout << "median tracking time: " << vTimesTrack[nImages/2] << endl;
     cout << "mean tracking time: " << totaltime/nImages << endl;
+    
+    cout << "perc images lost: " << (float(numImgsLost)/nImages)*100. << std::endl; 
+    cout << "perc images no init: " << (float(numImgsNoInit)/nImages)*100. << std::endl;     
 
+    cout << "-------" << endl << endl;
+    
+    SLAM.PrintMapStatistics();
+        
     // Save camera trajectory
     SLAM.SaveTrajectoryTUM("CameraTrajectory.txt");
     SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");   
+    
+    Logger logger("Performances.txt");
+    logger << "perc images lost: " << (float(numImgsLost)/nImages)*100. << std::endl; 
+    logger << "perc images no init: " << (float(numImgsNoInit)/nImages)*100. << std::endl; 
+    logger << "median tracking time: " << vTimesTrack[nImages/2] << endl;
+    logger << "mean tracking time: " << totaltime/nImages << endl;
 
+    cout << "done!" << std::endl;
+    
     return 0;
 }
 
@@ -151,6 +198,12 @@ void LoadImages(const string &strAssociationFilename, vector<string> &vstrImageF
 {
     ifstream fAssociation;
     fAssociation.open(strAssociationFilename.c_str());
+    if (!fAssociation.is_open()) 
+    { 
+        std::cout << "cannot open file: " << strAssociationFilename << std::endl;
+        quick_exit(-1);
+    }
+
     while(!fAssociation.eof())
     {
         string s;

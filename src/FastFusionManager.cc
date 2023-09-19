@@ -850,7 +850,7 @@ void imageReadingAndPreprocessingWrapper
  unsigned int endFrame,
  volatile cv::Mat **depthImageBuffer,
  volatile std::vector<cv::Mat> **rgbSplitImageBuffer,
- volatile bool *readingActive,
+ std::atomic_bool *readingActive,
  float maxCamDistance
  )
 {
@@ -885,7 +885,7 @@ void imageReadingWrapper
  unsigned int endFrame,
  volatile cv::Mat **depthImageBuffer,
  volatile cv::Mat **rgbImageBuffer,
- volatile bool *readingActive,
+ std::atomic_bool *readingActive,
  float maxCamDistance,
  volatile unsigned int *deleteUntoHere
  )
@@ -935,9 +935,9 @@ void fusionWrapper
  FusionParameter par,
  volatile long int *_currentFrame,
  volatile long int *_currentTrajectory,
- volatile bool *newMesh,
- volatile bool *fusionActive,
- volatile bool *fusionAlive
+ std::atomic_bool *newMesh,
+ std::atomic_bool *fusionActive,
+ std::atomic_bool *fusionAlive
  )
 {
     fprintf(stderr, "\nStarting separate Fusion Thread on Frame %li", *_currentFrame + 1);

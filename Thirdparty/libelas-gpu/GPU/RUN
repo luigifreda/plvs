@@ -1,0 +1,11 @@
+#!/bin/bash -l
+
+#SBATCH -p cpeg655     
+#SBATCH -N 1
+#SBATCH --gres=gpu:1
+
+#SBATCH -J ngeneva    
+#SBATCH -e my_job_%j.err
+#SBATCH -o my_job_%j.out
+
+srun main

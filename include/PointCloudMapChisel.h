@@ -34,7 +34,7 @@ class ChiselServer;
 struct ChiselServerParams;
 }
 
-namespace PLVS2
+namespace PLVS
 {
 
 ///	\class PointCloudMapOctreePointCloud
@@ -53,16 +53,16 @@ public:
 
 public:
 
-    PointCloudMapChisel(Map* pMap, const std::shared_ptr<PointCloudMapParameters>& params);
+    PointCloudMapChisel(double resolution_in = PointCloudMap<PointT>::kDefaultResolution, double min_range = 0, double max_range = 10, bool useCarving_in = false);
 
     void SetDepthCameraModel(const CameraModelParams& params);
     void SetColorCameraModel(const CameraModelParams& params);
         
-    void InsertCloud(typename PointCloudT::ConstPtr cloud_camera, const Sophus::SE3f& Twc, double max_range);
+    void InsertCloud(typename PointCloudT::ConstPtr cloud_camera, const cv::Mat& Twc, double max_range);
     
-    void InsertCloudWithDepth(typename PointCloudT::ConstPtr cloud_camera, const Sophus::SE3f& Twc, const cv::Mat& depthImage, double max_range);
+    void InsertCloudWithDepth(typename PointCloudT::ConstPtr cloud_camera, const cv::Mat& Twc, const cv::Mat& depthImage, double max_range);
     
-    void InsertDepthScanColor(const cv::Mat& depthImage, const cv::Mat& colorImage, const Sophus::SE3f& Twc, boost::uint64_t timestamp);
+    void InsertDepthScanColor(const cv::Mat& depthImage, const cv::Mat& colorImage, const cv::Mat& Twc, boost::uint64_t timestamp);
     
     void InsertData(typename PointCloudMapInput<PointT>::Ptr pData);
 
@@ -100,7 +100,7 @@ template class PointCloudMapChisel<pcl::PointSurfelSegment>;
 
 #endif
 
-} //namespace PLVS2
+} //namespace PLVS
 
 
 

@@ -11,7 +11,7 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/io/ply_io.h>
 
-namespace PLVS2
+namespace PLVS
 {
 
 

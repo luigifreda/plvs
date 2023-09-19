@@ -13,6 +13,11 @@ USE_ELAS_ROS=0
 
 # possible dataset inOutDIAG.bag outDIAG.bag stairs_zed.bag small_office_zed.bag outdoor_vga
 
+#RGBD_DATASET_FOLDER="$HOME/Work/datasets/rgbd_datasets/zed"
+#RGBD_DATASET_FOLDER="/media/hdd2/rgbd_datasets2/circomassimo_zed/stereo"
+#DATASET="new_2018-08-01-12-00-29.bag"
+#DATASET="new_2018-08-01-12-02-37.bag"
+
 RGBD_DATASET_FOLDER="~/Work/datasets/zed"
 DATASET="test.bag"
 

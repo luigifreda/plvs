@@ -36,7 +36,7 @@
 
 #include <pcl/common/transforms.h>
 
-namespace PLVS2
+namespace PLVS
 {
 
 class PointCloudMapping;
@@ -100,7 +100,7 @@ protected:
     PointCloudT::Ptr pCloud_;
     PointCloudT::Ptr pCloudCarved_;
     std::vector<unsigned int> faces_;
-    std::uint64_t cloud_timestamp_;
+    pcl::uint64_t cloud_timestamp_;
 
     // buffer & how many
     GLuint vertexBufferId_;  //GLuint colorBufferId_;
@@ -136,7 +136,7 @@ protected:
 };
 
 
-} //namespace PLVS2
+} //namespace PLVS
 
 #endif
 

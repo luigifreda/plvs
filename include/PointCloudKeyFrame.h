@@ -33,8 +33,6 @@
 #include "LabelMap.h"
 #include "Pointers.h"
 
-#include "Thirdparty/Sophus/sophus/se3.hpp"
-
 #ifdef USE_CUDA
 #include <opencv2/core/utility.hpp>
 #include "opencv2/cudastereo.hpp"
@@ -58,7 +56,7 @@ namespace sgm
 }
 #endif
 
-namespace PLVS2
+namespace PLVS
 {
 
 class KeyFrame;
@@ -108,9 +106,9 @@ public:
     void Release();
 
     // get Ow
-    Eigen::Vector3f GetCameraCenter();
+    cv::Mat GetCameraCenter();
     // get Twc
-    Sophus::SE3f GetCameraPose();
+    cv::Mat GetCameraPose();
     
     boost::uint64_t GetTimestamp();
     
@@ -143,7 +141,7 @@ public:
     
     typename PointCloudT::Ptr pCloudCamera; // cloud w.r.t. camera frame 
     
-    Sophus::SE3f TwcIntegration; // pose at cloud integration time 
+    cv::Mat TwcIntegration; // pose at cloud integration time 
 
     bool bIsInitialized = false; 
     bool bIsProcessed = false; 
@@ -180,7 +178,7 @@ template class PointCloudKeyFrame<pcl::PointSurfelSegment>;
 #endif
 
 
-} //namespace PLVS2
+} //namespace PLVS
 
 #endif /* POINTCLOUDKEYFRAME_H */
 

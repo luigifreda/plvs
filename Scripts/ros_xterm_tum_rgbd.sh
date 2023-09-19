@@ -27,15 +27,15 @@ RGBD_DATASET_PATH=$DATASET_BASE_FOLDER/$DATASET/$DATASET".bag"
 
 ROS_BAG_PLAY_OPTIONS="--rate 1"  # comment this to remove rate adjustment 
 
-export CAMERA_SETTINGS="../Settings/ros/TUM1_ros.yaml"
+export CAMERA_SETTINGS="../Settings/TUM1_ros.yaml"
 
 if [[ $DATASET == *freiburg2* ]]; then
 	echo "using TUM2"
-	CAMERA_SETTINGS="../Settings/ros/TUM2_ros.yaml"
+	CAMERA_SETTINGS="../Settings/TUM2_ros.yaml"
 fi
 if [[ $DATASET == *freiburg3* ]]; then
 	echo "using TUM3"
-	CAMERA_SETTINGS="../Settings/ros/TUM3_ros.yaml"
+	CAMERA_SETTINGS="../Settings/TUM3_ros.yaml"
 fi
 
 echo "CAMERA_SETTINGS: $CAMERA_SETTINGS"

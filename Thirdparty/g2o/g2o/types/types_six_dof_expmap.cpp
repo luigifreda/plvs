@@ -34,14 +34,14 @@ namespace g2o {
 using namespace std;
 
 
-Vector2d project2d(const Vector3d& v)  {
+static Vector2d project2d(const Vector3d& v)  {
   Vector2d res;
   res(0) = v(0)/v(2);
   res(1) = v(1)/v(2);
   return res;
 }
 
-Vector3d unproject2d(const Vector2d& v)  {
+static Vector3d unproject2d(const Vector2d& v)  {
   Vector3d res;
   res(0) = v(0);
   res(1) = v(1);
@@ -68,46 +68,6 @@ bool VertexSE3Expmap::write(std::ostream& os) const {
     os << cam2world[i] << " ";
   return os.good();
 }
-
-  EdgeSE3::EdgeSE3() :
-      BaseBinaryEdge<6, SE3Quat, VertexSE3Expmap, VertexSE3Expmap>()
-  {
-  }
-
-  bool EdgeSE3::read(std::istream& is)
-  {
-    Vector6d v6;
-    for (int i=0; i<6; i++){
-      is >> v6[i];
-    }
-
-    SE3Quat cam2world(v6);
-    setMeasurement(cam2world.inverse());
-
-    for (int i=0; i<6; i++)
-      for (int j=i; j<6; j++)
-      {
-        is >> information()(i,j);
-        if (i!=j)
-          information()(j,i)=information()(i,j);
-      }
-    return true;
-  }
-
-  bool EdgeSE3::write(std::ostream& os) const
-  {
-    SE3Quat cam2world(measurement().inverse());
-    Vector6d v6 = cam2world.log();
-    for (int i=0; i<6; i++)
-    {
-      os  << v6[i] << " ";
-    }
-    for (int i=0; i<6; i++)
-      for (int j=i; j<6; j++){
-        os << " " <<  information()(i,j);
-    }
-    return os.good();
-  }
 
 
 EdgeSE3ProjectXYZ::EdgeSE3ProjectXYZ() : BaseBinaryEdge<2, Vector2d, VertexSBAPointXYZ, VertexSE3Expmap>() {
@@ -178,7 +138,7 @@ void EdgeSE3ProjectXYZ::linearizeOplus() {
   _jacobianOplusXj(1,5) = y/z_2 *fy;
 }
 
-Vector2d EdgeSE3ProjectXYZ::cam_project(const Vector3d & trans_xyz) const{
+Vector2d EdgeSE3ProjectXYZ::camProject(const Vector3d & trans_xyz) const{
   Vector2d proj = project2d(trans_xyz);
   Vector2d res;
   res[0] = proj[0]*fx + cx;
@@ -187,7 +147,7 @@ Vector2d EdgeSE3ProjectXYZ::cam_project(const Vector3d & trans_xyz) const{
 }
 
 
-Vector3d EdgeStereoSE3ProjectXYZ::cam_project(const Vector3d & trans_xyz, const float &bf) const{
+Vector3d EdgeStereoSE3ProjectXYZ::camProject(const Vector3d & trans_xyz, const float &bf) const{
   const float invz = 1.0f/trans_xyz[2];
   Vector3d res;
   res[0] = trans_xyz[0]*invz*fx + cx;
@@ -327,7 +287,7 @@ void EdgeSE3ProjectXYZOnlyPose::linearizeOplus() {
   _jacobianOplusXi(1,5) = y*invz_2 *fy;
 }
 
-Vector2d EdgeSE3ProjectXYZOnlyPose::cam_project(const Vector3d & trans_xyz) const{
+Vector2d EdgeSE3ProjectXYZOnlyPose::camProject(const Vector3d & trans_xyz) const{
   Vector2d proj = project2d(trans_xyz);
   Vector2d res;
   res[0] = proj[0]*fx + cx;
@@ -337,7 +297,7 @@ Vector2d EdgeSE3ProjectXYZOnlyPose::cam_project(const Vector3d & trans_xyz) cons
 
 // -- -- -- --
 
-Vector3d EdgeStereoSE3ProjectXYZOnlyPose::cam_project(const Vector3d & trans_xyz) const{
+Vector3d EdgeStereoSE3ProjectXYZOnlyPose::camProject(const Vector3d & trans_xyz) const{
   const float invz = 1.0f/trans_xyz[2];
   Vector3d res;
   res[0] = trans_xyz[0]*invz*fx + cx;

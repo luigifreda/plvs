@@ -33,7 +33,7 @@
 #include "PointDefinitions.h"
 #include "GlObject.h"
 
-namespace PLVS2
+namespace PLVS
 {
 
 template<typename PointT>
@@ -132,7 +132,7 @@ template class GlPointCloud<pcl::PointSurfelSegment>;
 #endif
 
 
-} //namespace PLVS2
+} //namespace PLVS
 
 #endif
 

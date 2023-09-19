@@ -22,7 +22,7 @@
 
 #include <pangolin/pangolin.h>
 
-namespace PLVS2
+namespace PLVS
 {
 
 
@@ -124,6 +124,6 @@ namespace GlColors
 }
 
 
-} //namespace PLVS2
+} //namespace PLVS
 
 #endif
