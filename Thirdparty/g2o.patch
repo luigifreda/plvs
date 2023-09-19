@@ -1,0 +1,50 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 36f65639..a42d0d4d 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -12,6 +12,11 @@ set(LIB_PREFIX g2o_)
+ set(g2o_C_FLAGS)
+ set(g2o_CXX_FLAGS)
+ 
++set(CPP_STANDARD_VERSION "14" CACHE STRING "Desired C++ standard version") # we need c++17 since nvcc does not support c++20 (probably we can try mixing standards and let nvcc use c++17 ... not sure about the result)
++
++# This option allows the generations of a file compile_commands.json in our build folder: that file contains the full command line to compile individual source files
++set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
++
+ # manually check for top-level project if CMake is older than 3.21
+ if(CMAKE_VERSION VERSION_LESS 3.21)
+   string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}" PROJECT_IS_TOP_LEVEL)
+@@ -478,7 +483,7 @@ if(MSVC)
+ endif(MSVC)
+ 
+ # C++14 support
+-set(CMAKE_CXX_STANDARD 14)
++set(CMAKE_CXX_STANDARD ${CPP_STANDARD_VERSION})
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ 
+ # specifying compiler flags
+diff --git a/g2o/core/eigen_types.h b/g2o/core/eigen_types.h
+index fd352684..793af64f 100644
+--- a/g2o/core/eigen_types.h
++++ b/g2o/core/eigen_types.h
+@@ -53,6 +53,8 @@ using Vector6 = VectorN<6>;
+ using Vector7 = VectorN<7>;
+ using VectorX = VectorN<Eigen::Dynamic>;
+ 
++using Vector7d = Eigen::Matrix<double, 7, 1, Eigen::ColMajor>;  
++
+ typedef Eigen::Matrix<int, 2, 2, Eigen::ColMajor> Matrix2I;
+ typedef Eigen::Matrix<int, 3, 3, Eigen::ColMajor> Matrix3I;
+ typedef Eigen::Matrix<int, 4, 4, Eigen::ColMajor> Matrix4I;
+diff --git a/g2o/types/slam3d/vertex_pointxyz.h b/g2o/types/slam3d/vertex_pointxyz.h
+index 9a8ef383..d6e440a3 100644
+--- a/g2o/types/slam3d/vertex_pointxyz.h
++++ b/g2o/types/slam3d/vertex_pointxyz.h
+@@ -104,5 +104,7 @@ class VertexPointXYZDrawAction : public DrawAction {
+ };
+ #endif
+ 
++using VertexSBAPointXYZ=VertexPointXYZ; 
++
+ }  // namespace g2o
+ #endif

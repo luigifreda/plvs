@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!-- Entry point for using OpenNI2 devices -->
+<launch>
+
+
+  <!-- By default, calibrations are stored to file://${ROS_HOME}/camera_info/${NAME}.yaml,
+       where ${NAME} is of the form "[rgb|depth]_[serial#]", e.g. "depth_B00367707227042B".
+       See camera_info_manager docs for calibration URL details. -->
+  <arg name="rgb_camera_info_url"   default="/home/luigi/.ros/camera_info/rgb_1208250021.yaml" />
+  <arg name="depth_camera_info_url" default="/home/luigi/.ros/camera_info/depth_1208250021.yaml" />
+
+  <!-- Load reasonable defaults for the relative pose between cameras -->
+  <include file="$(find openni2_launch)/launch/openni2.launch">
+		<arg name="rgb_camera_info_url" value="$(arg rgb_camera_info_url)" />
+        <arg name="depth_camera_info_url" value="$(arg depth_camera_info_url)" />
+  </include>
+
+</launch>

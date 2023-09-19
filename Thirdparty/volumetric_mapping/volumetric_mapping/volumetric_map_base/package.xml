@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>volumetric_map_base</name>
+  <version>0.0.0</version>
+  <description>Base class for volumentric map representations for planning.</description>
+
+  <author email="helen.oleynikova@mavt.ethz.ch">Helen Oleynikova</author>
+  <author email="markus.achtelik_devel@mavt.ethz.ch">Markus Achtelik</author>
+
+  <maintainer email="helen.oleynikova@mavt.ethz.ch">Helen Oleynikova</maintainer>
+
+  <license>BSD</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend>catkin_simple</buildtool_depend>
+
+  <depend>cv_bridge</depend>
+  <depend>eigen_catkin</depend>
+  <depend>gflags_catkin</depend>
+  <depend>glog_catkin</depend>
+  <depend>image_geometry</depend>
+  <depend>minkindr</depend>
+  <depend>pcl_conversions</depend>
+  <depend>pcl_ros</depend>
+  <depend>sensor_msgs</depend>
+  <depend>stereo_msgs</depend>
+</package>

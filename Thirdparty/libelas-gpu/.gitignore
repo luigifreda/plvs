@@ -1,0 +1,6 @@
+build
+output/*
+!output/.gitkeep
+.vscode
+input/*_disp.pgm
+include/*

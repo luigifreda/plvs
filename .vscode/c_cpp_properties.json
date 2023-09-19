@@ -1,0 +1,39 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/include/**",
+                "${workspaceFolder}/Thirdparty/chisel_server/**",    
+                "${workspaceFolder}/Thirdparty/open_chisel/**",    
+                "${workspaceFolder}/Thirdparty/voxblox/**",    
+                "${workspaceFolder}/Thirdparty/voxblox_server/**",    
+                "${workspaceFolder}/Thirdparty/DBoW2/**",
+                "${workspaceFolder}/Thirdparty/fastfusion/**",          
+                "${workspaceFolder}/Thirdparty/libelas-gpu/**",  
+                "${workspaceFolder}/Thirdparty/libsgm/**", 
+                "${workspaceFolder}/Thirdparty/line_descriptor/**",         
+                "${workspaceFolder}/Thirdparty/g2o/**",     
+                "${workspaceFolder}/Thirdparty/g2o_new/**",   
+                "${workspaceFolder}/Thirdparty/Sophus/**",
+                "${workspaceFolder}/Thirdparty/Pangolin/include/**",
+                "${workspaceFolder}/Thirdparty/Pangolin/components/**",
+                "${workspaceFolder}/Thirdparty/opencv/install/include/**",                
+                "/usr/include/pcl-1.10/",                
+                "/usr/include/eigen3/",
+                "/opt/ros/noetic/include",
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/g++",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-clang-x64",
+            "browse": {
+                "path": [ "${workspaceFolder}" ],
+                "limitSymbolsToIncludedHeaders": true,
+                "databaseFilename": ""
+            }
+        }
+    ],
+    "version": 4
+}

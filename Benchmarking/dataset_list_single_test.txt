@@ -1,0 +1,1 @@
+~/Work/datasets/rgbd_datasets/tum/rgbd_dataset_freiburg1_room

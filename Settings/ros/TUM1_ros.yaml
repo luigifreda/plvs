@@ -1,0 +1,231 @@
+%YAML:1.0
+
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters
+#--------------------------------------------------------------------------------------------
+# Viewer.on: 1 is ON, 0 is OFF
+Viewer.on: 1
+
+Viewer.KeyFrameSize: 0.05
+Viewer.KeyFrameLineWidth: 1
+Viewer.GraphLineWidth: 0.9
+Viewer.PointSize: 1
+Viewer.LineSize: 1
+Viewer.CameraSize: 0.08
+Viewer.CameraLineWidth: 3
+Viewer.ViewpointX: 0
+Viewer.ViewpointY: -0.7
+Viewer.ViewpointZ: -1.8
+Viewer.ViewpointF: 500
+
+Viewer.ViewpointYtop: -4.0
+
+   
+#--------------------------------------------------------------------------------------------
+# Camera Parameters. Adjust them!
+#--------------------------------------------------------------------------------------------
+Camera.type: "PinHole"
+
+# Camera calibration and distortion parameters (OpenCV) 
+Camera.fx: 517.306408
+Camera.fy: 516.469215
+Camera.cx: 318.643040
+Camera.cy: 255.313989
+
+Camera.k1: 0.262383
+Camera.k2: -0.953104
+Camera.p1: -0.005358
+Camera.p2: 0.002628
+Camera.k3: 1.163314
+
+Camera.width: 640
+Camera.height: 480
+
+# Camera frames per second 
+Camera.fps: 30.0
+
+# IR projector baseline times fx (aprox.)
+Camera.bf: 40.0
+
+# Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
+Camera.RGB: 1
+
+# Camera.waitCameraInfoOn: 1 is ON, 0 is OFF (before starting mapping wait for CameraInfo)
+Camera.waitCameraInfoOn: 0
+
+# Close/Far threshold. Baseline times.
+ThDepth: 40.0
+
+# Deptmap values factor 
+DepthMapFactor: 1.0
+
+#--------------------------------------------------------------------------------------------
+# Features Parameters
+#--------------------------------------------------------------------------------------------
+
+# if true ORBextractor.nFeatures will be decreased by Line.nfeatures
+Features.balanceTotalNumFeatures: 0
+
+#--------------------------------------------------------------------------------------------
+# ORB Parameters
+#--------------------------------------------------------------------------------------------
+
+# ORB Extractor: Number of features per image
+ORBextractor.nFeatures: 1000
+
+# ORB Extractor: Scale factor between levels in the scale pyramid 	
+ORBextractor.scaleFactor: 1.2
+
+# ORB Extractor: Number of levels in the scale pyramid	
+ORBextractor.nLevels: 8
+
+# ORB Extractor: Fast threshold
+# Image is divided in a grid. At each cell FAST are extracted imposing a minimum response.
+# Firstly we impose iniThFAST. If no corners are detected we impose a lower value minThFAST
+# You can lower these values if your images have low contrast			
+ORBextractor.iniThFAST: 20
+ORBextractor.minThFAST: 7
+
+#--------------------------------------------------------------------------------------------
+# Line Segments Tracking
+#--------------------------------------------------------------------------------------------
+
+# Line.on: 1 is ON, 0 is OFF
+Line.on: 1
+
+# set to 0 if keeping all lines   
+Line.nfeatures: 100
+# number of levels in the scale pyramid	
+Line.nLevels: 3
+# scale factor between levels in the scale pyramid 
+Line.scaleFactor: 1.2
+# noise standard deviation on line extraction (in pixel)
+Line.sigma: 2
+# min. line length (relative to img size)
+Line.minLineLength: 0.02
+# weighting of lines w.r.t. points in success/failure tracking conditions 
+Line.lineTrackWeigth: 2
+# min. line length 3D (meters)
+Line.minLineLength3D: 0.01
+# mu weight for endpoint-endpoint dist in line 3D dist
+Line.muWeightForLine3dDist: 0.3
+
+# for using LSD extractor (much slower) instead of EDLine lines extractor
+Line.LSD.on: 0
+
+#--------------------------------------------------------------------------------------------
+# Map Object 
+#--------------------------------------------------------------------------------------------
+
+# MapObject.on: 1 is ON, 0 is OFF
+MapObject.on: 0
+# Images of the planar objects (separated by empty spaces) 
+MapObject.imgs: "teddy.png"
+MapObject.numMinInliers: 20
+MapObject.maxReprojectionError: 1
+MapObject.maxSim3Error: 0.01
+
+#--------------------------------------------------------------------------------------------
+# KeyFrame Generation 
+#--------------------------------------------------------------------------------------------
+
+# on: 1 is ON, 0 is OFF
+KeyFrame.fovCentersBasedGeneration.on: 0
+KeyFrame.maxFovCentersDistance: 0.4
+
+#--------------------------------------------------------------------------------------------
+# Sparse Mapping
+#--------------------------------------------------------------------------------------------
+
+SparseMapping.filename: "sparse_map_out_0.map"
+# use saved map on start: 1 is ON, 0 is OFF 
+SparseMapping.reuseMap: 0 
+# freeze map during optimizations: 1 is ON, 0 is OFF  
+SparseMapping.freezeMap: 1
+# save map on shutdown: 1 is ON, 0 is OFF
+SparseMapping.saveMap: 0 
+# force immediate relocalization (or wait for loop-closing thread for relocalization): 1 is ON, 0 is OFF
+SparseMapping.forceRelocalization: 1
+
+#--------------------------------------------------------------------------------------------
+# Depth Noise Model
+#--------------------------------------------------------------------------------------------
+
+# used for scaling depth noise model
+Depth.sigmaZfactor: 6
+
+#--------------------------------------------------------------------------------------------
+# PointCloud Mapping
+#--------------------------------------------------------------------------------------------
+
+# PointCloudMapping.on: 1 is ON, 0 is OFF
+PointCloudMapping.on: 0
+
+#PointCloudMapping.type: voxelgrid, octomap, octree_point, chisel, fastfusion, voxblox
+# NOTE: chisel and fastfusion require rectified images if you do not use pointcloud generation 
+PointCloudMapping.type: "voxblox"
+
+PointCloudMapping.resolution: 0.02
+PointCloudMapping.numKeyframesToQueueBeforeProcessing: 1
+PointCloudMapping.downSampleStep: 2
+PointCloudMapping.minDepth: 0.1
+PointCloudMapping.maxDepth: 5
+PointCloudMapping.removeUnstablePoints: 1
+
+PointCloudMapping.resetOnSparseMapChange: 1
+PointCloudMapping.cloudDeformationOnSparseMapChange: 0
+
+# [octree_point] specific params
+PointCloudMapping.pointCounterThreshold: 3
+
+# [voxblox] specific params
+PointCloudMapping.voxbloxIntegrationMethod: "fast"
+
+# [octree_point, chisel, voxblox] specific params 
+# PointCloudMapping.useCarving: 1 is ON, 0 is OFF
+PointCloudMapping.useCarving: 0
+
+# depth filtering 
+PointCloudMapping.filterDepth.on: 0
+PointCloudMapping.filterDepth.diameter: 7
+PointCloudMapping.filterDepth.sigmaDepth: 0.02
+PointCloudMapping.filterDepth.sigmaSpace: 5
+
+# for loading
+# load dense map on start: 1 is ON, 0 is OFF
+PointCloudMapping.loadMap: 0
+# voxblox also accepts its .proto file!
+PointCloudMapping.loadFilename: "volumetric_map_0.ply"
+
+#--------------------------------------------------------------------------------------------
+# Segmentation
+#--------------------------------------------------------------------------------------------
+
+# Segmentation.on: 1 is ON, 0 is OFF
+# working only with [octree_point] 
+Segmentation.on: 0
+
+Segmentation.maxDepth: 2
+
+# the following params work well with PointCloudMapping.downSampleStep: 2
+Segmentation.erosionDilationOn: 1
+Segmentation.minFi: 0.92
+Segmentation.maxDelta: 0.01
+Segmentation.singleDepth.minComponentArea: 80
+Segmentation.lineDrawThinckness: 2
+Segmentation.maxAngleForNormalAssociation: 20
+Segmentation.labelsMatchingMinOverlapPerc: 0.2
+Segmentation.labelsMatchingMinOverlapPoints: 0
+Segmentation.globalLabelsMatchingMinOverlapPerc: 0.2
+
+
+#--------------------------------------------------------------------------------------------
+# Gl Objects
+#--------------------------------------------------------------------------------------------
+
+# pre-load static GL objects to be visualized in the map
+GlObjects.on: 0
+
+GlObjects.list:
+#  - { filename: "map_0.ply", type: "cloudmesh", pose: [ 0, 0, 0, 0, 0, 0] }  
+#  - { filename: "sassi.ply", type: "cloudmesh", pose: [ 0, 0, 0, 0, 0, 0] }  

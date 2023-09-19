@@ -1,0 +1,153 @@
+%YAML:1.0
+
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters
+#--------------------------------------------------------------------------------------------
+# Viewer.on: 1 is ON, 0 is OFF
+Viewer.on: 1
+Viewer.KeyFrameSize: 0.02
+Viewer.KeyFrameLineWidth: 0.3
+Viewer.GraphLineWidth: 0.5
+Viewer.PointSize: 3
+Viewer.CameraSize: 0.02
+Viewer.CameraLineWidth: 1
+Viewer.ViewpointX: 0
+Viewer.ViewpointY: -0.2
+Viewer.ViewpointZ: -0.5
+Viewer.ViewpointF: 500
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters.
+#--------------------------------------------------------------------------------------------
+
+# D: (k1, k2, t1, t2, k3)
+
+#     [fx  0 cx]
+# K = [ 0 fy cy]
+#     [ 0  0  1]
+
+# RAW
+# From ZED setting file
+
+#Camera.fx: 349.665
+#Camera.fy: 349.665
+#Camera.cx: 337.498
+#Camera.cy: 191.372
+#Camera.k1: -0.171171
+#Camera.k2: 0.0268264
+# RECT
+# From /zed/rgb/camera_info
+
+Camera.fx: 332.39208984375
+Camera.fy: 332.39208984375
+Camera.cx: 352.13775634765625
+Camera.cy: 192.29367065429688
+
+# NOTE: if you use  rectified  image the distortion params shoudl be set to zero!
+# see https://github.com/raulmur/ORB_SLAM2/issues/293
+
+Camera.k1: 0.0
+Camera.k2: 0.0
+Camera.p1: 0.0
+Camera.p2: 0.0
+
+Camera.width: 672
+Camera.height: 376
+
+# Camera frames per second
+Camera.fps: 30.0
+
+# Baseline * fx (aprox.)
+# baseline is 0.12 m from https://www.stereolabs.com/zed/specs/
+Camera.bf: 41.24196167
+
+# Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
+Camera.RGB: 1
+
+# Close/Far threshold. Baseline times.
+ThDepth: 40.0
+
+# Depthmap values factor
+DepthMapFactor: 1.0
+
+#--------------------------------------------------------------------------------------------
+# ORB Parameters
+#--------------------------------------------------------------------------------------------
+
+# ORB Extractor: Number of features per image
+ORBextractor.nFeatures: 1000
+
+# ORB Extractor: Scale factor between levels in the scale pyramid
+ORBextractor.scaleFactor: 1.2
+
+# ORB Extractor: Number of levels in the scale pyramid
+ORBextractor.nLevels: 8
+
+# ORB Extractor: Fast threshold
+# Image is divided in a grid. At each cell FAST are extracted imposing a minimum response.
+# Firstly we impose iniThFAST. If no corners are detected we impose a lower value minThFAST
+# You can lower these values if your images have low contrast
+ORBextractor.iniThFAST: 20
+ORBextractor.minThFAST: 7
+
+#--------------------------------------------------------------------------------------------
+# Line Segments Tracking
+#--------------------------------------------------------------------------------------------
+# Line.on: 1 is ON, 0 is OFF
+Line.on: 1
+
+# set to 0 if keeping all lines
+Line.nfeatures:    100
+Line.scale: 1.4
+# min. line length (relative to img size)
+Line.minLineLength: 0.01
+Line.maxDistLine2LineForTracking: 100
+Line.lineTrackWeigth: 2
+
+#--------------------------------------------------------------------------------------------
+# PointCloud Mapping
+#--------------------------------------------------------------------------------------------
+
+# PointCloudMapping.on: 1 is ON, 0 is OFF
+PointCloudMapping.on: 1
+
+#PointCloudMapping.type: voxelgrid, octomap, octree_point, chisel (wants rectified image), fastfusion, voxblox
+PointCloudMapping.type: "octree_point"
+
+PointCloudMapping.resolution: 0.05
+PointCloudMapping.numKeyframesToQueueBeforeProcessing: 5
+PointCloudMapping.downSampleStep: 2
+PointCloudMapping.minDepth: 1
+PointCloudMapping.maxDepth: 10
+PointCloudMapping.removeUnstablePoints: 1
+PointCloudMapping.resetOnSparseMapChange: 1
+
+# [octree_point] specific params
+PointCloudMapping.pointCounterThreshold: 8
+
+# [octree_point, chisel] specific params
+# PointCloudMapping.useCarving: 1 is ON, 0 is OFF
+PointCloudMapping.useCarving: 0
+
+# depth filtering
+PointCloudMapping.filterDepth.on: 1
+PointCloudMapping.filterDepth.diameter: 7
+PointCloudMapping.filterDepth.sigmaDepth: 0.02
+PointCloudMapping.filterDepth.sigmaSpace: 5
+
+#--------------------------------------------------------------------------------------------
+# Segmentation
+#--------------------------------------------------------------------------------------------
+
+# Segmentation.on: 1 is ON, 0 is OFF
+Segmentation.on: 0
+
+Segmentation.maxDepth: 5
+Segmentation.minFi: 0.92
+Segmentation.maxDelta: 0.01
+Segmentation.singleDepth.minComponentArea: 40
+Segmentation.lineDrawThinckness: 1
+Segmentation.maxAngleForNormalAssociation: 20
+Segmentation.labelsMatchingMinOverlapPerc: 0.01
+Segmentation.globalLabelsMatchingMinOverlapPerc: 0.2
+
