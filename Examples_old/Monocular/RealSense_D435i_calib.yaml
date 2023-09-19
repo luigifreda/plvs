@@ -1,0 +1,71 @@
+%YAML:1.0
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters. Adjust them!
+#--------------------------------------------------------------------------------------------
+Camera.type: "PinHole"
+
+# Left Camera calibration and distortion parameters (OpenCV)
+# intrinsics: [385.66103518675095, 385.366100052357, 324.7120441702525, 237.31579427124345]
+Camera.fx: 385.66103518675095
+Camera.fy: 385.366100052357
+Camera.cx: 324.7120441702525
+Camera.cy: 237.31579427124345
+
+# distortion parameters
+# distortion_coeffs: [0.006748400587261457, -0.0018373064863327203, 0.002283150755320981, 0.003926084835844248]
+Camera.k1: 0.006748400587261457
+Camera.k2: -0.0018373064863327203
+Camera.p1: 0.002283150755320981
+Camera.p2: 0.003926084835844248
+
+# Camera resolution
+Camera.width: 640
+Camera.height: 480
+
+# Camera frames per second 
+Camera.fps: 30.0
+
+# Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
+Camera.RGB: 1
+
+# Image scale, it changes the image size to be processed (<1.0: reduce, >1.0: increase)
+Camera.imageScale: 1.0 # 0.5 #0.7071 # 1/sqrt(2)
+
+# Close/Far threshold. Baseline times.
+ThDepth: 40.0
+# stereo baseline times fx
+Camera.bf: 19.114771561
+
+#--------------------------------------------------------------------------------------------
+# ORB Parameters
+#--------------------------------------------------------------------------------------------
+# ORB Extractor: Number of features per image
+ORBextractor.nFeatures: 1250
+
+# ORB Extractor: Scale factor between levels in the scale pyramid 	
+ORBextractor.scaleFactor: 1.2
+
+# ORB Extractor: Number of levels in the scale pyramid	
+ORBextractor.nLevels: 8
+
+# ORB Extractor: Fast threshold
+# Image is divided in a grid. At each cell FAST are extracted imposing a minimum response.
+# Firstly we impose iniThFAST. If no corners are detected we impose a lower value minThFAST
+# You can lower these values if your images have low contrast			
+ORBextractor.iniThFAST: 20
+ORBextractor.minThFAST: 7
+
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters
+#--------------------------------------------------------------------------------------------
+Viewer.KeyFrameSize: 0.05
+Viewer.KeyFrameLineWidth: 1
+Viewer.GraphLineWidth: 0.9
+Viewer.PointSize: 2
+Viewer.CameraSize: 0.08
+Viewer.CameraLineWidth: 3
+Viewer.ViewpointX: 0
+Viewer.ViewpointY: -0.7
+Viewer.ViewpointZ: -3.5
+Viewer.ViewpointF: 500

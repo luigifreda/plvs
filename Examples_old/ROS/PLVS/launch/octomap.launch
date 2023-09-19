@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>	
+
+<launch>
+
+    <arg name="respawn_value" default="false" /> <!-- boolean: true, false -->
+    
+    <!--param name="/use_sim_time" value="true"/-->
+	<node pkg="tf" type="static_transform_publisher" name="tf_static_camera_rgb_optical_frame" args="0 0 0 0 0 0 1 camera_link_slam camera_link 100"/>
+
+	<node name="mapping" pkg="octomap_server" type="octomap_server_node" respawn="$(arg respawn_value)" output="screen">
+	 <param name = "base_frame_id" value = "/camera_link_slam"/>
+	 <param name = "resolution" value = "0.03"/>
+	 <param name = "sensor_model/hit" value = "0.75"/>
+	 <param name = "sensor_model/miss" value = "0.45" />
+	 <param name = "sensor_model/min" value = "0.12" />
+	 <param name = "sensor_model/max" value = "0.97" />
+
+	 <remap from = "cloud_in" to = "/camera/depth/points"/>
+	 <remap from = "octomap_point_cloud_centers" to = "/octomap_map"/>
+	 </node> 
+
+	 <include file="$(find orbslam2)/launch/rviz_r200.launch"/>
+
+</launch>
