@@ -1,4 +1,4 @@
-# PLVS 
+# PLVS II
 
 
 PLVS is a real-time system that leverages sparse SLAM, volumetric mapping, and 3D unsupervised incremental segmentation. PLVS stands for **Points**, **Lines**, **Volumetric mapping**, and **Segmentation**. 
