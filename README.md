@@ -5,9 +5,9 @@ PLVS is a real-time system that leverages sparse SLAM, volumetric mapping, and 3
 
 <p align="center">
 <img src="Images/PLVS-lab.png"
-alt="PLVS lab" height="180" border="1"/> 
+alt="PLVS lab" max-width="585" border="1"/> 
 <img src="Images/PLVS-Points-Lines-Vol-Seg.png"
-alt="PLVS details" height="180" border="1"/> 
+alt="PLVS details" max-width="695" border="1"/> 
 <img src="Images/PLVS-ar2.gif"
 alt="PLVS augmented reality" height="180" border="1"/> 
 <img src="Images/PLVS-details.gif"
