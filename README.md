@@ -21,7 +21,7 @@ PLVS is available in two different versions.
 
 You can find further details on this [page](https://www.luigifreda.com/research/plvs-an-open-source-rgb-d-and-stereo-slam-for-volumetric-reconstruction-and-3d-incremental-segmentation/) and in the following document:
 
-**[PLVS: A SLAM System with Points, Lines, Volumetric Mapping, and 3D Incremental Segmentation](https://www.luigifreda.com/wp-content/uploads/2023/09/Freda-PLVS.pdf)**         
+**[PLVS: A SLAM System with Points, Lines, Volumetric Mapping, and 3D Incremental Segmentation](https://arxiv.org/pdf/2309.10896.pdf)**         
 *Luigi Freda* 
 
 
