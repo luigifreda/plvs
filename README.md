@@ -17,7 +17,7 @@ alt="PLVS details" height="180" border="1"/>
 
 PLVS is available in two different versions.
 - **PLVS I**: hosted in the branch `plvs1`. It is based on [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2), and supports mono, stereo, and RGB-D cameras.
-- **PLVS II**: hosted in the `master` branch. It based on [ORB-SLAM3](https://github.com/UZ-SLAMLab/ORB_SLAM3), and also supports camera systems provided with IMUs. 
+- **PLVS II**: hosted in the `master` branch. It is based on [ORB-SLAM3](https://github.com/UZ-SLAMLab/ORB_SLAM3), and also supports camera systems provided with IMUs. 
 
 
 You can find further details on this [page](https://www.luigifreda.com/research/plvs-an-open-source-rgb-d-and-stereo-slam-for-volumetric-reconstruction-and-3d-incremental-segmentation/) and in the following document:
