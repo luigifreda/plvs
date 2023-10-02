@@ -1,6 +1,6 @@
 /*
  * This file is part of PLVS
- * Copyright (C) 2018  Luigi Freda <luigifreda at gmail dot com>
+ * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * 
  */
-
 /*
- * map save/load extension for ORB_SLAM2/PLVS
+ * Map save/load extension for ORB_SLAM2/PLVS
  * This header contains boost headers needed by serialization
  *
  * object to save:
