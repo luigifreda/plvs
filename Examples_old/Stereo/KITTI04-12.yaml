@@ -17,7 +17,6 @@ Viewer.ViewpointY: -100
 Viewer.ViewpointZ: -0.1
 Viewer.ViewpointF: 2000
 
-
 #--------------------------------------------------------------------------------------------
 # Camera Parameters. Adjust them!
 #--------------------------------------------------------------------------------------------
@@ -161,3 +160,4 @@ PointCloudMapping.filterDepth.on: 0
 PointCloudMapping.filterDepth.diameter: 7
 PointCloudMapping.filterDepth.sigmaDepth: 0.02
 PointCloudMapping.filterDepth.sigmaSpace: 5
+

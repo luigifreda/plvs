@@ -20,17 +20,14 @@ PLVS is available in two different versions.
 - **PLVS II**: hosted in the `master` branch. It is based on [ORB-SLAM3](https://github.com/UZ-SLAMLab/ORB_SLAM3), and also supports camera systems provided with IMUs. 
 
 
-You can find further details on this [page](https://www.luigifreda.com/research/plvs-an-open-source-rgb-d-and-stereo-slam-for-volumetric-reconstruction-and-3d-incremental-segmentation/) and in the following document:
+[Here](./new_features.md) you can find a list of the **new features** provided by PLVS. You can find further information and videos on this [page](https://www.luigifreda.com/research/plvs-an-open-source-rgb-d-and-stereo-slam-for-volumetric-reconstruction-and-3d-incremental-segmentation/) and in the following **document**:
 
 **[PLVS: A SLAM System with Points, Lines, Volumetric Mapping, and 3D Incremental Segmentation](https://arxiv.org/pdf/2309.10896.pdf)**         
 *Luigi Freda* 
 
-
-
 **Note**: PLVS is an active project. This *README* is under construction and will be updated soon with further information and details. 
 
 
-  
   
 ## Quick start 
 
