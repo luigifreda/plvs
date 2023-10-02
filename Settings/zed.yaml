@@ -63,12 +63,10 @@ Viewer.ViewpointF: 500
 #Camera.cx: 676.0556640625
 #Camera.cy: 370.9483337402344
 
-# circoMassimo
 #Camera.fx: 667.3896484375
 #Camera.fy: 667.3896484375
 #Camera.cx: 672.755615234375
 #Camera.cy: 370.8421325683594
-
 
 # New params 
 #height: 720

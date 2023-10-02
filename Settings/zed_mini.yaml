@@ -48,7 +48,6 @@ Viewer.ViewpointF: 500
 #  do_rectify: False
 
 
-# circoMassimo
 Camera.fx: 672.8137817382812
 Camera.fy: 672.8137817382812
 Camera.cx: 647.03173828125
