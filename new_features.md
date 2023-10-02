@@ -17,7 +17,9 @@ This is a list of the **new features** provided by PLVS:
   - Use the option `StereoDense.type` to select your preferred method in the yaml settings for stereo cameras.   
 * Some parts of the original ORBSLAM code were improved or optimized.
 * Many convenient scripts are provided for launching apps, benchmarking and monitoring the system.
-
+* Smart pointers to manage points and lines (WIP for keyframes) 
+* MapOjbect: Experimental representation for planar objects (WIP for PLVS II)
+  
 **Note**: PLVS is an active project. The main *README* is under construction and will be updated soon with further information and details. 
 
 
