@@ -1,6 +1,7 @@
 /*
- * <one line to give the program's name and a brief idea of what it does.>
- * Copyright (C) 2018  Luigi Freda luigifreda@gmail.com
+ * This file is part of PLVS.
+ * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
+ * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
