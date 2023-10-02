@@ -18,7 +18,7 @@
  */
 
 /*
- * map save/load extension for ORB_SLAM2/PLVS
+ * Map save/load extension for ORB_SLAM2/PLVS
  * This header contains boost headers needed by serialization
  *
  * object to save:
