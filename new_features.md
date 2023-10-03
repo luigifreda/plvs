@@ -10,7 +10,7 @@ This is a list of the **new features** provided by PLVS:
   - It can be enabled by using the option `Segmentation.on` in the yaml settings of the RGBD cameras (only working when `octree_point` is selected as volumetric mapping method). 
 * **Augmented reality** with overlay of tracked features, built meshes and loaded 3D models. 
   - This can be enabled by using the button `AR Camera` in the viewer GUI. 
-* Both generated **sparse and dense maps** can be **saved** and **reload**. 
+* Both generated **sparse and dense maps** can be **saved** and **reloaded**. 
 * Extraction of **ORB** keypoints via **CUDA**. 
   - This can be optionally activated by using the option `USE_CUDA` in [config.sh](./config.sh) 
 * Different methods can be used with calibrated stereo cameras for estimating depth maps: *libelas*, *libsgm*, *opencv* (these methods may need more fine tuning).
