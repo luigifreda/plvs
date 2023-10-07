@@ -19,6 +19,7 @@ This is a list of the **new features** provided by PLVS:
 * Many convenient scripts are provided for launching apps, benchmarking and monitoring the system.
 * Smart pointers to manage points and lines (WIP for keyframes) 
 * MapOjbect: Experimental representation for planar objects (WIP for PLVS II)
+* C++17. 
   
 **Note**: PLVS is an active project. The main *README* is under construction and will be updated soon with further information and details. 
 
