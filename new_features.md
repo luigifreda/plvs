@@ -3,7 +3,7 @@
 This is a list of the **new features** provided by PLVS: 
 * **Line segment** detection, matching, triangulation and tracking. 
   - It can be enabled via the option `Line.on` in the yaml settings.
-  - Removed some some bugs and optimized parts of the adopted [line_descriptor](https://github.com/opencv/opencv_contrib/tree/4.x/modules/line_descriptor) OpenCV module. 
+  - Removed some bugs and optimized parts of the adopted [line_descriptor](https://github.com/opencv/opencv_contrib/tree/4.x/modules/line_descriptor) OpenCV module. 
 * Dense reconstruction with different **volumetric mapping methods**: *voxelgrid*, *octree_point*, *[octomap](https://github.com/OctoMap/octomap)*, *[fastfusion](https://github.com/tum-vision/fastfusion)*, *[chisel](https://github.com/personalrobotics/OpenChisel)*, *[voxblox](https://github.com/ethz-asl/voxblox)*.  
   - It can be enabled by using the option `PointCloudMapping.on` in the yaml settings and selecting your preferred method `PointCloudMapping.type` (see the comments in the yaml files). 
 * **Incremental segmentation** with RGBD sensors and octree-based dense map. 
