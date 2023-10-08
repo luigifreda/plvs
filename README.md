@@ -30,21 +30,21 @@ PLVS is available in two different versions.
   
 ## Quick start 
 
-The following procedures were tested under **Ubuntu 20**. 
+The following procedures were tested under **Ubuntu 20**. If you don't have it, check [rosdocker](https://github.com/luigifreda/rosdocker) and build the *noetic* container.
 
 - Install basic dependencies:      
   `$ ./install_dependencies.sh`        
-- Install opencv in a local folder:                 
+- Install *OpenCV* in a local folder:                 
   `$ ./install_local_opencv.sh`      
-  (if you want, skip this step and set the variable `OpenCV_DIR` in `config.sh` with your local OpenCV path)     
-- Build the framework:       
+  (if you want, skip this step and set the variable `OpenCV_DIR` in `config.sh` with your local *OpenCV* path)     
+- Build the *PLVS* framework:       
   `$ ./build.sh`
 
-If you have **ROS noetic** you can run:        
+Under **ROS noetic** you can run:        
 `$ ./build_ros_catkin.sh`       
-to build the PLVS ROS workspace in the `ros_ws` folder.
+to build the *PLVS* ROS workspace and deploy it into the `ros_ws` folder.
 
-It should be easy to adapt the above procedures if you have a different OS and ROS versions.
+It should be easy to adapt the above procedures if you have a different OS or ROS version.
 
 ## Running the examples 
 
