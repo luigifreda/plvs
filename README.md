@@ -32,6 +32,8 @@ PLVS is available in two different versions.
 
 The following procedures were tested under **Ubuntu 20**. If you don't have it, check [rosdocker](https://github.com/luigifreda/rosdocker) and use the *noetic* container.
 
+### Build
+
 - Install basic dependencies:      
   `$ ./install_dependencies.sh`        
 - Install *OpenCV* in a local folder:                 
@@ -46,7 +48,7 @@ to build the *PLVS* ROS workspace and deploy it into the `ros_ws` folder.
 
 It should be easy to adapt the above procedures if you have a different OS or ROS version.
 
-## Running the examples 
+### Running the examples 
 
 Once everything is built, you can enter in the `Scripts` folder and test the different examples. For instance you can configure and run: 
 - `$ ./run_tum_rgbd.sh` for TUM RGB-D datasets 
@@ -56,14 +58,14 @@ Once everything is built, you can enter in the `Scripts` folder and test the dif
 - `$ ./run_tum_vi_stereo.sh` for TUM VI datasets, only stereo
 - `$ ./run_tum_vi_stereo_inertial.sh` for TUM VI datasets, stereo + inertial
 
-In each of the above scripts, you have to configure the `DATASET_BASE_FOLDER`, the specific `DATASET` of interest, and the used `YAML` configuration file. In particular, each configuration file shows different sections with commented options.   
+In each of the above scripts, you have to configure the `DATASET_BASE_FOLDER`, the specific `DATASET` of interest, and the used `YAML` configuration file. In particular, each configuration file shows different sections with commented options. For a quick overview of the **new features** and their corresponding yaml options refer to [new_features.md](./new_features.md).   
 
 If you built the ROS workspace, you can use the scripts `ros_xterm*` to launch the PLVS ROS nodes. For instance, 
 * with the TUM datasets, run `ros_xterm_tum_rgbd.sh`.
 
 ## Contributing
 
-You can contribute to the code base by using pull requests, reporting bugs, leaving comments, and proposing new features through issues. Feel free to get in touch: *luigifreda(at)gmail(dot)com*. Thank you!
+You are welcome to contribute to the code base by using pull requests, reporting bugs, leaving comments, and proposing new features through issues. Feel free to get in touch: *luigifreda(at)gmail(dot)com*. Thank you!
 
 ## Credits  
 
