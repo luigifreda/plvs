@@ -40,8 +40,8 @@ The following procedures were tested under **Ubuntu 20**.
 - Build the framework:       
   `$ ./build.sh`
 
-If you have **ROS noetic** you can run: 
-`$ ./build_ros_catkin.sh`
+If you have **ROS noetic** you can run:        
+`$ ./build_ros_catkin.sh`       
 to build the PLVS ROS workspace in the `ros_ws` folder.
 
 It should be easy to adapt the above procedures if you have a different OS and ROS versions.
