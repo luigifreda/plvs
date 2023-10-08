@@ -30,6 +30,8 @@ PLVS is available in two different versions.
   
 ## Quick start 
 
+The following procedures were tested under **Ubuntu 20**. 
+
 - Install basic dependencies:      
   `$ ./install_dependencies.sh`        
 - Install opencv in a local folder:                 
@@ -38,6 +40,11 @@ PLVS is available in two different versions.
 - Build the framework:       
   `$ ./build.sh`
 
+If you have **ROS noetic** you can run: 
+`$ ./build_ros_catkin.sh`
+to build the PLVS ROS workspace in the `ros_ws` folder.
+
+It should be easy to adapt the above procedures if you have a different OS and ROS versions.
 
 ## Running the examples 
 
@@ -51,7 +58,12 @@ Once everything is built, you can enter in the `Scripts` folder and test the dif
 
 In each of the above scripts, you have to configure the `DATASET_BASE_FOLDER`, the specific `DATASET` of interest, and the used `YAML` configuration file. In particular, each configuration file shows different sections with commented options.   
 
-**Note**: PLVS is an active project. This *README* is under construction and will be updated soon with further information and details. 
+If you built the ROS workspace, you can use the scripts `ros_xterm*` to launch the PLVS ROS nodes. For instance, 
+* with the TUM datasets, run `ros_xterm_tum_rgbd.sh`.
+
+## Contributing
+
+You can contribute to the code base by using pull requests, reporting bugs, leaving comments, and proposing new features through issues. Feel free to get in touch: *luigifreda(at)gmail(dot)com*. Thank you!
 
 ## Credits  
 
