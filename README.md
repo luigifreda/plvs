@@ -67,5 +67,5 @@ You can contribute to the code base by using pull requests, reporting bugs, leav
 
 ## Credits  
 
-* The *PLVS I* and *PLVS II* frameworks are based on [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2) and [ORB-SLAM3](https://github.com/UZ-SLAMLab/ORB_SLAM3) respectively. Many thanks to their Authors for their great work and contributions to the open-source community. 
+* The *PLVS I* and *PLVS II* frameworks are based on [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2) and [ORB-SLAM3](https://github.com/UZ-SLAMLab/ORB_SLAM3) respectively. Many thanks to their Authors for their great work and contributions to the Research and open-source communities. 
 
