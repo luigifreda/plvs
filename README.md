@@ -25,8 +25,7 @@ PLVS is available in two different versions.
 **[PLVS: A SLAM System with Points, Lines, Volumetric Mapping, and 3D Incremental Segmentation](https://arxiv.org/pdf/2309.10896.pdf)**         
 *Luigi Freda* 
 
-**Note**: PLVS is an active project. This *README* is under construction and will be updated soon with further information and details. 
-
+**Note**: PLVS is an active project. This *README* is under construction and will be updated soon with further information and details. Code improvements are coming soon.
 
   
 ## Quick start 
