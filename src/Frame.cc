@@ -68,7 +68,7 @@
                                            //       This is because a Gaussian filter is added in keylines extraction when a pre-computed pyramid is set.
                                            //       In fact, the keypoint Gaussian filter is too strong for keyline extraction (it blurs the image too much!)
 
-#define DISABLE_STATIC_LINE_TRIANGULATION 1  // set this to 1 to check how local mapping is able to triangulate lines without using any static stereo line triangulation
+#define DISABLE_STATIC_LINE_TRIANGULATION 0  // set this to 1 to check how local mapping is able to triangulate lines without using any static stereo line triangulation
 
 #if LOG_ASSIGN_FEATURES
 #include "Logger.h"
