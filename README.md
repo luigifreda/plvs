@@ -67,6 +67,12 @@ If you built the ROS workspace, you can use the scripts `ros_xterm*` to launch t
 
 You are welcome to contribute to the code base by using pull requests, reporting bugs, leaving comments, and proposing new features through issues. Feel free to get in touch: *luigifreda(at)gmail(dot)com*. Thank you!
 
+## License 
+
+We release PLVS under [GPLv3 license](./LICENSE). PLVS contains some modified libraries, each one coming with its license. Where nothing is specified, a GPLv3 license applies to the software.
+
+Please cite our work if you use PLVS in your projects.
+
 ## Credits  
 
 * The *PLVS I* and *PLVS II* frameworks are based on [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2) and [ORB-SLAM3](https://github.com/UZ-SLAMLab/ORB_SLAM3) respectively. Many thanks to their Authors for their great work and contributions to the Research and open-source communities. 
