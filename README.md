@@ -7,12 +7,12 @@ PLVS is a real-time system that leverages sparse SLAM, volumetric mapping, and 3
 <p align="center">
 <img src="Images/PLVS-lab.png"
 alt="PLVS lab" max-width="585" border="1"/> 
-<img src="Images/PLVS-Points-Lines-Vol-Seg.png"
-alt="PLVS details" max-width="695" border="1"/> 
 <img src="Images/PLVS-ar2.gif"
 alt="PLVS augmented reality" height="180" border="1"/> 
 <img src="Images/PLVS-details.gif"
 alt="PLVS details" height="180" border="1"/> 
+<img src="Images/PLVS-Points-Lines-Vol-Seg.png"
+alt="PLVS details" max-width="695" border="1"/> 
 </p>
 
 PLVS is available in two different versions.
@@ -58,10 +58,9 @@ Once everything is built, you can enter in the `Scripts` folder and test the dif
 - `$ ./run_tum_vi_stereo.sh` for TUM VI datasets, only stereo
 - `$ ./run_tum_vi_stereo_inertial.sh` for TUM VI datasets, stereo + inertial
 
-In each of the above scripts, you have to configure the `DATASET_BASE_FOLDER`, the specific `DATASET` of interest, and the used `YAML` configuration file. In particular, each configuration file shows different sections with commented options. For a quick overview of the **new features** and their corresponding yaml options refer to [new_features.md](./new_features.md).   
+In each of the above scripts, you have to configure *(1)* the `DATASET_BASE_FOLDER`, *(2)* the specific `DATASET` of interest, and *(3)* the used `YAML` configuration file. In particular, each `YAML` configuration file shows different sections with commented options. For a quick overview of the **new features** and their corresponding `YAML` options refer to [new_features.md](./new_features.md).   
 
-If you built the ROS workspace, you can use the scripts `ros_xterm*` to launch the PLVS ROS nodes. For instance, 
-* with the TUM datasets, run `ros_xterm_tum_rgbd.sh`.
+If you built the ROS workspace, you can use the scripts `ros_xterm*` to launch the PLVS ROS nodes. For instance, with the TUM datasets, run `ros_xterm_tum_rgbd.sh`.
 
 ## Contributing
 

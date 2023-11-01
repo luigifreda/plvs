@@ -16,11 +16,11 @@ This is a list of the **new features** provided by PLVS:
 * Different methods can be used with calibrated stereo cameras for estimating depth maps: *libelas*, *libsgm*, *opencv* (these methods may need more fine tuning).
   - Use the option `StereoDense.type` to select your preferred method in the yaml settings for stereo cameras. This will work with your stereo datasets when `PointCloudMapping.on` is set to 1.  
 * Some parts of the original ORBSLAM code were improved or optimized.
-* A **new version of g2o** is supported (*tags/20230223_git*). This can be enabled by setting the option `WITH_G2O_NEW` to `ON` in the main CMakeList.txt of PLVS. 
-* **Smart pointers** to manage points and lines (WIP for keyframes).
+* A **new version of g2o** is supported (*tags/20230223_git*). This can be enabled by setting the option `WITH_G2O_NEW` to `ON` in the main `CMakeLists.txt` of PLVS. Note that the new version of g2o will be automatically installed for you by the main build script (`build.sh` → `build_thirdparty.sh` → `install_local_g2o_new.sh`).
+* **Smart pointers** to manage points and lines (WIP for keyframes). See the file [Pointers.h](include/Pointers.h).
 * **MapOjbect**: Experimental representation for planar objects (WIP for PLVS II).
-* C++17 support. 
-* Many convenient scripts are provided for launching apps, benchmarking and monitoring the system.
+* C++17 support. This can be configured at global level in [config.sh](./config.sh) by setting the variable `CPP_STANDARD_VERSION`.
+* Many convenient scripts are provided for launching apps, benchmarking and monitoring the system. See the `Scripts` and the `Benchmarking` folders.
   
 **Note**: PLVS is an active project. The main *README* is under construction and will be updated soon with further information and details. Code improvements are coming soon. 
 
