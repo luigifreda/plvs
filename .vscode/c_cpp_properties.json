@@ -9,6 +9,8 @@
                 "${workspaceFolder}/Thirdparty/voxblox/**",    
                 "${workspaceFolder}/Thirdparty/voxblox_server/**",    
                 "${workspaceFolder}/Thirdparty/DBoW2/**",
+                "${workspaceFolder}/Thirdparty/DBoW2/DBoW2/**",       
+                "${workspaceFolder}/Thirdparty/DBoW2/DUtils/**",                            
                 "${workspaceFolder}/Thirdparty/fastfusion/**",          
                 "${workspaceFolder}/Thirdparty/libelas-gpu/**",  
                 "${workspaceFolder}/Thirdparty/libsgm/**", 

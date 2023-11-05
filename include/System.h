@@ -253,16 +253,12 @@ public:
     bool LoadAtlas(const std::string &filename, int type=FileType::BINARY_FILE);    
     
     void PrintMapStatistics();
-    //void SaveAtlas(int type);
 
     bool ShouldFinished();
     
     void SetCalibration(const float fx, const float fy, const float cx, const float cy, const cv::Mat& distCoef, const float bf);      
 
 private:
-
-    //void SaveAtlas(int type);
-    //bool LoadAtlas(int type);
 
     std::string CalculateCheckSum(std::string filename, int type);
 

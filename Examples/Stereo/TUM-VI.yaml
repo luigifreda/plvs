@@ -96,3 +96,22 @@ ORBextractor.nLevels: 8
 ORBextractor.iniThFAST: 20
 ORBextractor.minThFAST: 7
 
+#--------------------------------------------------------------------------------------------
+# KeyFrame Generation 
+#--------------------------------------------------------------------------------------------
+
+# on: 1 is ON, 0 is OFF
+KeyFrame.fovCentersBasedGeneration.on: 0
+KeyFrame.maxFovCentersDistance: 0.5
+
+#--------------------------------------------------------------------------------------------
+# Sparse Mapping
+#--------------------------------------------------------------------------------------------
+
+SparseMapping.filename: "sparse_map_tum_vi_stereo.atlas"
+# use saved map on start 
+SparseMapping.reuseMap: 1  
+# save map on shutdown
+SparseMapping.saveMap: 0 
+# force immediate relocalization (or wait for loop-closing thread for relocalization): 1 is ON, 0 is OFF
+SparseMapping.forceRelocalization: 1

@@ -2580,7 +2580,7 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
         mvLineLevelSigma2    = mpLineExtractorLeft->GetScaleSigmaSquares();
         mvLineInvLevelSigma2 = mpLineExtractorLeft->GetInverseScaleSigmaSquares();
     }   
-    
+
     // ORB extraction
 #ifdef REGISTER_TIMES
     std::chrono::steady_clock::time_point time_StartExtORB = std::chrono::steady_clock::now();

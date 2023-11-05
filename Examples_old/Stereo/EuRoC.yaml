@@ -201,7 +201,7 @@ KeyFrame.maxFovCentersDistance: 0.4
 # Sparse Mapping
 #--------------------------------------------------------------------------------------------
 
-SparseMapping.filename: "sparse_map_stereo.atlas"
+SparseMapping.filename: "sparse_map_euroc_stereo.atlas"
 # use saved map on start: 1 is ON, 0 is OFF 
 SparseMapping.reuseMap: 1 
 # freeze map during optimizations: 1 is ON, 0 is OFF  

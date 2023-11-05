@@ -133,7 +133,7 @@ KeyFrame.maxFovCentersDistance: 0.4
 # Sparse Mapping
 #--------------------------------------------------------------------------------------------
 
-SparseMapping.filename: "sparse_map_rgbd.atlas"
+SparseMapping.filename: "sparse_map_tum_rgbd.atlas"
 # use saved map on start: 1 is ON, 0 is OFF 
 SparseMapping.reuseMap: 0 
 # freeze map during optimizations: 1 is ON, 0 is OFF  

@@ -5258,6 +5258,8 @@ void Tracking::InformOnlyTracking(const bool &flag)
 
 void Tracking::UpdateFrameIMU(const float s, const IMU::Bias &b, KeyFramePtr pCurrentKeyFrame)
 {
+    if(!pCurrentKeyFrame) return; 
+
     Map * pMap = pCurrentKeyFrame->GetMap();
     PLVS_ASSERT((bool)pMap,"Current map must be non-null!");
     
@@ -5286,6 +5288,11 @@ void Tracking::UpdateFrameIMU(const float s, const IMU::Bias &b, KeyFramePtr pCu
 
         while(pKF && pKF->isBad())
         {
+            if(pKF == pKF->GetParent())
+            {
+                std::cout << "WARNING: Tracking::UpdateFrameIMU() - loop with parent" << std::endl;
+                break;  
+            }                
             pKF = pKF->GetParent();
             if(!pKF) 
             {

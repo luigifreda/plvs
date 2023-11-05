@@ -135,7 +135,9 @@ Scripts/transformation.txt
 Scripts/CameraTrajectory.png
 Scripts/CameraTrajectory.txt
 Scripts/KeyFrameTrajectory.png
-Scripts/map_0.ply
+Scripts/*.ply
+Scripts/*.atlas 
+Scripts/*.dat 
 Scripts/run_euroc_mh
 Scripts/__pycache__
 Scripts/f_dataset*
@@ -182,6 +184,7 @@ Results/
 .cache
 
 *.ply
+*.dat 
 
 # Compiled Object files
 *.slo

@@ -1676,7 +1676,6 @@ void LocalMapping::KeyFrameCulling()
     }
 
 
-
     for(vector<KeyFramePtr>::iterator vit=vpLocalKeyFrames.begin(), vend=vpLocalKeyFrames.end(); vit!=vend; vit++)
     {
         count++;
@@ -1780,15 +1779,15 @@ void LocalMapping::KeyFrameCulling()
                         nMLs++;
                         if(pML->Observations()>thLineObs)
                         {
-//                            const int &scaleLevel = pKF->mvKeyLinesUn[i].octave;
-//                            const map<KeyFramePtr, tuple<int,int>> observations = pML->GetObservations();
-//                            int nObs=0;
-//                            for(map<KeyFramePtr, tuple<int,int>>::const_iterator mit=observations.begin(), mend=observations.end(); mit!=mend; mit++)
-//                            {
-//                                KeyFramePtr pKFi = mit->first;
-//                                if(pKFi==pKF)
-//                                    continue;
-//                                const int &scaleLeveli = pKFi->mvKeyLinesUn[mit->second].octave;
+                        //    const int &scaleLevel = pKF->mvKeyLinesUn[i].octave;
+                        //    const map<KeyFramePtr, tuple<int,int>> observations = pML->GetObservations();
+                        //    int nObs=0;
+                        //    for(map<KeyFramePtr, tuple<int,int>>::const_iterator mit=observations.begin(), mend=observations.end(); mit!=mend; mit++)
+                        //    {
+                        //        KeyFramePtr pKFi = mit->first;
+                        //        if(pKFi==pKF)
+                        //            continue;
+                        //        const int &scaleLeveli = pKFi->mvKeyLinesUn[mit->second].octave;
 
                                 
                                 const int &scaleLevel = (pKF -> NlinesLeft == -1) ? pKF->mvKeyLinesUn[i].octave

@@ -117,8 +117,6 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
        exit(-1);
     }
 
-    bool loadedAtlas = false;
-
     cv::FileNode node = fsSettings["File.version"];
     if(!node.empty() && node.isString() && node.string() == "1.0")
     {
@@ -193,9 +191,11 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
         exit(-1);
     }
     std::string binString = bBinVocLoaded ? "(binary)" : "";
-    cout << "Vocabulary " << binString << " loaded!" << endl << endl;
+    cout << "Vocabulary " << strVocFile << " " << binString << " loaded!" << endl << endl;
     }
 #endif
+
+    mStrVocabularyFilePath = strVocFile;
 
     // load/save map parameters 
     mStrMapfile = Utils::GetParam(fsSettings, "SparseMapping.filename", std::string());     
@@ -204,9 +204,9 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     bool bForceRelocalizationInMap = static_cast<int> (Utils::GetParam(fsSettings, "SparseMapping.forceRelocalization", 0)) != 0;    
     bool bFreezeMap = static_cast<int> (Utils::GetParam(fsSettings, "SparseMapping.freezeMap", 0)) != 0;      
     bool bMapLoaded = false;
-#if 1    
+    bool bLoadedAtlas = false;
     if( !mStrMapfile.empty() && bReuseMap && 
-            LoadAtlas(mStrMapfile) //LoadMap(mStrMapfile)
+            LoadAtlas(mStrMapfile) 
     )
     {
         if(bFreezeMap)
@@ -215,8 +215,17 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
             for(size_t ii=0, iiEnd=keyframes.size(); ii<iiEnd; ii++) keyframes[ii]->mbFixed = true;        
         }
         
-        cout << "Loading available atlas: " << mStrMapfile << endl; 
+        cout << "Loaded available atlas: " << mStrMapfile << endl; 
         bMapLoaded = true; 
+
+        bLoadedAtlas = true;
+    #if 1
+        if((mSensor==IMU_MONOCULAR) || (mSensor==IMU_STEREO) || (mSensor==IMU_RGBD))
+        {
+            cout << "Creating a new map for IMU system" << endl; 
+            mpAtlas->CreateNewMap();   
+        }
+    #endif      
     } 
     else 
     {
@@ -226,19 +235,6 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
         //Create the Map
         mpAtlas = new Atlas(0);
     }
-#else
-
-    //Create KeyFrame Database
-    mpKeyFrameDatabase = new KeyFrameDatabase(*mpVocabulary);
-
-    //Create the Atlas
-    mpAtlas = new Atlas(0);
-    //----
-#endif     
-
-    mStrVocabularyFilePath = strVocFile;
-
-    //bool loadedAtlas = false;
 
 #if 0
     if(mStrLoadAtlasFromFile.empty())
@@ -298,7 +294,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
 
         //cout << "KF in DB: " << mpKeyFrameDatabase->mnNumKFs << "; words: " << mpKeyFrameDatabase->mnNumWords << endl;
 
-        loadedAtlas = true;
+        bLoadedAtlas = true;
 
         mpAtlas->CreateNewMap();
 
@@ -1770,17 +1766,17 @@ void System::SaveAtlas(const string &filename, int type)
         return; 
     }
     
-    std::string strVocabularyChecksum = CalculateCheckSum(mStrVocabularyFilePath,TEXT_FILE);
+    std::string strVocabularyChecksum = CalculateCheckSum(mStrVocabularyFilePath, type);
     std::size_t found = mStrVocabularyFilePath.find_last_of("/\\");
     std::string strVocabularyName = mStrVocabularyFilePath.substr(found+1);
 
     std::ofstream out(filename, std::ios_base::binary);
     if (!out) 
     {
-        std::cerr << "Cannot Write to Atlas file: " << filename << std::endl;
+        std::cerr << "Cannot write to atlas file: " << filename << std::endl;
         exit(-1);
     }
-    std::cout << "Saving Atlas to file: " << filename << std::endl << std::flush;
+    std::cout << "Saving atlas to file: " << filename << std::endl << std::flush;
 
     if(type == TEXT_FILE) // File text
     {
@@ -1807,17 +1803,17 @@ void System::SaveAtlas(const string &filename, int type)
 
 bool System::LoadAtlas(const string &filename, int type) 
 {
-    std::cout << "Loading sparse map ..." << std::endl; 
+    std::cout << "Loading atlas ..." << std::endl; 
     string strFileVoc, strVocChecksum;
     bool isRead = false;
 
     std::ifstream in(filename, std::ios_base::binary);
     if (!in) 
     {
-        std::cerr << "Cannot open sparse map file: " << filename << " , creating a new one..." << std::endl;
+        std::cerr << "Cannot open atlas file: " << filename << " , creating a new one..." << std::endl;
         return false;
     }
-    cout << "Loading Atlas file: " << filename << std::endl << std::flush;
+    cout << "\tFound atlas file: " << filename << std::endl << std::flush;
 
     if(type == TEXT_FILE) // File text
     {
@@ -1845,38 +1841,47 @@ bool System::LoadAtlas(const string &filename, int type)
     if(isRead)
     {
         //Check if the vocabulary is the same
-        string strInputVocabularyChecksum = CalculateCheckSum(mStrVocabularyFilePath,TEXT_FILE);
+        string strInputVocabularyChecksum = CalculateCheckSum(mStrVocabularyFilePath, type);
 
         if(strInputVocabularyChecksum.compare(strVocChecksum) != 0)
         {
-            cout << "The vocabulary load isn't the same which the load session was created " << endl;
-            cout << "-Vocabulary name: " << strFileVoc << endl;
+            cout << "The load vocabulary " << mStrVocabularyFilePath << " isn't the same which the load session was created " << endl;
+            cout << "\tVocabulary name: " << strFileVoc << endl;
             return false; // Both are differents
         }
     }
+    else 
+    {
+        return false;
+    }
     
-    cout << "Atlas Reconstructing" << std::endl << flush;
+    cout << "Atlas reconstructing..." << std::endl << flush;
     
+    mpAtlas->SetKeyFrameDababase(mpKeyFrameDatabase);
     mpAtlas->SetORBVocabulary(mpVocabulary);    
-    mpKeyFrameDatabase->SetORBVocabulary(mpVocabulary);
+    mpKeyFrameDatabase->SetORBVocabulary(mpVocabulary, false /*clearInvertedFile*/);
     
+    std::vector<GeometricCamera*> vCams = mpAtlas->GetAllCameras();
     vector<Map*> vMaps = mpAtlas->GetAllMaps();
-    unsigned long mnFrameId = 0;
+    unsigned long mnMaxFrameId = 0;
     for (auto pMap: vMaps)
     {
         vector<PLVS2::KeyFramePtr> vpKFS = pMap->GetAllKeyFrames();
         for (auto it : vpKFS) 
         {
             it->SetORBVocabulary(mpVocabulary);
+            it->SetKeyFrameDatabase(mpKeyFrameDatabase);
             it->ComputeBoW();
-            if (it->mnFrameId > mnFrameId) mnFrameId = it->mnFrameId;
+            if (it->mnFrameId > mnMaxFrameId) mnMaxFrameId = it->mnFrameId;
         }
     }
-    Frame::nNextId = mnFrameId;
+    Frame::nNextId = mnMaxFrameId;
     
     cout << " ...done" << endl << std::flush;
     
     mpAtlas->printStatistics();
+
+    std::cout << "Starting mapping from KF id: " << KeyFrame::nNextId << std::endl; 
         
     return true;
 }

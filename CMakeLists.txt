@@ -7,7 +7,9 @@ project(plvs)
 set(CPP_STANDARD_VERSION "17" CACHE STRING "Desired C++ standard version") # we need c++17 since nvcc does not support c++20 (probably we can try mixing standards and let nvcc use c++17 ... not sure about the result)
 set(OPENCV_VERSION "4" CACHE STRING "Desired OpenCV version") # this is the first target version that is searched for 
 
-set(WITH_FASTFUSION ON  CACHE BOOL  "Add fastfusion support") # for enabling RGBD dense reconstruction via fastfusion (it needs Intel SIMD)
+set(BUILD_WITH_MARCH_NATIVE ON  CACHE BOOL "Build with \"-march native\"")
+
+set(WITH_FASTFUSION ON  CACHE BOOL "Add fastfusion support") # for enabling RGBD dense reconstruction via fastfusion (it needs Intel SIMD)
 set(WITH_G2O_NEW    OFF CACHE BOOL "Add g2o new support") # for using the new version of g2o with Cholmod and Csparse solvers (and more...)
 set(WITH_LIBELAS    ON  CACHE BOOL "Add libelas support")  # for stereo dense reconstruction (it needs Intel SIMD, optionally can be compiled with CUDA)
 set(WITH_LIBSGM     ON  CACHE BOOL "Add stereo libsgm support")  # for stereo dense reconstruction (it needs CUDA)
@@ -53,53 +55,55 @@ message("Build type: " ${CMAKE_BUILD_TYPE})
 #set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -march=native")
 #set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native")
 
-# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wno-deprecated -O3 -march=native ")
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-deprecated -O3 -march=native")
-
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
 
     # Best release
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall -Wextra -O3 -march=native -fPIC -DNDEBUG -Wno-unused-parameter -Wno-unused-function")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -O3 -march=native -fPIC -DNDEBUG -Wno-unused-parameter -Wno-unused-function")
+    set(MY_FLAGS "-Wall -O3 -fPIC -DNDEBUG -Wno-unused-parameter -Wno-unused-function") # -Wextra -Wno-deprecated
 
-    #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall -Wextra -O3 -pthread -march=native -ftree-vectorize -funroll-loops")
-    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -O3 -pthread -march=native -ftree-vectorize -funroll-loops")
+    if(BUILD_WITH_MARCH_NATIVE)
+        set(MY_FLAGS "${MY_FLAGS} -march=native")      
+    endif()
 
-    #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3 -march=native -ftree-vectorize -funroll-loops -pthread -Wextra -mmmx -msse -msse2 -msse3 -msse4")
-    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -march=native -ftree-vectorize -funroll-loops -pthread -Wextra -mmmx -msse -msse2 -msse3 -msse4")
+    #set(MY_FLAGS "-Wall -Wextra -O3 -pthread -ftree-vectorize -funroll-loops")
 
     # Best release Nvidia Jetson TX2
-    #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3 -march=native -ftree-vectorize -funroll-loops -pthread -Wextra")
-    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -march=native -ftree-vectorize -funroll-loops -pthread -Wextra")
+    #set(MY_FLAGS "-Wall -O3 -ftree-vectorize -funroll-loops -pthread -Wextra")
 
     if(WITH_TX2)
         # Best release Nvidia Jetson TX2
-        #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall -O3 -march=armv8-a+crypto -mcpu=cortex-a57+crypto -Wextra -ffast-math -flto -fPIC -DNDEBUG")
-        #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -march=armv8-a+crypto -mcpu=cortex-a57+crypto -Wextra -ffast-math -flto -fPIC -DNDEBUG")
+        #set(MY_FLAGS "-Wall -O3 -march=armv8-a+crypto -mcpu=cortex-a57+crypto -Wextra -ffast-math -flto -fPIC -DNDEBUG")
     endif()
-
-    # Add OpenMP flags
-    if( WITH_OPENMP )
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")   
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
-    endif()
-
 else()
 
     message(AUTHOR_WARNING "\n!!!Compiling in Debug mode!!!\n")
     # Debug
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3  -g")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3  -g")
+    #set(MY_FLAGS "-Wall -O3  -g -pthread")
 
-    # Debug with g2o compiled with -march=native; this should avoid g2o crash (see "Mismatched build flags" on https://github.com/ethz-asl/eigen_catkin/wiki/Eigen-Memory-Issues#memory-misalignment )
-    #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -g -O3 -march=native -fPIC -pthread ") # -fsanitize=address
-    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall  -g -O3 -march=native -fPIC -pthread") # -fsanitize=address  
+    # Debug with g2o compiled with -march=native; this should avoid g2o crashes (see "Mismatched build flags" on https://github.com/ethz-asl/eigen_catkin/wiki/Eigen-Memory-Issues#memory-misalignment )
+    set(MY_FLAGS "-Wall  -g -O3 -fPIC -pthread") # -fsanitize=address  
+
+    if(BUILD_WITH_MARCH_NATIVE)
+        set(MY_FLAGS "${MY_FLAGS} -march=native")      
+    endif()
 
     # this makes g2o crash if g2o is compiled with optimizations 
-    #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -g")
-    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -g")
-
+    #set(MY_FLAGS "-Wall  -g")
 endif()
+
+# Add OpenMP flags
+if( WITH_OPENMP )
+    set(MY_FLAGS "${MY_FLAGS} -fopenmp")   
+endif()
+
+# get and store all the active flags 
+set(MY_C_FLAGS "${CMAKE_C_FLAGS} ${MY_FLAGS}")
+set(MY_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MY_FLAGS}")    
+
+# apply flags 
+set(CMAKE_C_FLAGS "${MY_C_FLAGS}")
+set(CMAKE_CXX_FLAGS "${MY_CXX_FLAGS}")
+
+message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
@@ -388,7 +392,7 @@ ${PROTOBUF_LIBRARIES}
 ${CUDA_LIBRARIES} # these are used just for stereo disparity computation when libelas or libsgm support are added 
 ${LibCrypto_LIBRARY}
 ${GLFW_LIBRARIES}
-${CHOLMOD_LIBRARIES}  
+${CHOLMOD_LIBRARIES}
 )
 
 # If RealSense SDK is found the library is added and its examples compiled

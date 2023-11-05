@@ -581,7 +581,7 @@ map<long unsigned int, KeyFrame*> Atlas::GetAtlasKeyframes()
 
 void Atlas::printStatistics()
 {
-    std::cout << "Num maps in Atlas: " << mspMaps.size() << std::endl; 
+    std::cout << "Num maps in atlas: " << mspMaps.size() << std::endl; 
     unique_lock<mutex> lock(mMutexAtlas);
     for(std::set<Map*>::iterator it = mspMaps.begin(), end = mspMaps.end(); it != end; it++)
     {
@@ -616,8 +616,8 @@ void Atlas::serialize(Archive &ar, const unsigned int version)
 {
     UNUSED_VAR(version);
     
-    //ar.template register_type<Pinhole>();
-    //ar.template register_type<KannalaBrandt8>();
+    ar.template register_type<Pinhole>();
+    ar.template register_type<KannalaBrandt8>();
 
     //? Save/load the set of maps, the set is broken in libboost 1.58 for ubuntu 16.04?
       

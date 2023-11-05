@@ -72,8 +72,8 @@ namespace PLVS2
 
 const int Viewer::kUiWidth = 180;
 
-const std::string Viewer::kMapWindowName  = "PLVS3: Map Viewer";
-const std::string Viewer::kFrameWindowName = "PLVS3: Current Frame";
+const std::string Viewer::kMapWindowName  = "PLVS2: Map Viewer";
+const std::string Viewer::kFrameWindowName = "PLVS2: Current Frame";
 
 const float Viewer::kViewpointXtopDefault  = 4.0; // [m] side shift from which the eye sees the map from the top
 const float Viewer::kViewpointYtopDefault = -4.0; // [m] height from which the eye sees the map from the top

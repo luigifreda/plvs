@@ -2197,12 +2197,12 @@ void KeyFrame::serialize(Archive& ar, const unsigned int version)
     ar &mpMap;
     // don't save mutex    
     
-//    // Bad flags
-//    ar & mbNotErase;
-//    ar & mbToBeErased;
-//    ar & mbBad;
-//
-//    ar & mHalfBaseline;
+   // Bad flags
+   ar & mbNotErase;
+   ar & mbToBeErased;
+   ar & mbBad;
+
+   ar & mHalfBaseline;
 
     // Camera variables
     //ar & mnBackupIdCamera;
@@ -2217,15 +2217,15 @@ void KeyFrame::serialize(Archive& ar, const unsigned int version)
     ar & const_cast<int&>(NRight);
     //serializeMatrix(ar, mTlr, version);
     //serializeMatrix(ar, mTrl, version);
-    //ar & mTlr;
-    //ar & mTrl;
     serializeSophusSE3<Archive>(ar, mTlr, version);
     serializeSophusSE3<Archive>(ar, mTrl, version);    
 
     //serializeVectorKeyPoints(ar, mvKeysRight, version);
     ar & const_cast< std::vector< cv::KeyPoint > & >(mvKeysRight);
     ar & mGridRight;
-    
+
+    ar & const_cast<int&>(NlinesLeft);
+    ar & const_cast<int&>(NlinesRight);    
     ar & const_cast< std::vector<cv::line_descriptor_c::KeyLine>& >(mvKeyLinesRight);
     ar & mLineGridRight;
 
@@ -2240,8 +2240,6 @@ void KeyFrame::serialize(Archive& ar, const unsigned int version)
     ar & mNextKF;
     
     ar & bImu;
-    // ar & Vw;
-    // ar & Owb;    
     ar & boost::serialization::make_array(mVw.data(), mVw.size());
     ar & boost::serialization::make_array(mOwb.data(), mOwb.size());
     ar & mbHasVelocity;    

@@ -12,7 +12,7 @@ DATASET_NAME="dataset-room1_512_16"
 
 #TUM_YAML="TUM-VI.yaml"
 #TUM_YAML="TUM-VI_far.yaml"  # for outdoor envs 
-TUM_YAML="TUM-VI_rectified.yaml"
+TUM_YAML="TUM-VI_rectified.yaml" # use this if you want to pre-rectify the images
 
 
 #export DEBUG_PREFIX="gdb -ex run --args"  # uncomment this in order to debug with gdb

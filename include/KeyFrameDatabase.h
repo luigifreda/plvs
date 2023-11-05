@@ -95,7 +95,7 @@ public:
 
    void PreSave();
    void PostLoad(map<long unsigned int, KeyFramePtr> mpKFid);
-   void SetORBVocabulary(ORBVocabulary* pORBVoc);
+   void SetORBVocabulary(ORBVocabulary* pORBVoc, bool clearInvertedFile=true);
 
 protected:
 
@@ -104,9 +104,6 @@ protected:
 
   // Inverted file
   std::vector<list<KeyFramePtr> > mvInvertedFile; // for each BOW word we get the list of KFs sharing it 
-
-  // For save relation without pointer, this is necessary for save/load function
-  std::vector<list<long unsigned int> > mvBackupInvertedFileId;
 
   // Mutex
   std::mutex mMutex;

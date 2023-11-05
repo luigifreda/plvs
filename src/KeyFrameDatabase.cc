@@ -765,11 +765,11 @@ vector<KeyFramePtr> KeyFrameDatabase::DetectRelocalizationCandidates(Frame *F, M
     // Search all keyframes that share a word with current frame
     {
         unique_lock<mutex> lock(mMutex);
-                    
+
         //std::cout << "frame " << F->mnId << " -> mBowVec: " << F->mBowVec << std::endl; 
         for(DBoW2::BowVector::const_iterator vit=F->mBowVec.begin(), vend=F->mBowVec.end(); vit != vend; vit++)
         {
-            list<KeyFramePtr> &lKFs =   mvInvertedFile[vit->first];
+            list<KeyFramePtr> &lKFs = mvInvertedFile[vit->first];
             // if(lKFs.size() != 0)
             //     std::cout << "wordId: " << vit->first <<" -> lKFs.size(): " << lKFs.size() << std::endl; 
     
@@ -787,7 +787,7 @@ vector<KeyFramePtr> KeyFrameDatabase::DetectRelocalizationCandidates(Frame *F, M
         }
     }
 
-    // std::cout << "lKFsSharingWords.size(): " << lKFsSharingWords.size() << std::endl; 
+    //std::cout << "lKFsSharingWords.size(): " << lKFsSharingWords.size() << std::endl;
 
     if(lKFsSharingWords.empty())
         return vector<KeyFramePtr>();
@@ -878,22 +878,27 @@ vector<KeyFramePtr> KeyFrameDatabase::DetectRelocalizationCandidates(Frame *F, M
     return vpRelocCandidates;
 }
 
-void KeyFrameDatabase::SetORBVocabulary(ORBVocabulary* pORBVoc)
+void KeyFrameDatabase::SetORBVocabulary(ORBVocabulary* pORBVoc, bool clearInvertedFile)
 {
     ORBVocabulary** ptr;
     ptr = (ORBVocabulary**)( &mpVoc );
     *ptr = pORBVoc;
 
-    mvInvertedFile.clear();
-    mvInvertedFile.resize(mpVoc->size());
+    if(clearInvertedFile){
+        mvInvertedFile.clear();
+        mvInvertedFile.resize(mpVoc->size());
+    }
+#if 0
+    for(int ii=0; ii<mvInvertedFile.size(); ii++) {
+        if(!mvInvertedFile[ii].empty()) std::cout << "<" << ii << ", " << mvInvertedFile[ii].size() << ">" << std::endl; 
+    }
+#endif 
 }
 
 template<class Archive>
 void KeyFrameDatabase::serialize(Archive& ar, const unsigned int version)
 {
     UNUSED_VAR(version);
-
-    ar & mvBackupInvertedFileId;
 
     // don't save associated vocabulary, KFDB restore by created explicitly from a new ORBvocabulary instance
     // inverted file

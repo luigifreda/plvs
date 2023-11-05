@@ -3,59 +3,89 @@ project(plvs)
 
 set(CPP_STANDARD_VERSION "17" CACHE STRING "Desired C++ standard version") 
 set(OPENCV_VERSION "4" CACHE STRING "Desired OpenCV version") # this is the first target version that is searched for 
+set(BUILD_WITH_MARCH_NATIVE ON  CACHE BOOL "Build with \"-march native\"")
 set(WITH_OPENMP ON CACHE BOOL "Added OpenMP support") # useful for PCL (since we use the macro PCL_NO_PRECOMPILE!)
 set(WITH_CUDA OFF CACHE BOOL "Added CUDA support")
 
-# if CMAKE_BUILD_TYPE is not specified, take 'Release' as default
-IF(NOT CMAKE_BUILD_TYPE)
-    SET(CMAKE_BUILD_TYPE Release)
-ENDIF(NOT CMAKE_BUILD_TYPE)
-
-MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
-
-# old builds
-#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3 -march=native -pthread -DNDEBUG -march=native -mmmx -msse -msse2 -msse3 -msse4")
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -march=native -pthread -DNDEBUG -march=native -mmmx -msse -msse2 -msse3 -msse4")
-
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-
-    # Best release
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall -Wextra -O3 -march=native -fPIC -DNDEBUG")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -O3 -march=native -fPIC -DNDEBUG")
-
-    # Best release Nvidia Jetson TX2
-    #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3 -march=native -ftree-vectorize -funroll-loops -pthread -Wextra")
-    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -march=native -ftree-vectorize -funroll-loops -pthread -Wextra")
-
-    # Add OpenMP flags
-    if( WITH_OPENMP )
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")  
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
-    endif()
-
-else()
-
-    message(STATUS "\n!!!Compiling in Debug mode!!!\n")
-    # Debug
-    #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3  -march=native -g")
-    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3  -march=native -g")
-
-    # this make g2o crash
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3  -march=native -g")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3  -march=native -g")
-
-    #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -g")
-    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -g")
-
-endif()
-
+#====================================
+# c++ standard 
 
 # Set the C++ standard 
 set(CMAKE_CXX_STANDARD ${CPP_STANDARD_VERSION})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+#====================================
+# general cmake options 
+
 # This option allows the generations of a file compile_commands.json in our build folder: that file contains the full command line to compile individual source files
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+#====================================
+# compiler and build options 
+
+# if CMAKE_BUILD_TYPE is not specified, take 'Release' as default
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
+#set(CMAKE_BUILD_TYPE Debug)  # force Debug 
+
+MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
+
+
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+
+    # Best release
+    set(MY_FLAGS "-Wall -Wextra -O3 -fPIC -DNDEBUG -Wno-unused-parameter -Wno-unused-function")
+
+    if(BUILD_WITH_MARCH_NATIVE)
+        set(MY_FLAGS "${MY_FLAGS} -march=native")      
+    endif()
+
+    #set(MY_FLAGS "-Wall -Wextra -O3 -pthread -ftree-vectorize -funroll-loops")
+
+    # Best release Nvidia Jetson TX2
+    #set(MY_FLAGS "-Wall -O3 -ftree-vectorize -funroll-loops -pthread -Wextra")
+
+    if(WITH_TX2)
+        # Best release Nvidia Jetson TX2
+        #set(MY_FLAGS "-Wall -O3 -march=armv8-a+crypto -mcpu=cortex-a57+crypto -Wextra -ffast-math -flto -fPIC -DNDEBUG")
+    endif()
+else()
+
+    message(AUTHOR_WARNING "\n!!!Compiling in Debug mode!!!\n")
+    # Debug
+    #set(MY_FLAGS "-Wall -O3  -g -pthread")
+
+    # Debug with g2o compiled with -march=native; this should avoid g2o crashes (see "Mismatched build flags" on https://github.com/ethz-asl/eigen_catkin/wiki/Eigen-Memory-Issues#memory-misalignment )
+    set(MY_FLAGS "-Wall  -g -O3 -fPIC -pthread") # -fsanitize=address  
+
+    if(BUILD_WITH_MARCH_NATIVE)
+        set(MY_FLAGS "${MY_FLAGS} -march=native")      
+    endif()
+
+    # this makes g2o crash if g2o is compiled with optimizations 
+    #set(MY_FLAGS "-Wall  -g")
+endif()
+
+# Add OpenMP flags
+if( WITH_OPENMP )
+    set(MY_FLAGS "${MY_FLAGS} -fopenmp")   
+endif()
+
+# get and store all the active flags 
+set(MY_C_FLAGS "${CMAKE_C_FLAGS} ${MY_FLAGS}")
+set(MY_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MY_FLAGS}")    
+
+# apply flags 
+set(CMAKE_C_FLAGS "${MY_C_FLAGS}")
+set(CMAKE_CXX_FLAGS "${MY_CXX_FLAGS}")
+
+message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
+
+#====================================
+
+# cmake modules
 
 LIST(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/../../../cmake_modules)
 

@@ -114,7 +114,7 @@ KeyFrame.maxFovCentersDistance: 0.5
 # Sparse Mapping
 #--------------------------------------------------------------------------------------------
 
-SparseMapping.filename: "sparse_map.map"
+SparseMapping.filename: "sparse_map_kitti_stereo.map"
 # use saved map on start 
 SparseMapping.reuseMap: 0  
 # save map on shutdown

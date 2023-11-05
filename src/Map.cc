@@ -409,7 +409,7 @@ void Map::clear()
 void Map::printStatistics()
 {
     unique_lock<mutex> lock(mMutexMap);
-    
+
     std::cout << "********************" << std::endl; 
     std::cout << "Map " << mnId << std::endl; 
     
@@ -484,6 +484,7 @@ void Map::printStatistics()
         }
     }     
     std::cout << "num keyframes: " << numKeyFrames << ", bad %: " << float(numBadKeyFrames)/numKeyFrames << ", null: " << numNullKeyFrames << std::endl;      
+    std::cout << "********************" << std::endl;     
 }
 
 bool Map::IsInUse()
@@ -935,13 +936,14 @@ void Map::serialize(Archive &ar, const unsigned int version)
     
     if (Archive::is_saving::value) 
     {
-        std::cout << "saving map " << mnId << std::endl; 
+        std::cout << "Saving map " << mnId << std::endl; 
     }
     if (Archive::is_loading::value) 
     {
-        std::cout << "loading map " << mnId << std::endl; 
+        std::cout << "Loading map " << mnId << std::endl; 
     }    
     
+    ar & nNextId;
     ar & mnId;
     ar & mnInitKFid;
     ar & mnMaxKFid;

@@ -23,6 +23,7 @@
 #include <unordered_map>
 #include <vector>
 #include <set>
+#include <unordered_set>
 
 #include <boost/functional/hash.hpp>
 
@@ -194,7 +195,7 @@ protected:
 
     _GlobalLabelMap map_; 
     
-    std::set<LabelPair> lastEntries_;
+    std::unordered_set<LabelPair, LabelMap::PairHash> lastEntries_;
     
     size_t numLabels_; 
     
