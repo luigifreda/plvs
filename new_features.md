@@ -11,6 +11,9 @@ This is a list of the **new features** provided by PLVS:
 * **Augmented reality** with overlay of tracked features, built meshes and loaded 3D models. 
   - This viz can be enabled by using the button `AR Camera` in the viewer GUI. 
 * Generated **sparse and dense maps** can be **saved** and **reloaded**. 
+  - You can save the generated sparse and dense maps anytime by using the GUI: first press the button `Pause` and then press the button `Save`. As a consequence, maps will be saved in the *Scripts* folder. In particular, *(1)* a sparse map will be always saved, *(2)* a dense map will be saved in the form of a ply (or of another custom format) only in the case you have set `PointCloudMapping.on: 1`. 
+  - Use the `SparseMapping` options (as showed in this [TUM configuration file](./Settings/old/RGB-D-TUM1.yaml)) in order to reload the sparse map. In particular, be sure to set the `SparseMapping.filename` and then set `SparseMapping.reuseMap: 1`. 
+  - As for reloading the dense map, set `PointCloudMapping.loadMap: 1` and configure `PointCloudMapping.loadFilename`.
 * Extraction of **ORB** keypoints via **CUDA**. 
   - This capability can be optionally activated by using the option `USE_CUDA` in [config.sh](./config.sh) 
 * Different methods can be used with calibrated stereo cameras for estimating depth maps: *libelas*, *libsgm*, *opencv* (these methods may need more fine tuning).
