@@ -28,38 +28,60 @@ function check_package(){
 
 # ====================================================
 
-print_blue  "Configuring and building Thirdparty/opencv ..."
+export TARGET_FOLDER=Thirdparty
+
+export OPENCV_VERSION="4.8.0"   # 4.7.0 4.3.0 4.2.0 4.0.0 3.4.6 3.4.4 3.4.3 3.4.2 3.4.1 
+
+# ====================================================
+print_blue  "Configuring and building $TARGET_FOLDER/opencv ..."
 
 set -e
 
 STARTING_DIR=`pwd`
 version=$(lsb_release -a 2>&1)  # ubuntu version 
 
-export OPENCV_VERSION="4.8.0"   # 4.7.0 4.3.0 4.2.0 4.0.0 3.4.6 3.4.4 3.4.3 3.4.2 3.4.1 
-
+if [ ! -d $TARGET_FOLDER ]; then 
+    mkdir $TARGET_FOLDER
+fi 
 
 # set CUDA 
-
 #export CUDA_VERSION="cuda-11.6"  # must be an installed CUDA path in /usr/local; 
                                   # if available, you can use the simple path "/usr/local/cuda" which should be a symbolic link to the last installed cuda version 
+CUDA_ON=ON
 if [[ -n "$CUDA_VERSION" ]]; then
+    if [[ "$STR" == *"cuda"* ]]; then
+        CUDA_VERSION="${CUDA_VERSION%.*}"  # remove last dot 
+    else
+        CUDA_VERSION="cuda-${CUDA_VERSION%.*}"  # remove last dot     
+    fi 
     echo "using CUDA version $CUDA_VERSION"
+	if [ ! -d /usr/local/$CUDA_VERSION ]; then 
+		echo CUDA_VERSION does not exist: $CUDA_VERSION
+		CUDA_ON=OFF
+	fi 
 else
     if [ -d /usr/local/cuda ]; then
         CUDA_VERSION="cuda"  # use last installed CUDA path 
     else
-        print_red "cuda $CUDA_VERSION not found!"
+        print_red "Warning: cuda $CUDA_VERSION not found and will not be used!"
+        CUDA_ON=OFF
     fi 
 fi 
+echo CUDA_ON: $CUDA_ON
 export PATH=/usr/local/$CUDA_VERSION/bin${PATH:+:${PATH}}   # this is for having the right nvcc in the path
 export LD_LIBRARY_PATH=/usr/local/$CUDA_VERSION/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}  # this is for libs 
 
 
 # pre-installing some required packages 
 
-if [ ! -d Thirdparty/opencv ]; then
+if [ ! -d $TARGET_FOLDER/opencv ]; then
 	sudo apt-get update
 	sudo apt-get install -y pkg-config libglew-dev libtiff5-dev zlib1g-dev libjpeg-dev libeigen3-dev libtbb-dev libgtk2.0-dev libopenblas-dev
+    sudo apt-get install -y curl software-properties-common
+    sudo apt-get install -y build-essential cmake 
+    if [[ "$CUDA_ON" == "ON" ]]; then 
+        sudo apt-get install -y libcudnn8 libcudnn8-dev
+    fi 
 
         if [[ $version == *"20.04"* ]] || [[ $version == *"22.04"* ]] ; then
             sudo apt install -y libtbb-dev libeigen3-dev 
@@ -88,7 +110,7 @@ fi
 # now let's download and compile opencv and opencv_contrib
 # N.B: if you want just to update cmake settings and recompile then remove "opencv/install" and "opencv/build/CMakeCache.txt"
 
-cd Thirdparty
+cd $TARGET_FOLDER
 #if [ ! -d opencv/install ]; then
 if [ ! -f opencv/install/lib/libopencv_core.so ]; then
     if [ ! -d opencv ]; then
@@ -126,12 +148,12 @@ if [ ! -f opencv/install/lib/libopencv_core.so ]; then
           -DWITH_OPENGL=ON \
           -DWITH_TBB=ON \
           -DWITH_V4L=ON \
-          -DWITH_CUDA=ON \
-          -DWITH_CUBLAS=ON \
-          -DWITH_CUFFT=ON \
-          -DCUDA_FAST_MATH=ON \
-          -DWITH_CUDNN=ON \
-          -DOPENCV_DNN_CUDA=ON \
+          -DWITH_CUDA=$CUDA_ON \
+          -DWITH_CUBLAS=$CUDA_ON \
+          -DWITH_CUFFT=$CUDA_ON \
+          -DCUDA_FAST_MATH=$CUDA_ON \
+          -DWITH_CUDNN=$CUDA_ON \
+          -DOPENCV_DNN_CUDA=$CUDA_ON \
           -DCUDA_ARCH_BIN="5.3 6.0 6.1 7.0 7.5 8.6" \
           -DBUILD_opencv_cudacodec=OFF \
           -DENABLE_FAST_MATH=1 \

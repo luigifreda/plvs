@@ -30,7 +30,7 @@ PLVS is available in two different versions.
   
 ## Quick start 
 
-The following procedures were tested under **Ubuntu 20**. If you don't have it, check [rosdocker](https://github.com/luigifreda/rosdocker) and use the *noetic* container.
+The following procedures were tested under **Ubuntu 20**. If you don't have it, check [rosdocker](https://github.com/luigifreda/rosdocker) and use the *noetic* or *noetic_cuda* containers.
 
 ### Build
 

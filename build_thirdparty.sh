@@ -60,7 +60,7 @@ print_blue "Configuring and building Thirdparty/Pangolin ..."
 cd Thirdparty
 if [ ! -d Pangolin ]; then
 	sudo apt-get install -y libglew-dev
-	git clone https://github.com/stevenlovegrove/Pangolin.git
+	git clone  --recursive https://github.com/stevenlovegrove/Pangolin.git
     #git fetch --all --tags # to fetch tags 
     cd Pangolin
     #git checkout tags/v0.6
