@@ -83,10 +83,10 @@ class VertexSBALine : public BaseVertex<6, Vector6d>
 
     void project() {
       //  project starting points P and Q on new line and use them as update
-      const Vector3d Pnew = _estimate.head(3);
-      const Vector3d Qnew = _estimate.tail(3);
+      const Eigen::Vector3d Pnew = _estimate.head(3);
+      const Eigen::Vector3d Qnew = _estimate.tail(3);
       
-      Vector3d dir = (Pnew - Qnew);
+      Eigen::Vector3d dir = (Pnew - Qnew);
       dir.normalize();
       
       const double dotProdP = (P-Pnew).dot(dir);

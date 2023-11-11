@@ -104,7 +104,7 @@ public:
 
   void computeError()  {
     const VertexSE3Expmap* v1 = static_cast<const VertexSE3Expmap*>(_vertices[0]);
-    Vector3d obs(_measurement);
+    Eigen::Vector3d obs(_measurement);
     _error = obs - camProject(v1->estimate().map(Xw));
   }
 
@@ -116,7 +116,7 @@ public:
 
   virtual void linearizeOplus();
 
-  Eigen::Vector3d camProject(const Vector3d & trans_xyz) const;
+  Eigen::Vector3d camProject(const Eigen::Vector3d & trans_xyz) const;
 
   Eigen::Vector3d Xw;
   double fx, fy, cx, cy;
@@ -149,7 +149,7 @@ public:
   void computeError()  {
     const VertexSE3Expmap* vi = static_cast<const VertexSE3Expmap*>(_vertices[0]);
     const SE3Quat& T = vi->estimate();
-    //Vector3d obs(_measurement); // comes as a line representation [l1,l2,l3]=[nx,ny,-d] with [nx,ny] defining a unit normal
+    //_measurement[0,1,2] comes as a line representation [l1,l2,l3]=[nx,ny,-d] with [nx,ny] defining a unit normal
     // constraint: 0 = l1*u1 + l2*v1 + l3  (we can consider a fake "observation" always equal to zero)
     _error[0] = _measurement.dot( camProject(T.map(XSw)) );
     // constraint: 0 = l1*u2 + l2*v2 + l3  (we can consider a fake "observation" always equal to zero)
@@ -166,11 +166,11 @@ public:
     return (vi->estimate().map(XEw))(2)>0.0;
   }
    
-  void getMapLineProjections(Vector2d& projS, Vector2d& projE)  {
+  void getMapLineProjections(Eigen::Vector2d& projS, Eigen::Vector2d& projE)  {
     const VertexSE3Expmap* vi = static_cast<const VertexSE3Expmap*>(_vertices[0]); 
     const SE3Quat& T = vi->estimate();    
-    const Vector3d mapLineS = T.map(XSw); // map P w.r.t. camera frame
-    const Vector3d mapLineE = T.map(XEw); // map Q w.r.t. camera frame
+    const Eigen::Vector3d mapLineS = T.map(XSw); // map P w.r.t. camera frame
+    const Eigen::Vector3d mapLineE = T.map(XEw); // map Q w.r.t. camera frame
     projS = camProject2d(mapLineS); 
     projE = camProject2d(mapLineE); 
   }   
@@ -179,8 +179,8 @@ public:
   virtual void linearizeOplus();
 #endif
 
-  Eigen::Vector3d camProject(const Vector3d & trans_xyz) const;
-  Eigen::Vector2d camProject2d(const Vector3d & trans_xyz) const;
+  Eigen::Vector3d camProject(const Eigen::Vector3d & trans_xyz) const;
+  Eigen::Vector2d camProject2d(const Eigen::Vector3d & trans_xyz) const;
 
   Eigen::Vector3d XSw; // start point 
   Eigen::Vector3d XEw; // end point 
@@ -214,15 +214,15 @@ public:
     // constraint: 0 = l1*u2 + l2*v2 + l3  (we can consider a fake "observation" always equal to zero)
     _error[1] = _measurement[0]*projE[0] + _measurement[1]*projE[1] + _measurement[2];
     
-    const Vector3d& backprojLineSb = XSbc;
-    const Vector3d& backprojLineEb = XEbc;
+    const Eigen::Vector3d& backprojLineSb = XSbc;
+    const Eigen::Vector3d& backprojLineEb = XEbc;
     
     // align 3D map-line to 3D detected-line
     _error[2] = (mapLineS - backprojLineSb).cross(mapLineS-backprojLineEb).norm() * lineLenghtInv; //  |(P-Bp) X (P-Bq)|/|Bq-Bp|
     _error[3] = (mapLineE - backprojLineSb).cross(mapLineE-backprojLineEb).norm() * lineLenghtInv; //  |(Q-Bp) X (Q-Bq)|/|Bq-Bp|
   }
 
-  void getMapLineAndProjections(Vector3d& mapS, Vector3d& mapE, Vector2d& projS, Vector2d& projE)  {
+  void getMapLineAndProjections(Eigen::Vector3d& mapS, Eigen::Vector3d& mapE, Eigen::Vector2d& projS, Eigen::Vector2d& projE)  {
     const VertexSE3Expmap* vi = static_cast<const VertexSE3Expmap*>(_vertices[0]); 
     const SE3Quat& T = vi->estimate();    
     mapS = T.map(XSw); // map P w.r.t. camera frame
@@ -235,9 +235,9 @@ public:
   virtual void linearizeOplus();
 #endif
 
-  Eigen::Vector2d camProject(const Vector3d & trans_xyz) const;
+  Eigen::Vector2d camProject(const Eigen::Vector3d & trans_xyz) const;
   
-  Eigen::Vector3d camBackProject(const Vector2d & p_uv, const double depth ) const;
+  Eigen::Vector3d camBackProject(const Eigen::Vector2d & p_uv, const double depth ) const;
   
   
     // to be called after all the data have been filled up
@@ -391,7 +391,7 @@ public:
   virtual void linearizeOplus();
 #endif
 
-  Eigen::Vector2d camProject(const Vector3d & trans_xyz) const;
+  Eigen::Vector2d camProject(const Eigen::Vector3d & trans_xyz) const;
 
   double fx, fy, cx, cy;
 
@@ -431,8 +431,8 @@ public:
     const Eigen::Vector3d& backprojLineEb = XEbc;
         
     // align each point of 3D map-line to 3D detected-line (by moving the camera frame and adjusting 3D map-line points)
-    const Vector3d S_Sb = mapLineS - backprojLineSb; // P-Bp
-    const Vector3d E_Eb = mapLineE - backprojLineEb; // Q-Bq
+    const Eigen::Vector3d S_Sb = mapLineS - backprojLineSb; // P-Bp
+    const Eigen::Vector3d E_Eb = mapLineE - backprojLineEb; // Q-Bq
     _error[2] = S_Sb.cross(mapLineS - backprojLineEb).norm() * lineLenghtInv + mu * S_Sb.norm();   //  |(P-Bp) X (P-Bq)|/|Bq-Bp| + mu * |P-Bp|
     _error[3] = (mapLineE - backprojLineSb).cross(E_Eb).norm() * lineLenghtInv + mu * E_Eb.norm(); //  |(Q-Bp) X (Q-Bq)|/|Bq-Bp| + mu * |Q-Bq|   
   }
@@ -532,9 +532,9 @@ public:
 #endif
 
 
-  Eigen::Vector2d camProject(const Vector3d & trans_xyz) const;
+  Eigen::Vector2d camProject(const Eigen::Vector3d & trans_xyz) const;
   
-  Eigen::Vector3d camBackProject(const Vector2d & p_uv, const double depth ) const;
+  Eigen::Vector3d camBackProject(const Eigen::Vector2d & p_uv, const double depth ) const;
   
   double fx, fy, cx, cy;
   Eigen::Vector3d XSbc; // backprojected start point w.r.t. camera  frame 
