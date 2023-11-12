@@ -1580,7 +1580,7 @@ void Optimizer::FullInertialBA(Map *pMap, int its, const bool bFixLocal, const l
 
         if(!pKFi->mPrevKF)
         {
-            Verbose::PrintMess("NOT INERTIAL LINK TO PREVIOUS FRAME!", Verbose::VERBOSITY_NORMAL);
+            MSG_WARN_STREAM("NO INERTIAL LINK TO PREVIOUS FRAME - KF id: " << pKFi->mnId);
             continue;
         }
 
@@ -5658,7 +5658,7 @@ void Optimizer::LocalInertialBA(KeyFramePtr pKF, bool *pbStopFlag, Map *pMap, in
 
         if(!pKFi->mPrevKF)
         {
-            cout << "NOT INERTIAL LINK TO PREVIOUS FRAME!!!!" << endl;
+            MSG_WARN_STREAM("NO INERTIAL LINK TO PREVIOUS FRAME - KF id: " << pKFi->mnId);
             continue;
         }
         if(pKFi->bImu && pKFi->mPrevKF->bImu && pKFi->mpImuPreintegrated)
@@ -6133,7 +6133,7 @@ void Optimizer::LocalInertialBA(KeyFramePtr pKF, bool *pbStopFlag, Map *pMap, in
     for(map<int,int>::iterator mit=mVisEdges.begin(), mend=mVisEdges.end(); mit!=mend; mit++)
     {
 #if 0        
-        PLVS_ASSERT(mit->second >=3, "number of visual edge observation must be >=3! current observations num: " << mit->second);
+        MSG_ASSERT(mit->second >=3, "number of visual edge observation must be >=3! current observations num: " << mit->second);
         //assert(mit->second>=3);
 #else  
         //NOTE: [Luigi] added this instead of the assert! If the KF is not well constrained we consider it fixed!
@@ -8506,7 +8506,7 @@ void Optimizer::MergeInertialBA(KeyFramePtr pCurrKF, KeyFramePtr pMergeKF, bool 
 
         if(!pKFi->mPrevKF)
         {
-            Verbose::PrintMess("NOT INERTIAL LINK TO PREVIOUS FRAME!!!!", Verbose::VERBOSITY_NORMAL);
+            MSG_WARN_STREAM("NO INERTIAL LINK TO PREVIOUS FRAME - KF id: " << pKFi->mnId);
             continue;
         }
         if(pKFi->bImu && pKFi->mPrevKF->bImu && pKFi->mpImuPreintegrated)

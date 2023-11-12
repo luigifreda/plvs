@@ -1809,7 +1809,7 @@ void Frame::ComputeStereoLineMatches()
     if( Nlines > 0 && mvKeyLinesRight.size()>0 ) 
     {
         nLineMatches = lineMatcher.SearchStereoMatchesByKnn(*this, vMatches, vValidMatches, thDescriptorDist);
-        PLVS_ASSERT(vMatches.size()==vValidMatches.size(),"The two sizes must be equal");
+        MSG_ASSERT(vMatches.size()==vValidMatches.size(),"The two sizes must be equal");
     }
     else
     {

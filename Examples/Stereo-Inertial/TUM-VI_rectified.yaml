@@ -164,11 +164,13 @@ KeyFrame.maxFovCentersDistance: 0.5
 # Sparse Mapping
 #--------------------------------------------------------------------------------------------
 
-SparseMapping.filename: "sparse_map.map"
+SparseMapping.filename: "sparse_map_tum_vi_stereoi_rectified.atlas"
 # use saved map on start 
 SparseMapping.reuseMap: 0  
 # save map on shutdown
 SparseMapping.saveMap: 0 
+# force immediate relocalization (or wait for loop-closing thread for relocalization): 1 is ON, 0 is OFF
+SparseMapping.forceRelocalization: 1
 
 #--------------------------------------------------------------------------------------------
 # Stereo Dense

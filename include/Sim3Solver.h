@@ -73,7 +73,7 @@ protected:
 
     void ComputeCentroid(Eigen::Matrix3f &P, Eigen::Matrix3f &Pr, Eigen::Vector3f &C);
 
-    void ComputeSim3(Eigen::Matrix3f &P1, Eigen::Matrix3f &P2);
+    bool ComputeSim3(Eigen::Matrix3f &P1, Eigen::Matrix3f &P2);
 
     void CheckInliers();
 

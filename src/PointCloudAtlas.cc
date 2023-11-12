@@ -71,7 +71,7 @@ PointCloudAtlas<PointT>::~PointCloudAtlas()
 template<typename PointT>
 void PointCloudAtlas<PointT>::CreateNewMap(Map* pMap)
 {
-    PLVS_ASSERT(pMap, "Map should be non-NULL!");
+    MSG_ASSERT(pMap, "Map should be non-NULL!");
     
     unique_lock<recursive_mutex> lock(mMutexPointCloudAtlas);
     cout << "Creation of new point cloud map with id: " << pMap->GetId() << endl;
@@ -169,7 +169,7 @@ void PointCloudAtlas<PointT>::ChangeMap(Map* pMap)
     }
     else
     {
-        PLVS_ASSERT(false,"We must have a correspondence here!");   
+        MSG_ASSERT(false,"We must have a correspondence here!");   
     }
 }
     
@@ -266,7 +266,7 @@ typename PointCloudMap<PointT>::Ptr PointCloudAtlas<PointT>::GetCorrespondingPoi
     }
     else
     {
-        PLVS_ASSERT(false,"We must have a correspondence here!")
+        MSG_ASSERT(false,"We must have a correspondence here!")
         return static_cast<typename PointCloudMap<PointT>::Ptr>(NULL);
     }    
 }

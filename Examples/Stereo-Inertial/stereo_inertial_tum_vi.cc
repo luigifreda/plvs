@@ -26,8 +26,9 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-#include<System.h>
+#include "System.h"
 #include "ImuTypes.h"
+#include "Utils.h"
 
 using namespace std;
 
@@ -118,6 +119,9 @@ int main(int argc, char **argv)
     /*cout << "Start processing sequence ..." << endl;
     cout << "Images in the sequence: " << nImages << endl;
     cout << "IMU data in the sequence: " << nImu << endl << endl;*/
+
+    cv::FileStorage fSettings(argv[2], cv::FileStorage::READ);
+    bool bUseViewer = static_cast<int> (PLVS2::Utils::GetParam(fSettings, "Viewer.on", 1)) != 0;
 
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
     PLVS2::System SLAM(argv[1],argv[2],PLVS2::System::IMU_STEREO, true, 0, file_name);
@@ -246,6 +250,13 @@ int main(int argc, char **argv)
         }
     }
 
+    if(bUseViewer)
+    {
+        std::cout << "\n******************\n" << std::endl;
+        std::cout << "press a key to end" << std::endl;
+        std::cout << "\n******************\n" << std::endl;
+        getchar();
+    }
 
     // Stop all threads
     SLAM.Shutdown();

@@ -50,7 +50,7 @@ template<typename PointT>
 PointCloudMap<PointT>::PointCloudMap(Map* pMap, const std::shared_ptr<PointCloudMapParameters>& params):
 mpMap(pMap), pPointCloudMapParameters_(params), lastTimestamp_(0), bMapUpdated_(false) 
 {
-    PLVS_ASSERT(mpMap!=NULL,"PointCloudMap should be initialized with a valid Map!");
+    MSG_ASSERT(mpMap!=NULL,"PointCloudMap should be initialized with a valid Map!");
         
     pPointCloud_ = boost::make_shared< PointCloudT >();
     pPointCloudUnstable_ = boost::make_shared< PointCloudT >();
@@ -59,7 +59,7 @@ mpMap(pMap), pPointCloudMapParameters_(params), lastTimestamp_(0), bMapUpdated_(
 template<typename PointT>
 void PointCloudMap<PointT>::SetCorrespondingSparseMap(Map* pMap) 
 { 
-    PLVS_ASSERT(mpMap!=NULL,"PointCloudMap should be initialized with a valid Map!");
+    MSG_ASSERT(mpMap!=NULL,"PointCloudMap should be initialized with a valid Map!");
     
     std::unique_lock<std::recursive_timed_mutex> lock(pointCloudMutex_);  
     mpMap = pMap; 

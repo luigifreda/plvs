@@ -5143,6 +5143,15 @@ void Tracking::ResetActiveMap(bool bLocMap)
     mpLastKeyFrame = static_cast<KeyFramePtr>(NULL);
     mvIniMatches.clear();
 
+#if 1
+    // Luigi: added to avoid segmentation fault on map Stereo-Intertial map reloading when map resets are called. 
+    // Without these clear() calls we get a segmentation fault in UpdateFrameIMU(): some of the KFs get lost in the resets above.  
+    mlRelativeFramePoses.clear();
+    mlpReferences.clear();
+    mlFrameTimes.clear();
+    mlbLost.clear();
+#endif 
+
     mbVelocity = false;
 
     if(mpViewer)
@@ -5261,7 +5270,7 @@ void Tracking::UpdateFrameIMU(const float s, const IMU::Bias &b, KeyFramePtr pCu
     if(!pCurrentKeyFrame) return; 
 
     Map * pMap = pCurrentKeyFrame->GetMap();
-    PLVS_ASSERT((bool)pMap,"Current map must be non-null!");
+    MSG_ASSERT((bool)pMap,"Current map must be non-null!");
     
     std::cout << "Tracking::UpdateFrameIMU() - update on map " << pMap->GetId() << std::endl;     
     //std::cout << "Tracking::UpdateFrameIMU() - start loop" << std::endl; 
@@ -5272,8 +5281,8 @@ void Tracking::UpdateFrameIMU(const float s, const IMU::Bias &b, KeyFramePtr pCu
     //std::cout << "mlbLost.size(): " << mlbLost.size() << std::endl; 
     //std::cout << "mlRelativeFramePoses.size(): " << mlRelativeFramePoses.size() << std::endl;
     //std::cout << "mlpReferences.size(): " << mlpReferences.size() << std::endl;
-    PLVS_ASSERT(mlbLost.size() == mlRelativeFramePoses.size(),"Must be of the same size!");
-    PLVS_ASSERT(mlbLost.size() == mlpReferences.size(),"Must be of the same size!");
+    MSG_ASSERT(mlbLost.size() == mlRelativeFramePoses.size(),"Must be of the same size!");
+    MSG_ASSERT(mlbLost.size() == mlpReferences.size(),"Must be of the same size!");
     for(auto lit=mlRelativeFramePoses.begin(),lend=mlRelativeFramePoses.end();lit!=lend;lit++, lRit++, lbL++)
     {
         if(*lbL)

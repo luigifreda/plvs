@@ -38,7 +38,7 @@ The following procedures were tested under **Ubuntu 20**. If you don't have it, 
   `$ ./install_dependencies.sh`        
 - Install *OpenCV* in a local folder:                 
   `$ ./install_local_opencv.sh`      
-  (if you want, skip this step and set the variable `OpenCV_DIR` in `config.sh` with your local *OpenCV* path)     
+  (if you want, skip this step and set the variables `OpenCV_DIR` and `OPENCV_VERSION` in `config.sh` with your local *OpenCV* path and version, respectively)     
 - Build the *PLVS* framework:       
   `$ ./build.sh`
 

@@ -49,11 +49,11 @@ fi
                                   # if available, you can use the simple path "/usr/local/cuda" which should be a symbolic link to the last installed cuda version 
 CUDA_ON=ON
 if [[ -n "$CUDA_VERSION" ]]; then
-    if [[ "$STR" == *"cuda"* ]]; then
-        CUDA_VERSION="${CUDA_VERSION%.*}"  # remove last dot 
-    else
-        CUDA_VERSION="cuda-${CUDA_VERSION%.*}"  # remove last dot     
-    fi 
+    # if [[ "$STR" == *"cuda"* ]]; then
+    #     CUDA_VERSION="${CUDA_VERSION%.*}"  # remove last dot 
+    # else
+    #     CUDA_VERSION="cuda-${CUDA_VERSION%.*}"  # remove last dot     
+    # fi 
     echo "using CUDA version $CUDA_VERSION"
 	if [ ! -d /usr/local/$CUDA_VERSION ]; then 
 		echo CUDA_VERSION does not exist: $CUDA_VERSION
@@ -62,6 +62,7 @@ if [[ -n "$CUDA_VERSION" ]]; then
 else
     if [ -d /usr/local/cuda ]; then
         CUDA_VERSION="cuda"  # use last installed CUDA path 
+        echo "using CUDA version $CUDA_VERSION"        
     else
         print_red "Warning: cuda $CUDA_VERSION not found and will not be used!"
         CUDA_ON=OFF

@@ -24,7 +24,7 @@ export USE_LOCAL_OPENCV=1   # use a local installation of OpenCV
 # export OpenCV_DIR="path to my OpenCV folder"
 # export OpenCV_DIR  # here not set 
 
-#export OPENCV_VERSION=4
+export OPENCV_VERSION=4
 
 # ====================================================
 # CUDA Settings

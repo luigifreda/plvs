@@ -39,6 +39,7 @@
 #include "Converter.h"
 
 #include "GeometricTools.h"
+#include "Utils.h"
 
 #include<iostream>
 
@@ -326,7 +327,21 @@ Eigen::Matrix3f Preintegrated::GetDeltaRotation(const Bias &b_)
 {
     std::unique_lock<std::mutex> lock(mMutex);
     Eigen::Vector3f dbg;
+    // Luigi: added HACK to prevent nannery during Optimizer::MergeInertialBA() when reloading a map with stereo-inertial 
+    // BT: Optimizer::MergeInertialBA() -> g2o::SparseOptimizer::optimize()
+#if 1
+    if(std::isnan(b_.bwx) || std::isnan(b_.bwy) ||  std::isnan(b_.bwz) )
+    {
+        MSG_WARN("Preintegrated::GetDeltaRotation() - preventing nannery!")        
+        dbg << 0.0,0.0,0.0;
+    }
+    else 
+    {
+        dbg << b_.bwx-b.bwx,b_.bwy-b.bwy,b_.bwz-b.bwz;
+    }
+#else 
     dbg << b_.bwx-b.bwx,b_.bwy-b.bwy,b_.bwz-b.bwz;
+#endif  
     return NormalizeRotation(dR * Sophus::SO3f::exp(JRg * dbg).matrix());
 }
 
