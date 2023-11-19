@@ -3895,7 +3895,7 @@ bool Tracking::TrackLocalMap()
 }
 
 #define USE_LINES_FOR_NEW_KEYFRAMES_GEN 1
-#define USE_FOV_CENTER_CRIERION 1
+#define USE_FOV_CENTER_CRITERION 1
 
 bool Tracking::NeedNewKeyFrame()
 {
@@ -4072,7 +4072,7 @@ bool Tracking::NeedNewKeyFrame()
 
     // Condition cFovCs: Current FOV center is distant more than "skMaxDistFovCenters" from last keyframe FOV center and we have a decent number of inliers 
     bool cFovCs = false;
-#if USE_FOV_CENTER_CRIERION    
+#if USE_FOV_CENTER_CRITERION    
     if(mbUseFovCentersKfGenCriterion)
     {
         const Eigen::Vector3f currentFovCenter = mCurrentFrame.GetFovCenter();
@@ -4175,7 +4175,7 @@ void Tracking::CreateNewKeyFrame()
         mpImuPreintegratedFromLastKF = new IMU::Preintegrated(pKF->GetImuBias(),pKF->mImuCalib);
     }
 
-    if(mSensor!=System::MONOCULAR && mSensor != System::IMU_MONOCULAR) // TODO check if incluide imu_stereo
+    if(mSensor!=System::MONOCULAR && mSensor != System::IMU_MONOCULAR) // TODO check if include imu_stereo
     {
         mCurrentFrame.UpdatePoseMatrices();
         // cout << "create new MPs" << endl;

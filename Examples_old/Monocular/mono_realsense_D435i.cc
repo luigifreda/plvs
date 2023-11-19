@@ -135,14 +135,22 @@ int main(int argc, char **argv) {
             ++index;
             if (index == 1) {
                 sensor.set_option(RS2_OPTION_ENABLE_AUTO_EXPOSURE, 1);
-                sensor.set_option(RS2_OPTION_AUTO_EXPOSURE_LIMIT,5000);
+                try
+                {
+                    sensor.set_option(RS2_OPTION_AUTO_EXPOSURE_LIMIT,5000);
+                }
+                catch(std::exception& e)
+                {
+                    std::cerr << "An error occurred: " << e.what() << std::endl;
+                }
                 sensor.set_option(RS2_OPTION_EMITTER_ENABLED, 0); // switch off emitter
             }
             // std::cout << "  " << index << " : " << sensor.get_info(RS2_CAMERA_INFO_NAME) << std::endl;
             get_sensor_option(sensor);
             if (index == 2){
                 // RGB camera (not used here...)
-                sensor.set_option(RS2_OPTION_EXPOSURE,100.f);
+                //sensor.set_option(RS2_OPTION_EXPOSURE,100.f);
+                sensor.set_option(RS2_OPTION_ENABLE_AUTO_EXPOSURE, 1);                   
             }
         }
 

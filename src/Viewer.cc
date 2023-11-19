@@ -119,7 +119,8 @@ Viewer::Viewer(System* pSystem, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer
 }
 
 void Viewer::newParameterLoader(Settings *settings) {
-    mImageViewerScale = 1.f;
+    mImageViewerScale = 1.0f;
+    mImageScale = 1.0f; 
 
     float fps = settings->fps();
     if(fps<1)
@@ -135,12 +136,23 @@ void Viewer::newParameterLoader(Settings *settings) {
     mViewpointY = settings->viewPointY();
     mViewpointZ = settings->viewPointZ();
     mViewpointF = settings->viewPointF();
+
+    GeometricCamera* camera1 = settings->camera1();
+    if(camera1->GetType() != GeometricCamera::CAM_PINHOLE)
+    {
+        MSG_WARN_STREAM("!AR will not work with a fisheye camera! (WIP)");
+    }
+    mfx = camera1->getParameter(0);
+    mfy = camera1->getParameter(1);
+    mcx = camera1->getParameter(2);
+    mcy = camera1->getParameter(3);    
 }
 
 bool Viewer::ParseViewerParamFile(cv::FileStorage &fSettings)
 {
     bool b_miss_params = false;
-    mImageViewerScale = 1.f;
+    mImageViewerScale = 1.0f;
+    mImageScale = 1.0f;     
 
     float fps = fSettings["Camera.fps"];
     if(fps<1)
@@ -173,11 +185,26 @@ bool Viewer::ParseViewerParamFile(cv::FileStorage &fSettings)
         mImageWidth = 640;
         mImageHeight = 480;
     }
-    
+    node = fSettings["Camera.imageScale"];
+    if(!node.empty() && node.isReal())
+    {
+        mImageScale = node.real();
+    }
+
     mfx = fSettings["Camera.fx"];
     mfy = fSettings["Camera.fy"];
     mcx = fSettings["Camera.cx"];
     mcy = fSettings["Camera.cy"];
+
+    if(mImageScale<1)
+    {
+        mImageWidth *= mImageScale;
+        mImageHeight *= mImageScale;
+        mfx *= mImageScale;
+        mfy *= mImageScale;
+        mcx *= mImageScale;
+        mcy *= mImageScale;
+    }    
 
     mbRGB = static_cast<bool>((int)fSettings["Camera.RGB"]);
 

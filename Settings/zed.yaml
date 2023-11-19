@@ -1,0 +1,243 @@
+%YAML:1.0
+
+
+# N.B.: this file can be also used for stereo camera as explained in the file zed_stereo.md
+
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters
+#--------------------------------------------------------------------------------------------
+# Viewer.on: 1 is ON, 0 is OFF
+Viewer.on: 1
+
+Viewer.KeyFrameSize: 0.02
+Viewer.KeyFrameLineWidth: 0.3
+Viewer.GraphLineWidth: 0.5
+Viewer.PointSize: 3
+Viewer.CameraSize: 0.02
+Viewer.CameraLineWidth: 1
+Viewer.ViewpointX: 0
+Viewer.ViewpointY: -1
+Viewer.ViewpointZ: -2
+Viewer.ViewpointF: 500
+
+Viewer.ViewpointYtop: -4.0
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters.
+#--------------------------------------------------------------------------------------------
+Camera.type: "PinHole"
+
+# D: (k1, k2, t1, t2, k3)
+
+#     [fx  0 cx]
+# K = [ 0 fy cy]
+#     [ 0  0  1]
+
+# RAW
+# From ZED setting file  N.B. do not use these ones!!!
+#Camera.fx: 698.439
+#Camera.fy: 698.439
+#Camera.cx: 643.538
+#Camera.cy: 367.106
+
+# From /zed/left/camera_info
+# frame_id: "zed_left_camera_optical_frame"
+# height: 720
+# width: 1280
+# distortion_model: "plumb_bob"
+# D: [0.0, 0.0, 0.0, 0.0, 0.0]
+# K: [667.3896484375, 0.0, 672.755615234375, 0.0, 667.3896484375, 370.8421325683594, 0.0, 0.0, 1.0]
+# R: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+# P: [667.3896484375, 0.0, 672.755615234375, 0.0, 0.0, 667.3896484375, 370.8421325683594, 0.0, 0.0, 0.0, 1.0, 0.0]
+# binning_x: 0
+# binning_y: 0
+# roi: 
+#   x_offset: 0
+#   y_offset: 0
+#   height: 0
+#   width: 0
+#   do_rectify: False
+
+
+# RECT
+# From /zed/left/camera_info
+# DIAG
+#Camera.fx: 667.8367309570312
+#Camera.fy: 667.8367309570312
+#Camera.cx: 676.0556640625
+#Camera.cy: 370.9483337402344
+
+# circoMassimo
+#Camera.fx: 667.3896484375
+#Camera.fy: 667.3896484375
+#Camera.cx: 672.755615234375
+#Camera.cy: 370.8421325683594
+
+
+# New params 
+#height: 720
+#width: 1280
+#distortion_model: "plumb_bob"
+#D: [0.0, 0.0, 0.0, 0.0, 0.0]
+#K: [674.8721313476562, 0.0, 619.3631591796875, 0.0, 674.8721313476562, 379.4755859375, 0.0, 0.0, 1.0]
+#R: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+#P: [674.8721313476562, 0.0, 619.3631591796875, 0.0, 0.0, 674.8721313476562, 379.4755859375, 0.0, 0.0, 0.0, 1.0, 0.0]
+Camera.fx: 674.8721313476562
+Camera.fy: 674.8721313476562
+Camera.cx: 619.3631591796875
+Camera.cy: 379.4755859375
+
+# NOTE: if you use  rectified  image the distortion params should be set to zero!
+# see https://github.com/raulmur/ORB_SLAM2/issues/293
+Camera.k1:  0.0
+Camera.k2:  0.0
+Camera.p1:  0.0
+Camera.p2:  0.0
+
+# RGBD
+Camera.width: 1280
+Camera.height: 720
+
+# Camera frames per second
+Camera.fps: 30
+
+# Baseline * fx (aprox.)
+# baseline is 0.12 m from https://www.stereolabs.com/zed/specs/
+#Camera.bf: 80.087
+# from right/camera_info
+Camera.bf: 80.087
+
+# Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
+Camera.RGB: 1
+
+# Camera.waitCameraInfoOn: 1 is ON, 0 is OFF (before starting mapping wait for CameraInfo)
+Camera.waitCameraInfoOn: 1
+
+# Close/Far threshold. Baseline times.
+ThDepth: 40.0
+
+# Depthmap values factor
+DepthMapFactor: 1.0
+
+#--------------------------------------------------------------------------------------------
+# ORB Parameters
+#--------------------------------------------------------------------------------------------
+
+# ORB Extractor: Number of features per image
+ORBextractor.nFeatures: 1000
+
+# ORB Extractor: Scale factor between levels in the scale pyramid
+ORBextractor.scaleFactor: 1.2
+
+# ORB Extractor: Number of levels in the scale pyramid
+ORBextractor.nLevels: 8
+
+# ORB Extractor: Fast threshold
+# Image is divided in a grid. At each cell FAST are extracted imposing a minimum response.
+# Firstly we impose iniThFAST. If no corners are detected we impose a lower value minThFAST
+# You can lower these values if your images have low contrast
+ORBextractor.iniThFAST: 20
+ORBextractor.minThFAST: 7
+
+#--------------------------------------------------------------------------------------------
+# Line Segments Tracking
+#--------------------------------------------------------------------------------------------
+
+# Line.on: 1 is ON, 0 is OFF
+Line.on: 1
+
+# set to 0 if keeping all lines
+Line.nfeatures: 100
+# number of levels in the scale pyramid
+Line.nLevels: 3
+# scale factor between levels in the scale pyramid
+Line.scaleFactor: 1.4
+# noise standard deviation on line extraction (in pixel)
+Line.sigma: 2
+# min. line length (relative to img size)
+Line.minLineLength: 0.02
+# weighting of lines w.r.t. points in success/failure tracking conditions
+Line.lineTrackWeigth: 2
+# min. line length 3D (meters)
+Line.minLineLength3D: 0.01
+# mu weight for endpoint-endpoint dist in line 3D dist
+Line.muWeightForLine3dDist: 0.5
+
+#--------------------------------------------------------------------------------------------
+# Initialization
+#--------------------------------------------------------------------------------------------
+
+Initialization.numMinFeaturesRGBD: 200
+
+#--------------------------------------------------------------------------------------------
+# Map Object 
+#--------------------------------------------------------------------------------------------
+
+# MapObject.on: 1 is ON, 0 is OFF
+MapObject.on: 0
+# Images of the planar objects (separated by empty spaces) 
+#MapObject.imgs: "S4.png S7.png S5.png"
+MapObject.imgs: "S5-LR.png"
+MapObject.numMinInliers: 20
+MapObject.matchRatio: 0.8
+MapObject.maxReprojectionError: 1
+MapObject.maxSim3Error: 0.01
+
+#--------------------------------------------------------------------------------------------
+# KeyFrame Generation 
+#--------------------------------------------------------------------------------------------
+
+# on: 1 is ON, 0 is OFF
+KeyFrame.fovCentersBasedGeneration.on: 1
+KeyFrame.maxFovCentersDistance: 0.5
+
+#--------------------------------------------------------------------------------------------
+# Sparse Mapping
+#--------------------------------------------------------------------------------------------
+
+SparseMapping.filename: "sparse_map1_out_0_out_0_out_0.map"
+# use saved map on start: 1 is ON, 0 is OFF 
+SparseMapping.reuseMap: 1 
+# freeze map during optimizations: 1 is ON, 0 is OFF  
+SparseMapping.freezeMap: 1
+# save map on shutdown: 1 is ON, 0 is OFF
+SparseMapping.saveMap: 0 
+# force immediate relocalization (or wait for loop-closing thread for relocalization): 1 is ON, 0 is OFF
+SparseMapping.forceRelocalization: 0
+
+#--------------------------------------------------------------------------------------------
+# PointCloud Mapping
+#--------------------------------------------------------------------------------------------
+# PointCloudMapping.on: 1 is ON, 0 is OFF
+PointCloudMapping.on: 1
+
+#PointCloudMapping.type: voxelgrid, octomap, octree_point, chisel, fastfusion, voxblox
+# NOTE: chisel and fastfusion require rectified images if you do not use pointcloud generation 
+PointCloudMapping.type: "voxblox"
+
+PointCloudMapping.resolution: 0.02
+PointCloudMapping.numKeyframesToQueueBeforeProcessing: 1
+PointCloudMapping.downSampleStep: 2
+PointCloudMapping.minDepth: 0.6
+PointCloudMapping.maxDepth: 8
+PointCloudMapping.removeUnstablePoints: 1
+PointCloudMapping.resetOnSparseMapChange: 1
+
+# [octree_point] specific params
+PointCloudMapping.pointCounterThreshold: 5
+
+# [octree_point, chisel] specific params
+# PointCloudMapping.useCarving: 1 is ON, 0 is OFF
+PointCloudMapping.useCarving: 1
+
+# depth filtering
+PointCloudMapping.filterDepth.on: 1
+PointCloudMapping.filterDepth.diameter: 7
+PointCloudMapping.filterDepth.sigmaDepth: 0.02
+PointCloudMapping.filterDepth.sigmaSpace: 5
+
+# for loading
+# load dense map on start: 1 is ON, 0 is OFF
+PointCloudMapping.loadMap: 0 
+PointCloudMapping.loadFilename: "dense_map.ply"
+

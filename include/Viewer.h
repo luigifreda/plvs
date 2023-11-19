@@ -127,6 +127,7 @@ private:
     // 1/fps in ms
     double mT;
     float mImageWidth, mImageHeight;
+    float mImageScale; 
     float mImageViewerScale;
     
     int mGLviewportWidth, mGLviewportHeight;    

@@ -333,14 +333,13 @@ cv::Mat FrameDrawer::DrawFrame(float imageScale)
 
                     if(vbLineMap[i])
                     {
-                        //cv::line(im,vCurrentKeyLines[i].getStartPoint(),vCurrentKeyLines[i].getEndPoint(),cv::Scalar(kBlueComponentLinesOctaveMap[vCurrentKeyLines[i].octave],255,0),2);
-                        cv::line(im,vCurrentKeyLines[i].getStartPoint(),vCurrentKeyLines[i].getEndPoint(),kColorLinesOctave[nOctaveL],2);
+                        cv::line(im,vCurrentKeyLines[i].getStartPoint()/imageScale, vCurrentKeyLines[i].getEndPoint()/imageScale, kColorLinesOctave[nOctaveL],2);
 
                         mnLinesTracked++;
                     }
                     else // This is match to a "visual odometry" MapLine created in the last frame
                     {
-                        cv::line(im,vCurrentKeyLines[i].getStartPoint(),vCurrentKeyLines[i].getEndPoint(),cv::Scalar(255,0,0),2);
+                        cv::line(im,vCurrentKeyLines[i].getStartPoint()/imageScale, vCurrentKeyLines[i].getEndPoint()/imageScale, cv::Scalar(255,0,0),2);
 
                         mnLinesTrackedVO++;
                     }
@@ -349,7 +348,7 @@ cv::Mat FrameDrawer::DrawFrame(float imageScale)
                 else
                 {
                     // in order to show all detected lines
-                    cv::line(im,vCurrentKeyLines[i].getStartPoint(),vCurrentKeyLines[i].getEndPoint(),cv::Scalar(255,0,255));
+                    cv::line(im,vCurrentKeyLines[i].getStartPoint()/imageScale, vCurrentKeyLines[i].getEndPoint()/imageScale, cv::Scalar(255,0,255));
                 }
 #endif
             }
@@ -371,10 +370,10 @@ cv::Mat FrameDrawer::DrawFrame(float imageScale)
                     if( data.vObjectReprojectedCorners.size() == 4)
                     {
                         const cv::Scalar color = cv::Scalar(0,0,255);
-                        cv::line(im,data.vObjectReprojectedCorners[0],data.vObjectReprojectedCorners[1],color,3);
-                        cv::line(im,data.vObjectReprojectedCorners[1],data.vObjectReprojectedCorners[2],color,3);
-                        cv::line(im,data.vObjectReprojectedCorners[2],data.vObjectReprojectedCorners[3],color,3);
-                        cv::line(im,data.vObjectReprojectedCorners[3],data.vObjectReprojectedCorners[0],color,3);
+                        cv::line(im,data.vObjectReprojectedCorners[0]/imageScale, data.vObjectReprojectedCorners[1]/imageScale, color,3);
+                        cv::line(im,data.vObjectReprojectedCorners[1]/imageScale, data.vObjectReprojectedCorners[2]/imageScale, color,3);
+                        cv::line(im,data.vObjectReprojectedCorners[2]/imageScale, data.vObjectReprojectedCorners[3]/imageScale, color,3);
+                        cv::line(im,data.vObjectReprojectedCorners[3]/imageScale, data.vObjectReprojectedCorners[0]/imageScale, color,3);
                     }          
                 }
 #endif        
@@ -384,10 +383,10 @@ cv::Mat FrameDrawer::DrawFrame(float imageScale)
                     if( data.vObjectDetectedCorners.size() == 4)
                     {
                         const cv::Scalar color = cv::Scalar(255,0,0);
-                        cv::line(im,data.vObjectDetectedCorners[0],data.vObjectDetectedCorners[1],color,2);
-                        cv::line(im,data.vObjectDetectedCorners[1],data.vObjectDetectedCorners[2],color,2);
-                        cv::line(im,data.vObjectDetectedCorners[2],data.vObjectDetectedCorners[3],color,2);
-                        cv::line(im,data.vObjectDetectedCorners[3],data.vObjectDetectedCorners[0],color,2);
+                        cv::line(im,data.vObjectDetectedCorners[0]/imageScale, data.vObjectDetectedCorners[1]/imageScale, color,2);
+                        cv::line(im,data.vObjectDetectedCorners[1]/imageScale, data.vObjectDetectedCorners[2]/imageScale, color,2);
+                        cv::line(im,data.vObjectDetectedCorners[2]/imageScale, data.vObjectDetectedCorners[3]/imageScale, color,2);
+                        cv::line(im,data.vObjectDetectedCorners[3]/imageScale, data.vObjectDetectedCorners[0]/imageScale, color,2);
                     }
 
                 }
