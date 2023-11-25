@@ -46,10 +46,10 @@ sudo apt-get install -y librealsense2-dev librealsense2-dbg
 
 # ros 
 # see https://catkin-tools.readthedocs.io/en/latest/installing.html
-sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu `lsb_release -sc` main" \
-        > /etc/apt/sources.list.d/ros-latest.list'
-wget http://packages.ros.org/ros.key -O - | sudo apt-key add -
-sudo apt-get install -y python3-catkin-tools
-#sudo pip3 install -U catkin_tools
+# sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu `lsb_release -sc` main" \
+#         > /etc/apt/sources.list.d/ros-latest.list'
+# wget http://packages.ros.org/ros.key -O - | sudo apt-key add -
+# sudo apt-get install -y python3-catkin-tools
+sudo pip3 install -U catkin_tools
 
 echo "...All deps installed!"

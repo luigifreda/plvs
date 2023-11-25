@@ -26,6 +26,20 @@ function check_package(){
     fi
 }
 
+function get_usable_cuda_version(){
+    version="$1"
+    if [[ "$version" != *"cuda"* ]]; then
+        version="cuda-${version}"      
+    fi 
+    # check if we have two dots in the version, check if the folder exists otherwise remove last dot
+    if [[ $version =~ ^[a-zA-Z0-9-]+\.[0-9]+\.[0-9]+$ ]]; then
+        if [ ! -d /usr/local/$version ]; then 
+            version="${version%.*}"  # remove last dot        
+        fi     
+    fi    
+    echo $version
+}
+
 # ====================================================
 
 export TARGET_FOLDER=Thirdparty
@@ -49,21 +63,18 @@ fi
                                   # if available, you can use the simple path "/usr/local/cuda" which should be a symbolic link to the last installed cuda version 
 CUDA_ON=ON
 if [[ -n "$CUDA_VERSION" ]]; then
-    if [[ "$STR" == *"cuda"* ]]; then
-        CUDA_VERSION="${CUDA_VERSION%.*}"  # remove last dot 
-    else
-        CUDA_VERSION="cuda-${CUDA_VERSION%.*}"  # remove last dot     
-    fi 
-    echo "using CUDA version $CUDA_VERSION"
+    CUDA_VERSION=$(get_usable_cuda_version $CUDA_VERSION)
+    echo using CUDA $CUDA_VERSION
 	if [ ! -d /usr/local/$CUDA_VERSION ]; then 
-		echo CUDA_VERSION does not exist: $CUDA_VERSION
+		echo CUDA $CUDA_VERSION does not exist
 		CUDA_ON=OFF
 	fi 
 else
     if [ -d /usr/local/cuda ]; then
         CUDA_VERSION="cuda"  # use last installed CUDA path 
+        echo using CUDA $CUDA_VERSION        
     else
-        print_red "Warning: cuda $CUDA_VERSION not found and will not be used!"
+        print_red "Warning: CUDA $CUDA_VERSION not found and will not be used!"
         CUDA_ON=OFF
     fi 
 fi 
@@ -71,34 +82,42 @@ echo CUDA_ON: $CUDA_ON
 export PATH=/usr/local/$CUDA_VERSION/bin${PATH:+:${PATH}}   # this is for having the right nvcc in the path
 export LD_LIBRARY_PATH=/usr/local/$CUDA_VERSION/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}  # this is for libs 
 
-
 # pre-installing some required packages 
 
 if [ ! -d $TARGET_FOLDER/opencv ]; then
 	sudo apt-get update
 	sudo apt-get install -y pkg-config libglew-dev libtiff5-dev zlib1g-dev libjpeg-dev libeigen3-dev libtbb-dev libgtk2.0-dev libopenblas-dev
-    sudo apt-get install -y curl software-properties-common
+    sudo apt-get install -y curl software-properties-common unzip
     sudo apt-get install -y build-essential cmake 
     if [[ "$CUDA_ON" == "ON" ]]; then 
         sudo apt-get install -y libcudnn8 libcudnn8-dev
     fi 
 
-        if [[ $version == *"20.04"* ]] || [[ $version == *"22.04"* ]] ; then
-            sudo apt install -y libtbb-dev libeigen3-dev 
-            sudo apt install -y zlib1g-dev libjpeg-dev libwebp-dev libpng-dev libtiff5-dev 
-            sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
-            sudo apt install -y libjasper-dev
-            sudo apt install -y libv4l-dev libdc1394-22-dev libtheora-dev libvorbis-dev libxvidcore-dev libx264-dev yasm \
-                                    libopencore-amrnb-dev libopencore-amrwb-dev libxine2-dev            
-        fi
-        if [[ $version == *"18.04"* ]] ; then
-            sudo apt-get install -y libpng-dev 
-            sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
-            sudo apt-get install -y libjasper-dev
-        fi
-        if [[ $version == *"16.04"* ]] ; then
-            sudo apt-get install -y libpng12-dev libjasper-dev 
-        fi        
+    if [[ $version == *"22.04"* ]] ; then
+        sudo apt install -y libtbb-dev libeigen3-dev 
+        sudo apt install -y zlib1g-dev libjpeg-dev libwebp-dev libpng-dev libtiff5-dev 
+        sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
+        sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 3B4FE6ACC0B21F32 # for libjasper-dev 
+        sudo apt install -y libjasper-dev
+        sudo apt install -y libv4l-dev libdc1394-dev libtheora-dev libvorbis-dev libxvidcore-dev libx264-dev yasm \
+                                libopencore-amrnb-dev libopencore-amrwb-dev libxine2-dev            
+    fi
+    if [[ $version == *"20.04"* ]] ; then
+        sudo apt install -y libtbb-dev libeigen3-dev 
+        sudo apt install -y zlib1g-dev libjpeg-dev libwebp-dev libpng-dev libtiff5-dev 
+        sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
+        sudo apt install -y libjasper-dev
+        sudo apt install -y libv4l-dev libdc1394-22-dev libtheora-dev libvorbis-dev libxvidcore-dev libx264-dev yasm \
+                                libopencore-amrnb-dev libopencore-amrwb-dev libxine2-dev            
+    fi        
+    if [[ $version == *"18.04"* ]] ; then
+        sudo apt-get install -y libpng-dev 
+        sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
+        sudo apt-get install -y libjasper-dev
+    fi
+    if [[ $version == *"16.04"* ]] ; then
+        sudo apt-get install -y libpng12-dev libjasper-dev 
+    fi        
 
 	DO_INSTALL_FFMPEG=$(check_package ffmpeg)
 	if [ $DO_INSTALL_FFMPEG -eq 1 ] ; then

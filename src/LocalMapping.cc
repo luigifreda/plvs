@@ -47,7 +47,6 @@
 
 #define TRIANGULATE_NEW_LINES 1
 #define ASSIGN_VIRTUAL_DISPARITY_WHEN_TRIANGULATING_LINES 1
-#define USE_CURRENT_KF_LINE_TRIANGULATION 1
 
 namespace PLVS
 {
@@ -335,13 +334,14 @@ void LocalMapping::CreateNewMapFeatures()
         pLineMatcher.reset( new LineMatcher(0.6,false) );
     }
 
-    cv::Mat Rcw1 = mpCurrentKeyFrame->GetRotation();
-    cv::Mat Rwc1 = Rcw1.t();
-    cv::Mat tcw1 = mpCurrentKeyFrame->GetTranslation();
+    const cv::Mat Rcw1 = mpCurrentKeyFrame->GetRotation();
+    const cv::Mat Rwc1 = Rcw1.t();
+    const cv::Mat tcw1 = mpCurrentKeyFrame->GetTranslation();
+    const cv::Mat twc1 = -Rwc1*tcw1;
     cv::Mat Tcw1(3,4,CV_32F);
     Rcw1.copyTo(Tcw1.colRange(0,3));
     tcw1.copyTo(Tcw1.col(3));
-    cv::Mat Ow1 = mpCurrentKeyFrame->GetCameraCenter();
+    const cv::Mat Ow1 = mpCurrentKeyFrame->GetCameraCenter();
 
     const float &fx1 = mpCurrentKeyFrame->fx;
     const float &fy1 = mpCurrentKeyFrame->fy;
@@ -391,11 +391,7 @@ void LocalMapping::CreateNewMapFeatures()
         //cv::Mat F12 = ComputeF12(mpCurrentKeyFrame,pKF2);
 
         cv::Mat F12;
-    #if USE_CURRENT_KF_LINE_TRIANGULATION
         cv::Mat H21, e2;
-    #else 
-        cv::Mat H12, e1;    
-    #endif 
 
         if(!mpTracker->IsLineTracking())        
         {
@@ -403,11 +399,7 @@ void LocalMapping::CreateNewMapFeatures()
         }
         else 
         {
-    #if USE_CURRENT_KF_LINE_TRIANGULATION
-            ComputeF12_H21(mpCurrentKeyFrame, pKF2, F12, H21, e2);
-    #else 
-            ComputeF12_H12(mpCurrentKeyFrame, pKF2, F12, H12, e1);
-    #endif     
+            ComputeF12_H21(mpCurrentKeyFrame, pKF2, F12, H21, e2);   
         }  
 
         // Search matches that fullfil epipolar constraint
@@ -685,8 +677,6 @@ void LocalMapping::CreateNewMapFeatures()
                 bool bLineTriangulatedByIntersection = false;
                 if( bCanTriangulateLines && (cosParallaxRays<cosParallaxStereo) && (cosParallaxRays>0) && (bStereo1 || bStereo2 || cosParallaxRays<0.9998))
                 {
-
-#if USE_CURRENT_KF_LINE_TRIANGULATION
                     // compute the intersections of rays backprojected from camera 1 with the 3D plane corresponding to l2  
                     // (check PLVS report)                                        
                     const float num = -l2.dot(e2);
@@ -701,10 +691,10 @@ void LocalMapping::CreateNewMapFeatures()
                     if( (depthP1 >= minZ ) && (depthQ1 >= minZ) && (depthP1 <= maxZ) && (depthQ1 <= maxZ) )
                     {
                         cv::Mat x3DSc = (cv::Mat_<float>(3,1) << (p1.at<float>(0)-cx1)*invfx1*depthP1, (p1.at<float>(1)-cy1)*invfy1*depthP1, depthP1 ); // depthP1 * K1.inv()*p1;
-                        x3DS = Rwc1*x3DSc;
+                        x3DS = Rwc1*x3DSc + twc1;
                                                 
                         cv::Mat x3DEc = (cv::Mat_<float>(3,1) << (q1.at<float>(0)-cx1)*invfx1*depthQ1, (q1.at<float>(1)-cy1)*invfy1*depthQ1, depthQ1 ); // depthQ1 * K1.inv()*q1;  
-                        x3DE = Rwc1*x3DEc;
+                        x3DE = Rwc1*x3DEc + twc1;
 
                         cv::Mat camRay = x3DSc/cv::norm(x3DSc);
                         cv::Mat lineES = x3DSc-x3DEc;  
@@ -732,55 +722,7 @@ void LocalMapping::CreateNewMapFeatures()
                                 //std::cout << "triangulated line : " << x3DS << " , " << x3DE << std::endl; 
                             }
                         }
-                    }
-#else                     
-                    // compute the intersections of rays backprojected from camera 2 with the 3D plane corresponding to l1
-                    // (check PLVS report)                                              
-                    const float num = -l1.dot(e1);
-                    const float den1 = (l1.dot(H12*p2));
-                    const float den2 = (l1.dot(H12*q2));
-                    
-                    if( ( fabs(den1) < 0.001 ) || (fabs(den2) < 0.001) ) continue; 
-                        
-                    const float depthP2 = num/den1;
-                    const float depthQ2 = num/den2;
-
-                    if( (depthP2 >= minZ ) && (depthQ2 >= minZ) && (depthP2 <= maxZ) && (depthQ2 <= maxZ) )
-                    {
-                        const cv::Mat x3DSc = depthP2 * (cv::Mat_<float>(3,1) << (p2.at<float>(0)-cx2)*invfx2, (p2.at<float>(1)-cy2)*invfy2, 1.0); // depthP2 * K2.inv()*p2;
-                        x3DS = Rwc2*x3DSc;
-
-                        const cv::Mat x3DEc = depthQ2 * (cv::Mat_<float>(3,1) << (q2.at<float>(0)-cx2)*invfx2, (q2.at<float>(1)-cy2)*invfy2, 1.0); // depthQ2 * K2.inv()*q2;  
-                        x3DE = Rwc2*x3DEc;
-
-                        const cv::Mat camRay = x3DSc/cv::norm(x3DSc);
-                        cv::Mat lineES = x3DSc-x3DEc;  
-                        const double lineLength = cv::norm(lineES);
-                        if(lineLength >= Frame::skMinLineLength3D)
-                        {        
-                            lineES /= lineLength;
-                            const float cosViewAngle = fabs((float)camRay.dot(lineES));
-                            if(cosViewAngle<=Frame::kCosViewZAngleMax)
-                            {             
-            #if ASSIGN_VIRTUAL_DISPARITY_WHEN_TRIANGULATING_LINES
-                                if(!bStereo2)
-                                {
-                                    // assign depth and (virtual) disparity to left line end points 
-                                    pKF2->mvDepthLineStart[idx2] = depthP2;
-                                    const double disparity_p2 = pKF2->mbf/depthP2;                                
-                                    pKF2->mvuRightLineStart[idx2] =  p2.at<float>(0) - disparity_p2;
-
-                                    pKF2->mvDepthLineEnd[idx2] = depthQ2;
-                                    const double disparity_q2 = pKF2->mbf/depthQ2;                         
-                                    pKF2->mvuRightLineEnd[idx2] = q2.at<float>(0) - disparity_q2;
-                                }
-            #endif                         
-                                bLineTriangulatedByIntersection = true; 
-                                //std::cout << "  +triangulated line : " << x3DS.transpose() << " , " << x3DE.transpose() << std::endl; 
-                            }
-                        }
-                    }
-#endif                     
+                    }                 
                 }
 
                 if(!bLineTriangulatedByIntersection)

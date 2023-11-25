@@ -28,6 +28,7 @@
 #include "Geom2DUtils.h"
 #include "Logger.h"
 
+#include <unordered_set>
 
 #define VERBOSE 0
 
@@ -51,6 +52,8 @@ static Logger logger(logFileName);
 namespace PLVS
 {
 
+
+static constexpr float M_2PI = (float)(2.0 * M_PI); 
 
 struct compare_descriptor_by_NN_dist
 {
@@ -77,18 +80,18 @@ struct sort_descriptor_by_queryIdx
 
 
 
-const float LineMatcher::kDescTh = 0.1;    // parameter to avoid outliers in line matching
+const float LineMatcher::kDescTh = 0.1;    // parameter to avoid outliers in line matching with MAD checking
 
 // N.B.: if the thresholds are too low lines will be not properly matched and multiple instances of a same line can be generated 
 const int LineMatcher::TH_HIGH = 110;//100;//150; 
 const int LineMatcher::TH_LOW = 60;//50;//80;
 const int LineMatcher::TH_LOW_STEREO = 50;
-const int LineMatcher::HISTO_LENGTH = 30;
+const int LineMatcher::HISTO_LENGTH = 12; //30;
 
 const float kChiSquareSegSeg = 3.84;        // value of the inverse cumulative chi-square with 1 DOF for alpha=0.95 (Hartley-Zisserman pag 567) 
 const float kChiSquareSegSegLarger = 5.024; // value of the inverse cumulative chi-square with 1 DOF for alpha=0.975  
 
-const float kChiSquareLineMonoProj = 5.991;        // chi-square 2 2D-perpendicular-line-distances = 2 DOFs for alpha=0.95  (Hartley pg 119)
+const float kChiSquareLineMonoProj = 5.991;        // chi-square 2 2D-perpendicular-line-distances = 2 DOFs for alpha=0.95  (Hartley-Zisserman pg 119)
 const float kChiSquareLineMonoProjLarger = 7.378;  // chi-square 2 2D-perpendicular-line-distances = 2 DOFs for alpha=0.975  
     
 template <typename T>    // T can be a std container: list<int> or vector<int> 
@@ -158,7 +161,7 @@ int LineMatcher::SearchByKnn(KeyFramePtr& pKF, const Frame &F, std::vector<MapLi
     //assert(ldesc_q.rows == vpMapLinesKF.size());
     
     list<int> rotHist[HISTO_LENGTH]; // use list since we need to keep track of elem iterators and possibly erase them (in vectors, each erase op would invalidate iterators and indexes)
-    const float factor = 1.0f/HISTO_LENGTH;
+    constexpr float factor = HISTO_LENGTH/M_2PI; // NOTE: kl.angle for lines is in radians and not in degrees
 
     cv::Mat queryMask = cv::Mat::zeros((int) vpMapLinesKF.size(), 1, CV_8UC1); 
     int numValidLinesInKF = 0; 
@@ -199,8 +202,7 @@ int LineMatcher::SearchByKnn(KeyFramePtr& pKF, const Frame &F, std::vector<MapLi
                 if(mbCheckOrientation)
                 {
                     float rot = pKF->mvKeyLinesUn[match.queryIdx].angle-F.mvKeyLinesUn[match.trainIdx].angle;
-                    if(rot<0.0)
-                        rot+=360.0f;
+                    if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI;}; // NOTE: kl.angle for lines is in radians and not in degrees
                     int bin = round(rot*factor);
                     if(bin==HISTO_LENGTH)
                         bin=0;
@@ -226,8 +228,7 @@ int LineMatcher::SearchByKnn(KeyFramePtr& pKF, const Frame &F, std::vector<MapLi
                         rotHist[binIdx].erase(it);
 
                         float rot = pKF->mvKeyLinesUn[match.queryIdx].angle-F.mvKeyLinesUn[match.trainIdx].angle;
-                        if(rot<0.0)
-                            rot+=360.0f;
+                        if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI;}; // NOTE: kl.angle for lines is in radians and not in degrees
                         int bin = round(rot*factor);
                         if(bin==HISTO_LENGTH)
                             bin=0;
@@ -281,7 +282,7 @@ int LineMatcher::SearchByKnn(Frame &CurrentFrame, const Frame &LastFrame)
     const cv::Mat& ldesc_t = CurrentFrame.mLineDescriptors; // train
 
     list<int> rotHist[HISTO_LENGTH]; // use list since we need to keep track of elem iterators and possibly erase them (in vectors, each erase op would invalidate iterators and indexes)
-    const float factor = 1.0f/HISTO_LENGTH;
+    constexpr float factor = HISTO_LENGTH/M_2PI; // NOTE: kl.angle for lines is in radians and not in degrees
 
     cv::Mat queryMask = cv::Mat::zeros(ldesc_q.rows, 1, CV_8UC1); 
     int numValidLinesInLastFrame = 0; 
@@ -326,8 +327,7 @@ int LineMatcher::SearchByKnn(Frame &CurrentFrame, const Frame &LastFrame)
                 if(mbCheckOrientation)
                 {
                     float rot = LastFrame.mvKeyLinesUn[match.queryIdx].angle-CurrentFrame.mvKeyLinesUn[match.trainIdx].angle;
-                    if(rot<0.0)
-                        rot+=360.0f;
+                    if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; } // NOTE: kl.angle for lines is in radians and not in degrees
                     int bin = round(rot*factor);
                     if(bin==HISTO_LENGTH)
                         bin=0;
@@ -353,8 +353,7 @@ int LineMatcher::SearchByKnn(Frame &CurrentFrame, const Frame &LastFrame)
                         rotHist[binIdx].erase(it);
 
                         float rot = LastFrame.mvKeyLinesUn[match.queryIdx].angle-CurrentFrame.mvKeyLinesUn[match.trainIdx].angle;
-                        if(rot<0.0)
-                            rot+=360.0f;
+                        if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; } // NOTE: kl.angle for lines is in radians and not in degrees
                         int bin = round(rot*factor);
                         if(bin==HISTO_LENGTH)
                             bin=0;
@@ -398,7 +397,7 @@ int LineMatcher::SearchByKnn(Frame &CurrentFrame, const Frame &LastFrame)
 
 
 
-// Used to match stereo.
+// Used for stereo matching.
 // In the stereo case, images are assumed to be rectified.
 // Return: a vector of matches between the left and right images. 
 //         a vector (of flags) vValidMatches that is used to check if the returned match is valid or not. 
@@ -415,7 +414,7 @@ int LineMatcher::SearchStereoMatchesByKnn(Frame &frame, std::vector<cv::DMatch>&
     const size_t NLinesRight = frame.mvKeyLinesRight.size();
     
     list<int> rotHist[HISTO_LENGTH]; // use list since we need to keep track of elem iterators and possibly erase them (in vectors, each erase op would invalidate iterators and indexes)
-    const float factor = 1.0f/HISTO_LENGTH;
+    constexpr float factor = HISTO_LENGTH/M_2PI; // NOTE: kl.angle for lines is in radians and not in degrees
 
 #if USE_REPLACE_WITH_BETTER_IN_STEREO_MATCHING
     std::vector<bool> vbMatched(NLinesRight,false);  // a "train" line can be matched to many "query" lines  
@@ -446,8 +445,7 @@ int LineMatcher::SearchStereoMatchesByKnn(Frame &frame, std::vector<cv::DMatch>&
                 if(mbCheckOrientation)
                 {
                     float rot = frame.mvKeyLines[match.queryIdx].angle-frame.mvKeyLinesRight[match.trainIdx].angle;
-                    if(rot<0.0)
-                        rot+=360.0f;
+                    if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; } // NOTE: kl.angle for lines is in radians and not in degrees
                     int bin = round(rot*factor);
                     if(bin==HISTO_LENGTH)
                         bin=0;
@@ -474,8 +472,7 @@ int LineMatcher::SearchStereoMatchesByKnn(Frame &frame, std::vector<cv::DMatch>&
                         rotHist[binIdx].erase(it);
 
                         float rot = frame.mvKeyLines[match.queryIdx].angle-frame.mvKeyLinesRight[match.trainIdx].angle;
-                        if(rot<0.0)
-                            rot+=360.0f;
+                        if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; } // NOTE: kl.angle for lines is in radians and not in degrees
                         int bin = round(rot*factor);
                         if(bin==HISTO_LENGTH)
                             bin=0;
@@ -493,8 +490,7 @@ int LineMatcher::SearchStereoMatchesByKnn(Frame &frame, std::vector<cv::DMatch>&
             if(mbCheckOrientation)
             {
                 float rot = frame.mvKeyLines[match.queryIdx].angle-frame.mvKeyLinesRight[match.trainIdx].angle;
-                if(rot<0.0)
-                    rot+=360.0f;
+                if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; } // NOTE: kl.angle for lines is in radians and not in degrees
                 int bin = round(rot*factor);
                 if(bin==HISTO_LENGTH)
                     bin=0;
@@ -563,7 +559,7 @@ int LineMatcher::SearchForTriangulation(KeyFramePtr& pKF1, KeyFramePtr& pKF2, ve
     //assert(ldesc_q.rows == vpMapLinesKF.size());
     
     list<int> rotHist[HISTO_LENGTH]; // use list since we need to keep track of elem iterators and possibly erase them (in vectors, each erase op would invalidate iterators and indexes)
-    const float factor = 1.0f/HISTO_LENGTH;
+    constexpr float factor = HISTO_LENGTH/M_2PI; // NOTE: kl.angle for lines is in radians and not in degrees
 
     cv::Mat queryMask = cv::Mat::zeros((int) vpMapLinesKF1.size(), 1, CV_8UC1); 
     int numLinesToMatchInKF = 0; 
@@ -648,8 +644,7 @@ int LineMatcher::SearchForTriangulation(KeyFramePtr& pKF1, KeyFramePtr& pKF2, ve
             {
                 //                             query                          train
                 float rot = pKF1->mvKeyLinesUn[idx1].angle-pKF2->mvKeyLinesUn[idx2].angle;
-                if(rot<0.0)
-                    rot+=360.0f;
+                if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; } // NOTE: kl.angle for lines is in radians and not in degrees
                 int bin = round(rot*factor);
                 if(bin==HISTO_LENGTH)
                     bin=0;
@@ -677,8 +672,7 @@ int LineMatcher::SearchForTriangulation(KeyFramePtr& pKF1, KeyFramePtr& pKF2, ve
 
                     //                             query                          train
                     float rot = pKF1->mvKeyLinesUn[idx1].angle-pKF2->mvKeyLinesUn[idx2].angle;
-                    if(rot<0.0)
-                        rot+=360.0f;
+                    if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; } // NOTE: kl.angle for lines is in radians and not in degrees
                     int bin = round(rot*factor);
                     if(bin==HISTO_LENGTH)
                         bin=0;
@@ -746,7 +740,7 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
    vector<int> rotHist[HISTO_LENGTH];
    for(int i=0;i<HISTO_LENGTH;i++)
        rotHist[i].reserve(100);
-   const float factor = 1.0f/HISTO_LENGTH;
+    constexpr float factor = HISTO_LENGTH/M_2PI;  // NOTE: kl.angle for lines is in radians and not in degrees
 
     const cv::Mat Rcw = CurrentFrame.mTcw.rowRange(0,3).colRange(0,3);
     const cv::Mat tcw = CurrentFrame.mTcw.rowRange(0,3).col(3);
@@ -961,8 +955,7 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
                     if(mbCheckOrientation)
                     {
                         float rot = LastFrame.mvKeyLinesUn[i].angle-CurrentFrame.mvKeyLinesUn[bestIdx].angle;
-                        if(rot<0.0)
-                            rot+=360.0f;
+                        if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; } // NOTE: kl.angle for lines is in radians and not in degrees
                         int bin = round(rot*factor);
                         if(bin==HISTO_LENGTH)
                             bin=0;
@@ -1247,7 +1240,7 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, KeyFramePtr& pKF, const
    vector<int> rotHist[HISTO_LENGTH];
    for(int i=0;i<HISTO_LENGTH;i++)
        rotHist[i].reserve(100);
-   const float factor = 1.0f/HISTO_LENGTH;
+    constexpr float factor = HISTO_LENGTH/M_2PI; // NOTE: kl.angle for lines is in radians and not in degrees
 
     const vector<MapLinePtr> vpMLs = pKF->GetMapLineMatches();
 
@@ -1360,8 +1353,7 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, KeyFramePtr& pKF, const
                    if(mbCheckOrientation)
                    {
                        float rot = pKF->mvKeyLinesUn[i].angle-CurrentFrame.mvKeyLinesUn[bestIdx].angle;
-                       if(rot<0.0)
-                           rot+=360.0f;
+                       if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; } // NOTE: kl.angle for lines is in radians and not in degrees
                        int bin = round(rot*factor);
                        if(bin==HISTO_LENGTH)
                            bin=0;
@@ -1421,7 +1413,7 @@ int LineMatcher::SearchByProjection(KeyFramePtr& pKF, cv::Mat Scw, const vector<
     cv::Mat Ow = -Rcw.t()*tcw;
 
     // Set of MapLines already found in the KeyFrame
-    set<MapLinePtr> spAlreadyFound(vpMatched.begin(), vpMatched.end());
+    unordered_set<MapLinePtr> spAlreadyFound(vpMatched.begin(), vpMatched.end());
     spAlreadyFound.erase(static_cast<MapLinePtr>(NULL));
 
     int nmatches=0;
@@ -1801,7 +1793,6 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
             {
                 if(!pMLinKF->isBad())
                 {
-                    // 
                     if(pMLinKF->Observations() > pML->Observations())
                         pML->Replace(pMLinKF);
                     else
