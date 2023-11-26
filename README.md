@@ -34,19 +34,20 @@ The following procedures were tested under **Ubuntu 20**. If you don't have it, 
 
 ### Build
 
-- Install basic dependencies:      
+1. Install basic dependencies:      
   `$ ./install_dependencies.sh`        
-- Install *OpenCV* in a local folder:                 
-  `$ ./install_local_opencv.sh`      
-  (if you want, skip this step and set the variables `OpenCV_DIR` and `OPENCV_VERSION` in `config.sh` with your local *OpenCV* path and version, respectively)     
-- Build the *PLVS* framework:       
+2. Install *OpenCV* in a local folder:                 
+  `$ ./install_local_opencv.sh`         
+3. Build the *PLVS* framework:       
   `$ ./build.sh`
 
 Under **ROS noetic** you can run:        
 `$ ./build_ros_catkin.sh`       
-to build the *PLVS* ROS workspace and deploy it into the `ros_ws` folder.
+to build the *PLVS* ROS workspace and deploy it into the `ros_ws` subfolder.
 
-It should be easy to adapt the above procedures if you have a different OS or ROS version.
+It should be easy to adapt the above procedures if you have a different OS or ROS version. 
+
+If you want to skip step 2, you can set the variables `OpenCV_DIR` and `OPENCV_VERSION` in `config.sh` with your local *OpenCV* path and version, respectively. However, this is not recommended. 
 
 ### Running the examples 
 

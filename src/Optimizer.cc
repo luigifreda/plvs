@@ -6141,12 +6141,11 @@ void Optimizer::LocalInertialBA(KeyFramePtr pKF, bool *pbStopFlag, Map *pMap, in
         //      https://github.com/UZ-SLAMLab/ORB_SLAM3/issues/145
         if(mit->second<3)
         {
+            std::cout << IoColor::Yellow() << "LocalInertialBA - KF " << mit->first << " with only " << mit->second << " observations" << IoColor::Default() << std::endl;               
     #if 0 
             VertexPose* VP = static_cast<VertexPose*>(optimizer.vertex(mit->first));           
             VP->setFixed(true);
-            std::cout << IoColor::Yellow() << "LocalInertialBA - Adding fixed KF " << mit->first << IoColor::Default() << std::endl;     
-    #else 
-            std::cout << IoColor::Yellow() << "LocalInertialBA - KF " << mit->first << " with only " << mit->second << " observations" << IoColor::Default() << std::endl;     
+            std::cout << IoColor::Yellow() << "\t Adding fixed KF " << mit->first << IoColor::Default() << std::endl;     
     #endif             
         }
 #endif         

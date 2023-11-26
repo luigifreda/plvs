@@ -31,3 +31,17 @@ This is a list of the **new features** provided by PLVS:
 You can find further details and videos on this [page](https://www.luigifreda.com/research/plvs-an-open-source-rgb-d-and-stereo-slam-for-volumetric-reconstruction-and-3d-incremental-segmentation/) and in the following **document**:          
 **[PLVS: A SLAM System with Points, Lines, Volumetric Mapping, and 3D Incremental Segmentation](https://arxiv.org/pdf/2309.10896.pdf)**         
 *Luigi Freda* 
+
+
+## Limitations 
+
+At present time, we have the following limitations on some specific sensor configurations.  
+
+**Monocular sensors**
+- Lines and volumetric reconstruction are not supported with monocular sensors.
+
+**Stereo sensors**
+- Lines and volumetric reconstruction are only supported with rectified stereo pairs.   
+
+**Incremental segmentation**
+- Incremental segmentation is only supported with RGBD sensors and octree-based dense map (`PointCloudMapping.type: "octree_point"`).

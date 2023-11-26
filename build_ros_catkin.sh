@@ -140,24 +140,26 @@ fi
 if [ $USE_REALSENSE_D435 -eq 1 ]; then
     DO_INSTALL_REALSENSE=$(check_package librealsense2-dev)
     echo "DO_INSTALL_REALSENSE $DO_INSTALL_REALSENSE"
-    if [ $DO_INSTALL_REALSENSE -eq 1 ] ; then
-        # install Intel® RealSense™ SDK 2.0 ( from https://github.com/IntelRealSense/librealsense/blob/master/doc/distribution_linux.md)
-        #sudo apt-key adv --keyserver keys.gnupg.net --recv-key F6E65AC044F831AC80A06380C8B3A55A6F3EFCDE || sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-key F6E65AC044F831AC80A06380C8B3A55A6F3EFCDE
-        sudo mkdir -p /etc/apt/keyrings
-        curl -sSf https://librealsense.intel.com/Debian/librealsense.pgp | sudo tee /etc/apt/keyrings/librealsense.pgp > /dev/null        
-        sudo apt-get install apt-transport-https
-        echo "deb [signed-by=/etc/apt/keyrings/librealsense.pgp] https://librealsense.intel.com/Debian/apt-repo `lsb_release -cs` main" | \
-        sudo tee /etc/apt/sources.list.d/librealsense.list      
-        # if [[ $UBUNTU_VERSION == *"18.04"* ]] ; then
-        #     sudo add-apt-repository "deb http://realsense-hw-public.s3.amazonaws.com/Debian/apt-repo bionic main" -u
-        # fi 
-        # if [[ $UBUNTU_VERSION == *"16.04"* ]] ; then
-        #     sudo add-apt-repository "deb http://realsense-hw-public.s3.amazonaws.com/Debian/apt-repo xenial main" -u
-        # fi 
-        #sudo rm -f /etc/apt/sources.list.d/realsense-public.list
-        sudo apt-get update
-        sudo apt-get install -y librealsense2-dkms librealsense2-utils librealsense2-dev librealsense2-dbg
-    fi
+
+    # these are alread installed by the script install_dependencies.sh 
+    # if [ $DO_INSTALL_REALSENSE -eq 1 ] ; then
+    #     # install Intel® RealSense™ SDK 2.0 ( from https://github.com/IntelRealSense/librealsense/blob/master/doc/distribution_linux.md)
+    #     #sudo apt-key adv --keyserver keys.gnupg.net --recv-key F6E65AC044F831AC80A06380C8B3A55A6F3EFCDE || sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-key F6E65AC044F831AC80A06380C8B3A55A6F3EFCDE
+    #     sudo mkdir -p /etc/apt/keyrings
+    #     curl -sSf https://librealsense.intel.com/Debian/librealsense.pgp | sudo tee /etc/apt/keyrings/librealsense.pgp > /dev/null        
+    #     sudo apt-get install apt-transport-https
+    #     echo "deb [signed-by=/etc/apt/keyrings/librealsense.pgp] https://librealsense.intel.com/Debian/apt-repo `lsb_release -cs` main" | \
+    #     sudo tee /etc/apt/sources.list.d/librealsense.list      
+    #     # if [[ $UBUNTU_VERSION == *"18.04"* ]] ; then
+    #     #     sudo add-apt-repository "deb http://realsense-hw-public.s3.amazonaws.com/Debian/apt-repo bionic main" -u
+    #     # fi 
+    #     # if [[ $UBUNTU_VERSION == *"16.04"* ]] ; then
+    #     #     sudo add-apt-repository "deb http://realsense-hw-public.s3.amazonaws.com/Debian/apt-repo xenial main" -u
+    #     # fi 
+    #     #sudo rm -f /etc/apt/sources.list.d/realsense-public.list
+    #     sudo apt-get update
+    #     sudo apt-get install -y librealsense2-dkms librealsense2-utils librealsense2-dev librealsense2-dbg
+    # fi
 
     if [ ! -d ros_ws/src/realsense2 ]; then
         print_blue "downloading realsense2... "

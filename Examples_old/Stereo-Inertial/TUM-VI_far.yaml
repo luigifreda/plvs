@@ -115,3 +115,19 @@ ORBextractor.nLevels: 8
 ORBextractor.iniThFAST: 20 # 20
 ORBextractor.minThFAST: 7 # 7
 
+#--------------------------------------------------------------------------------------------
+# Sparse Mapping
+#--------------------------------------------------------------------------------------------
+
+SparseMapping.filename: "sparse_map_stereo.atlas"
+# use saved map on start: 1 is ON, 0 is OFF 
+SparseMapping.reuseMap: 0 
+# freeze map during optimizations: 1 is ON, 0 is OFF  
+SparseMapping.freezeMap: 0
+# save map on shutdown: 1 is ON, 0 is OFF
+SparseMapping.saveMap: 0 
+# force immediate relocalization (or wait for loop-closing thread for relocalization): 1 is ON, 0 is OFF
+SparseMapping.forceRelocalization: 1
+
+
+## NOTE: in the stereo case, lines and volumetric mapping are only supported with rectified stereo pairs. 

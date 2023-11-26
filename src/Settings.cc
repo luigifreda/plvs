@@ -401,6 +401,7 @@ namespace PLVS2 {
 
             b_ = Tlr_.translation().norm();
             bf_ = b_ * calibration1_->getParameter(0);
+            std::cout << "Stereo.b recomputed to " << b_ << std::endl; 
         }
 
         thDepth_ = readParameter<float>(fSettings,"Stereo.ThDepth",found);
@@ -694,7 +695,7 @@ namespace PLVS2 {
             output << " ]" << endl;
 
             if(!settings.vPinHoleDistorsion2_.empty()){
-                output << "\t-Camera 1 distortion parameters: [ ";
+                output << "\t-Camera 2 distortion parameters: [ ";
                 for(float d : settings.vPinHoleDistorsion2_){
                     output << " " << d;
                 }

@@ -5,6 +5,9 @@ File.version: "1.0"
 #--------------------------------------------------------------------------------------------
 # Viewer Parameters
 #--------------------------------------------------------------------------------------------
+# Viewer.on: 1 is ON, 0 is OFF
+Viewer.on: 1
+
 Viewer.KeyFrameSize: 0.05
 Viewer.KeyFrameLineWidth: 1.0
 Viewer.GraphLineWidth: 0.9
@@ -56,6 +59,10 @@ Stereo.T_c1_c2: !!opencv-matrix
             -0.000656143613644,  -0.046896036240590,   0.998899560146304,   0.001015350132563,
           0.0,0.0,0.0,1.0]
 
+# Camera resolution
+Camera.width: 512
+Camera.height: 512
+
 # Lapping area between images
 Camera1.overlappingBegin: 0
 Camera1.overlappingEnd: 511
@@ -63,9 +70,7 @@ Camera1.overlappingEnd: 511
 Camera2.overlappingBegin: 0
 Camera2.overlappingEnd: 511
 
-# Camera resolution
-Camera.width: 512
-Camera.height: 512
+
 
 # Camera frames per second 
 Camera.fps: 20
@@ -114,21 +119,16 @@ ORBextractor.iniThFAST: 20
 ORBextractor.minThFAST: 7
 
 #--------------------------------------------------------------------------------------------
-# KeyFrame Generation 
-#--------------------------------------------------------------------------------------------
-
-# on: 1 is ON, 0 is OFF
-KeyFrame.fovCentersBasedGeneration.on: 0
-KeyFrame.maxFovCentersDistance: 0.5
-
-#--------------------------------------------------------------------------------------------
 # Sparse Mapping
 #--------------------------------------------------------------------------------------------
 
 SparseMapping.filename: "sparse_map_tum_vi_stereoi.atlas"
 # use saved map on start 
-SparseMapping.reuseMap: 1  
+SparseMapping.reuseMap: 0  
 # save map on shutdown
 SparseMapping.saveMap: 0 
 # force immediate relocalization (or wait for loop-closing thread for relocalization): 1 is ON, 0 is OFF
 SparseMapping.forceRelocalization: 1
+
+
+## NOTE: in the stereo case, lines and volumetric mapping are only supported with rectified stereo pairs. 

@@ -92,6 +92,8 @@ Thirdparty/voxblox/include/Block.pb.h
 Thirdparty/voxblox/include/Layer.pb.h
 Thirdparty/voxblox/include/kindr
 
+Thirdparty/depthai-core
+
 ros_ws/
 
 Vocabulary/ORBvoc.txt

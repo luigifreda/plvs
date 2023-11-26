@@ -201,7 +201,7 @@ Line.LSD.on: 0
 
 SparseMapping.filename: "sparse_map_euroc_stereoi.atlas"
 # use saved map on start: 1 is ON, 0 is OFF 
-SparseMapping.reuseMap: 1 
+SparseMapping.reuseMap: 0 
 # freeze map during optimizations: 1 is ON, 0 is OFF  
 SparseMapping.freezeMap: 0
 # save map on shutdown: 1 is ON, 0 is OFF
