@@ -1,0 +1,6 @@
+/oak:
+    camera_i_nn_type: none
+    stereo_i_subpixel: true
+
+    rgb_i_resolution: '720P'
+    rgb_i_set_isp_scale: false   # for OAK-D Pro with OV9782

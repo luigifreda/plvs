@@ -19,6 +19,7 @@ Viewer.ViewpointF: 500
 #--------------------------------------------------------------------------------------------
 # Camera Parameters.
 #--------------------------------------------------------------------------------------------
+Camera.type: "PinHole"
 
 # D: (k1, k2, t1, t2, k3)
 
@@ -135,4 +136,19 @@ PointCloudMapping.filterDepth.diameter: 7
 PointCloudMapping.filterDepth.sigmaDepth: 0.02
 PointCloudMapping.filterDepth.sigmaSpace: 5
 
+#--------------------------------------------------------------------------------------------
+# Segmentation
+#--------------------------------------------------------------------------------------------
+
+# Segmentation.on: 1 is ON, 0 is OFF
+Segmentation.on: 0
+
+Segmentation.maxDepth: 5
+Segmentation.minFi: 0.92
+Segmentation.maxDelta: 0.01
+Segmentation.singleDepth.minComponentArea: 40
+Segmentation.lineDrawThinckness: 1
+Segmentation.maxAngleForNormalAssociation: 20
+Segmentation.labelsMatchingMinOverlapPerc: 0.01
+Segmentation.globalLabelsMatchingMinOverlapPerc: 0.2
 

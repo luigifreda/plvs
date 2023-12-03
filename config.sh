@@ -58,10 +58,15 @@ export DATASETS_FOLDER="~/Work/datasets/rgbd_datasets/tum/"
 
 export INSTALL_CATKIN_TOOLS=1  # now this is compulsory
 
-export USE_ZED_CAMERA=0  # ( you need to install the last zed camera SDK)
-export USE_REALSENSE_D435=0
 export USE_ELAS_ROS=0
 
+# ====================================================
+# DEVICES  
+# ====================================================
+
+export USE_ZED_CAMERA=0      # ( you need to install the last zed camera SDK)
+export USE_REALSENSE_D435=0
+export USE_OAK=0
 
 # ====================================================
 # Check and Manage Settings 

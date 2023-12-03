@@ -2,7 +2,7 @@
 <launch>
 
 
-	<node name="rviz" pkg="rviz" type="rviz" respawn="false" args="-d $(find orbslam2)/rviz/r200.rviz" >
+	<node name="rviz" pkg="rviz" type="rviz" respawn="false" args="-d $(find plvs)/rviz/r200.rviz" >
 	</node> 
     
 </launch>

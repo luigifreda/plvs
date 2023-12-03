@@ -1,0 +1,126 @@
+diff --git a/cmake/Hunter/config.cmake b/cmake/Hunter/config.cmake
+index 8b1ec798..46ae1b33 100644
+--- a/cmake/Hunter/config.cmake
++++ b/cmake/Hunter/config.cmake
+@@ -3,6 +3,8 @@ hunter_config(
+     VERSION "3.9.1"
+     URL "https://github.com/nlohmann/json/archive/v3.9.1.tar.gz"
+     SHA1 "f8a20a7e19227906d77de0ede97468fbcfea03e7"
++    CMAKE_ARGS
++        CMAKE_POSITION_INDEPENDENT_CODE=ON    
+ )
+ 
+ hunter_config(
+@@ -11,12 +13,15 @@ hunter_config(
+     URL "https://github.com/luxonis/XLink/archive/c940feaf9321f06a7d9660f28e686a9718135f38.tar.gz"
+     SHA1 "52935b6ceb470ee632de3348b9d2aaa2c6c24ac0"
+     CMAKE_ARGS
++        CMAKE_POSITION_INDEPENDENT_CODE=ON
+         XLINK_ENABLE_LIBUSB=${DEPTHAI_ENABLE_LIBUSB}
+ )
+ 
+ hunter_config(
+     BZip2
+     VERSION "1.0.8-p0"
++    CMAKE_ARGS
++        CMAKE_POSITION_INDEPENDENT_CODE=ON    
+ )
+ 
+ hunter_config(
+@@ -25,12 +30,20 @@ hunter_config(
+     URL "https://github.com/gabime/spdlog/archive/v1.8.2.tar.gz"
+     SHA1 "4437f350ca7fa89a0cd8faca1198afb36823f775"
+     CMAKE_ARGS
++        CMAKE_POSITION_INDEPENDENT_CODE=ON
+         SPDLOG_BUILD_EXAMPLE=OFF
+         SPDLOG_FMT_EXTERNAL=OFF
+         CMAKE_CXX_VISIBILITY_PRESET=hidden
+         CMAKE_C_VISIBILITY_PRESET=hidden
+ )
+ 
++hunter_config(
++    lzma
++    VERSION "5.2.3-p4"
++    CMAKE_ARGS
++        CMAKE_POSITION_INDEPENDENT_CODE=ON    
++)
++
+ # libarchive, luxonis fork
+ hunter_config(
+     libarchive-luxonis
+@@ -38,6 +51,7 @@ hunter_config(
+     URL "https://github.com/luxonis/libarchive/archive/45baa3a3e57104519e1165bcd5ac29c3bd8c9f3a.tar.gz"
+     SHA1 "ca5cd0f1c31b9c187d7119cb1aa7467f8c231d29"
+     CMAKE_ARGS
++        CMAKE_POSITION_INDEPENDENT_CODE=ON
+         ENABLE_ACL=OFF
+         ENABLE_BZip2=OFF
+         ENABLE_CAT=OFF
+@@ -76,6 +90,7 @@ hunter_config(
+     URL "https://github.com/luxonis/FP16/archive/c911175d2717e562976e606c6e5f799bf40cf94e.tar.gz"
+     SHA1 "40e9723c87c2fe21781132c0f2f8b90338500e32"
+     CMAKE_ARGS
++        CMAKE_POSITION_INDEPENDENT_CODE=ON    
+         FP16_BUILD_BENCHMARKS=OFF
+         FP16_BUILD_TESTS=OFF
+ )
+@@ -87,6 +102,7 @@ hunter_config(
+     URL "https://github.com/bombela/backward-cpp/archive/refs/tags/v1.6.tar.gz"
+     SHA1 "4ecb711eabfd15bc88ff9dd9342907fc5da46b62"
+     CMAKE_ARGS
++        CMAKE_POSITION_INDEPENDENT_CODE=ON    
+         BACKWARD_TESTS=OFF
+ )
+ 
+@@ -96,6 +112,8 @@ hunter_config(
+     VERSION "1.0-ec8f75a"
+     URL "https://github.com/luxonis/libnop/archive/ab842f51dc2eb13916dc98417c2186b78320ed10.tar.gz"
+     SHA1 "32f40f084615ba7940ce9d29f05f3294371aabeb"
++    CMAKE_ARGS
++        CMAKE_POSITION_INDEPENDENT_CODE=ON      
+ )
+ 
+ # Specific Catch2 version
+@@ -104,6 +122,8 @@ hunter_config(
+     VERSION "2.13.7"
+     URL "https://github.com/catchorg/Catch2/archive/refs/tags/v3.2.1.tar.gz"
+     SHA1 "acfba7f71cbbbbf60bc1bc4c0e3efca4a9c70df7"
++    CMAKE_ARGS
++        CMAKE_POSITION_INDEPENDENT_CODE=ON      
+ )
+ 
+ # ZLib - Luxonis fix for alias on imported target for old CMake versions
+@@ -112,6 +132,8 @@ hunter_config(
+     VERSION "1.2.11-p2"
+     URL "https://github.com/luxonis/zlib/archive/refs/tags/v1.2.11-p2.tar.gz"
+     SHA1 "fb8b6486183b13a86040f793a939b128f6d27095"
++    CMAKE_ARGS
++        CMAKE_POSITION_INDEPENDENT_CODE=ON      
+ )
+ 
+ # TMP, could be read from XLink
+@@ -122,6 +144,7 @@ hunter_config(
+     URL "https://github.com/luxonis/libusb/archive/b7e4548958325b18feb73977163ad44398099534.tar.gz"
+     SHA1 "2d79573d57628fe56d2868d2f6ce756d40906cf4"
+     CMAKE_ARGS
++        CMAKE_CXX_FLAGS+=-fPIC
+         WITH_UDEV=OFF
+         # Build shared libs by default to not cause licensing issues
+         BUILD_SHARED_LIBS=ON
+diff --git a/examples/StereoDepth/rgb_depth_aligned.cpp b/examples/StereoDepth/rgb_depth_aligned.cpp
+index 19a1fe2a..ee6af337 100644
+--- a/examples/StereoDepth/rgb_depth_aligned.cpp
++++ b/examples/StereoDepth/rgb_depth_aligned.cpp
+@@ -8,10 +8,10 @@
+ 
+ // Optional. If set (true), the ColorCamera is downscaled from 1080p to 720p.
+ // Otherwise (false), the aligned depth is automatically upscaled to 1080p
+-static std::atomic<bool> downscaleColor{true};
++static std::atomic<bool> downscaleColor{false};
+ static constexpr int fps = 30;
+ // The disparity is computed at this resolution, then upscaled to RGB resolution
+-static constexpr auto monoRes = dai::MonoCameraProperties::SensorResolution::THE_720_P;
++static constexpr auto monoRes = dai::MonoCameraProperties::SensorResolution::THE_800_P;
+ 
+ static float rgbWeight = 0.4f;
+ static float depthWeight = 0.6f;

@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+
+<!-- Luigi: roslaunch depthai_ros_driver rgbd_pcl.launch rectify_rgb:=true  started from this, then added custom YAML for for OAK-D Pro with OV9782 -->
+
+<launch>
+    <arg name="params_file" default="$(find plvs)/config/oak/rgbd.yaml"/>
+
+    <arg name="name" default="oak" />
+    <arg name="rectify_rgb" default="true"/> 
+    <arg name="camera_model" default="OAK-D"/>
+
+    <arg name="base_frame" default="oak-d_frame" />
+    <arg name="parent_frame" default="oak-d-base-frame" />
+
+    <arg name="cam_pos_x" default="0.0" />
+    <!-- Position respect to base frame (i.e. "base_link) -->
+    <arg name="cam_pos_y" default="0.0" />
+    <!-- Position respect to base frame (i.e. "base_link) -->
+    <arg name="cam_pos_z" default="0.0" />
+    <!-- Position respect to base frame (i.e. "base_link) -->
+    <arg name="cam_roll" default="0.0" />
+    <!-- Orientation respect to base frame (i.e. "base_link) -->
+    <arg name="cam_pitch" default="0.0" />
+    <!-- Orientation respect to base frame (i.e. "base_link) -->
+    <arg name="cam_yaw" default="0.0" />
+    <!-- Orientation respect to base frame (i.e. "base_link) -->
+
+    <rosparam file="$(arg params_file)" />
+    <include file="$(find depthai_ros_driver)/launch/camera.launch">
+        <arg name="name" value="$(arg name)"/>
+        <arg name="params_file" value="$(arg params_file)"/>
+        <arg name="base_frame" value="$(arg  name)" />
+        <arg name="parent_frame" value="$(arg  parent_frame)"/>
+        <arg name="camera_model" value="$(arg  camera_model)"/>
+        <arg name="cam_pos_x" value="$(arg  cam_pos_x)" />
+        <arg name="cam_pos_y" value="$(arg  cam_pos_y)" />
+        <arg name="cam_pos_z" value="$(arg  cam_pos_z)" />
+        <arg name="cam_roll" value="$(arg  cam_roll)" />
+        <arg name="cam_pitch" value="$(arg  cam_pitch)" />
+        <arg name="cam_yaw" value="$(arg  cam_yaw)" />
+    </include>
+
+
+
+    <node pkg="nodelet" type="nodelet" name="rectify_color"
+            args="load image_proc/rectify $(arg  name)_nodelet_manager" if="$(arg rectify_rgb)">
+            <remap from="image_mono" to="$(arg name)/rgb/image_raw"/>
+        <remap from="image_rect" to="$(arg name)/rgb/image_rect"/>
+    </node>  
+
+    <node pkg="nodelet" type="nodelet" name="depth_image_to_rgb_pointcloud"
+        args="load depth_image_proc/point_cloud_xyzrgb $(arg  name)_nodelet_manager">
+        <param name="queue_size"          value="10"/>
+
+        <remap from="rgb/camera_info" to="$(arg name)/rgb/camera_info"/>
+        <remap from="rgb/image_rect_color" to="$(arg name)/rgb/image_rect" if="$(arg rectify_rgb)"/>
+        <remap from="rgb/image_rect_color" to="$(arg name)/rgb/image_raw" unless="$(arg rectify_rgb)"/>
+        <remap from="depth_registered/image_rect" to="$(arg name)/stereo/image_raw"/>    
+        <remap from="depth_registered/points" to="$(arg name)/points"/>
+    </node>
+
+
+</launch>

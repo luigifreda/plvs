@@ -10,6 +10,7 @@ SUFFIX="_old"
 
 INSEG_YAML="InSeg.yaml"
 
+# You can download the datasets here https://rgbd-dataset.cs.washington.edu/dataset/rgbd-scenes-v2/
 PATH_TO_SEQUENCE_FOLDER="~/Work/datasets/rgbd_datasets/inseg_dataset"
 
 #export DEBUG_PREFIX="gdb -ex run --args"  # uncomment this in order to debug with gdb

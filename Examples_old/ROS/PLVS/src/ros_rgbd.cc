@@ -282,7 +282,7 @@ int main(int argc, char **argv)
     ros::Timer timer;
     if (!bUseViewer)
     {
-        pointCloudPublisher = nh.advertise<sensor_msgs::PointCloud2>("/orbslam2/pointcloud_map", 1, true);
+        pointCloudPublisher = nh.advertise<sensor_msgs::PointCloud2>("/plvs/pointcloud_map", 1, true);
 #if USE_POINTCLOUD_MAPPING
         pPointCloudMapping = pSLAM->GetPointCloudMapping();
         timer = nh.createTimer(ros::Duration(1.0), pointcloudCallback);

@@ -249,6 +249,26 @@ PointCloudMapping.filterDepth.sigmaSpace: 5
 PointCloudMapping.loadMap: 0 
 PointCloudMapping.loadFilename: "dense_map.ply"
 
+#--------------------------------------------------------------------------------------------
+# Segmentation
+#--------------------------------------------------------------------------------------------
+
+# Segmentation.on: 1 is ON, 0 is OFF
+# working only with [octree_point]
+Segmentation.on: 0
+
+Segmentation.maxDepth: 3
+
+# the following params work well with PointCloudMapping.downSampleStep: 2
+Segmentation.erosionDilationOn: 1
+Segmentation.minFi: 0.92
+Segmentation.maxDelta: 0.01
+Segmentation.singleDepth.minComponentArea: 40
+Segmentation.lineDrawThinckness: 2
+Segmentation.maxAngleForNormalAssociation: 20
+Segmentation.labelsMatchingMinOverlapPerc: 0.2
+Segmentation.labelsMatchingMinOverlapPoints: 0
+Segmentation.globalLabelsMatchingMinOverlapPerc: 0.2
 
 #--------------------------------------------------------------------------------------------
 # Gl Objects

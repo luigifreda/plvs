@@ -19,6 +19,6 @@
 	 <remap from = "octomap_point_cloud_centers" to = "/octomap_map"/>
 	 </node> 
 
-	 <include file="$(find orbslam2)/launch/rviz_r200.launch"/>
+	 <include file="$(find plvs2)/launch/rviz_r200.launch"/>
 
 </launch>

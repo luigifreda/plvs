@@ -32,68 +32,89 @@ Camera.type: "PinHole"
 #     [ 0  0  1]
 # Camera calibration and distortion parameters (f & c from rosNode)
 
-#D: [0.0, 0.0, 0.0, 0.0, 0.0]
-#K: [570.3422241210938, 0.0, 319.5, 0.0, 570.3422241210938, 239.5, 0.0, 0.0, 1.0]
-#R: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
-#P: [570.3422241210938, 0.0, 319.5, 0.0, 0.0, 570.3422241210938, 239.5, 0.0, 0.0, 0.0, 1.0, 0.0]
 
+# $ rostopic echo /oak/rgb/camera_info
+# header: 
+#   seq: 154
+#   stamp: 
+#     secs: 1701538400
+#     nsecs: 717004151
+#   frame_id: "dai_rgb_camera_optical_frame"
+# height: 720
+# width: 1280
+# distortion_model: "rational_polynomial"
+# D: [22.44871711730957, -31.197345733642578, 0.0005211468087509274, 0.0008370006107725203, 10.014442443847656, 21.85323715209961, -29.477294921875, 8.749837875366211]
+# K: [799.9114990234375, 0.0, 621.0980834960938, 0.0, 799.2045288085938, 375.0484619140625, 0.0, 0.0, 1.0]
+# R: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+# P: [799.9114990234375, 0.0, 621.0980834960938, 0.0, 0.0, 799.2045288085938, 375.0484619140625, 0.0, 0.0, 0.0, 1.0, 0.0]
+# binning_x: 0
+# binning_y: 0
+# roi: 
+#   x_offset: 0
+#   y_offset: 0
+#   height: 0
+#   width: 0
+#   do_rectify: False
 
-#D: [0.03025957484929489, -0.09482193293024753, -0.00181346457018687, -3.764272678083928e-05, 0.0]
-#K: [539.7519027435015, 0.0, 316.0147071483232, 0.0, 538.3398732086945, 240.5915991553433, 0.0, 0.0, 1.0]
-#R: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+# rostopic echo /oak/stereo/camera_info   <= referring to this for the stereo depth 
+# header: 
+#   seq: 172
+#   stamp: 
+#     secs: 1701618412
+#     nsecs: 386165886
+#   frame_id: "oak_rgb_camera_optical_frame"
+# height: 720
+# width: 1280
+# distortion_model: "rational_polynomial"
+# D: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+# K: [799.9114990234375, 0.0, 621.0980834960938, 0.0, 799.2045288085938, 375.0484619140625, 0.0, 0.0, 1.0]
+# R: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+# P: [799.9114990234375, 0.0, 621.0980834960938, 0.0, 0.0, 799.2045288085938, 375.0484619140625, 0.0, 0.0, 0.0, 1.0, 0.0]
+# binning_x: 0
+# binning_y: 0
+# roi: 
+#   x_offset: 0
+#   y_offset: 0
+#   height: 0
+#   width: 0
+#   do_rectify: False
 
-# LF openni
-#D: [0.04485, -0.093603, 0.000888, 0.003481, 0.0]
-#K: [539.126844, 0.0, 319.005954, 0.0, 539.352462, 240.522856, 0.0, 0.0, 1.0]
-#R: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
-
-# LF openni2
-#D: [0.0, 0.0, 0.0, 0.0, 0.0]
-#K: [570.3422241210938, 0.0, 319.5, 0.0, 570.3422241210938, 239.5, 0.0, 0.0, 1.0]
-#R: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
-
-Camera.fx: 570.3422241210938
-Camera.fy: 570.3422241210938
-Camera.cx: 319.5
-Camera.cy: 239.5
+Camera.fx: 799.9114990234375
+Camera.fy: 799.2045288085938
+Camera.cx: 621.0980834960938
+Camera.cy: 375.0484619140625
 
 # NOTE: if you use  rectified  image the distortion params should be set to zero!
 # see https://github.com/raulmur/ORB_SLAM2/issues/293
-#Camera.k1:  0.05103599067629277
-#Camera.k2:  -0.1520347528678994
-#Camera.p1:  0.003990960785872419
-#Camera.p2:  0.0
-Camera.k1:  0.0
-Camera.k2:  0.0
-Camera.p1:  0.0
-Camera.p2:  0.0
+Camera.k1: 0.
+Camera.k2: 0.
+Camera.p1: 0.
+Camera.p2: 0.
 
-Camera.width: 640
-Camera.height: 480
+Camera.width: 1280
+Camera.height: 720
 
 # Camera frames per second
 Camera.fps: 30.0
 
 # IR projector baseline times fx (aprox.)
 # baseline
-Camera.bf: 50
+Camera.bf: 50.
 
 # Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
 Camera.RGB: 1
 
+# Image scale, it changes the image size to be processed (<1.0: reduce, >1.0: increase)
+Camera.imageScale: 1.0 # 0.5 #0.7071 # 1/sqrt(2)
+
 # Camera.waitCameraInfoOn: 1 is ON, 0 is OFF (before starting mapping wait for CameraInfo)
-Camera.waitCameraInfoOn: 0
+Camera.waitCameraInfoOn: 1
 
 # Close/Far threshold. Baseline times.
 ThDepth: 40.0
 
 # Depthmap values factor
-# RECT
-# DepthMapFactor: 1
-# RAW
-# The default scale of an R200 device is one millimeter  from https://github.com/IntelRealSense/librealsense/blob/master/doc/projection.md#depth-image-formats
-#DepthMapFactor: 1000.0
-DepthMapFactor: 1.0
+DepthMapFactor: 1000.0
 
 #--------------------------------------------------------------------------------------------
 # Features Parameters
@@ -182,7 +203,7 @@ SparseMapping.freezeMap: 1
 # save map on shutdown: 1 is ON, 0 is OFF
 SparseMapping.saveMap: 0 
 # force immediate relocalization (or wait for loop-closing thread for relocalization): 1 is ON, 0 is OFF
-SparseMapping.forceRelocalization: 1
+SparseMapping.forceRelocalization: 0
 
 #--------------------------------------------------------------------------------------------
 # Depth Noise Model
@@ -200,7 +221,7 @@ PointCloudMapping.on: 1
 
 #PointCloudMapping.type: voxelgrid, octomap, octree_point, chisel, fastfusion, voxblox
 # NOTE: chisel and fastfusion require rectified images if you do not use pointcloud generation 
-PointCloudMapping.type: "voxblox"
+PointCloudMapping.type: "chisel"
 
 PointCloudMapping.resolution: 0.02
 PointCloudMapping.numKeyframesToQueueBeforeProcessing: 1

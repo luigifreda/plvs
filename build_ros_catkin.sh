@@ -50,6 +50,14 @@ if [[ $OPENCV_VERSION == 4* ]]; then
     EXTERNAL_OPTION="$EXTERNAL_OPTION -DOPENCV_VERSION=4"
 fi
 
+# check the use of OAK
+if [ $USE_OAK -eq 1 ]; then
+    export depthai_DIR="$SCRIPT_DIR/Thirdparty/depthai-core/build"
+    echo "depthai_DIR: $depthai_DIR" 
+    EXTERNAL_OPTION="$EXTERNAL_OPTION -Ddepthai_DIR=$depthai_DIR" 
+fi
+
+
 print_blue  "external option: $EXTERNAL_OPTION"
 # ====================================================
 
@@ -181,6 +189,20 @@ if [ $USE_ELAS_ROS -eq 1 ]; then
     fi
 fi
 
+if [ $USE_OAK -eq 1 ]; then
+    if [ ! -d ros_ws/src/vision_msgs ]; then
+        print_blue "downloading vision_msgs... "
+        cd ros_ws/src        
+        git clone --branch $ROS_DISTRO-devel https://github.com/ros-perception/vision_msgs.git vision_msgs
+        cd $SCRIPT_DIR        
+    fi 
+    if [ ! -d ros_ws/src/depthai-ros ]; then
+        print_blue "downloading depthai-ros... "
+        cd ros_ws/src        
+        git clone --branch $ROS_DISTRO https://github.com/luxonis/depthai-ros.git depthai-ros
+        cd $SCRIPT_DIR        
+    fi 
+fi 
 
 # now install PLVS module
 cd ros_ws/src

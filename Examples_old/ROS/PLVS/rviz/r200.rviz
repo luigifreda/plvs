@@ -170,7 +170,7 @@ Visualization Manager:
       Size (Pixels): 3
       Size (m): 0.00999999978
       Style: Flat Squares
-      Topic: /orbslam2/pointcloud_map
+      Topic: /plvs/pointcloud_map
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true

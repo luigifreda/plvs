@@ -26,6 +26,11 @@ if [ -f ros_ws/devel/setup.bash ]; then
     echo "Check you are getting only one version of opencv under ros!"    
     source ros_ws/devel/setup.bash 
     ldd ros_ws/devel/lib/plvs/RGBD | grep opencv  
+
+    if [ -f ros_ws/devel/lib/libdepthai_ros_driver.so ]; then 
+        echo "Check you are getting only one version of libdepthai_ros_driver under ros!"    
+        ldd ros_ws/devel/lib/libdepthai_ros_driver.so | grep opencv          
+    fi 
 fi 
 
 print_blue '================================================'

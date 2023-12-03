@@ -224,7 +224,7 @@ make -j 8
 cd $SCRIPT_DIR
 
 print_blue '================================================'
-print_blue "Checking pip and evo package for odometry performance evaluation... "
+print_blue "Checking pip and evo package for odometry evaluation... "
 
 DO_INSTALL_PIP=$(check_package python3-pip)
 if [ $DO_INSTALL_PIP -eq 1 ] ; then
@@ -240,4 +240,28 @@ if [ $DO_INSTALL_EVO -eq 1 ] ; then
 fi
 
 
+if [ $USE_OAK -eq 1 ]; then
+    print_blue '================================================'
+    print_blue "Configuring and building Thirdparty/depthai-core ... "
 
+    BUILD_EXAMPLES=ON  # enable/disable building the examples 
+    cd Thirdparty
+    if [ ! -d depthai-core ]; then 
+        
+        sudo apt install -y libspdlog-dev libbz2-dev liblzma-dev
+
+        git clone --recursive https://github.com/luxonis/depthai-core.git depthai-core
+        cd depthai-core
+        git checkout 6b5093dd3d51bdb19c019b47af4e6a226051ab99 
+        git apply ../depthai-core.patch  # applied to commit 6b5093dd3d51bdb19c019b47af4e6a226051ab99
+        cd ..
+    fi 
+    if [ ! -f depthai-core/build/libdepthai-core.a ]; then 
+        cd depthai-core 
+        make_buid_dir
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release $EXTERNAL_OPTION -DDEPTHAI_BUILD_EXAMPLES=$BUILD_EXAMPLES -DCMAKE_POSITION_INDEPENDENT_CODE=ON #-DCMAKE_POSITION_INDEPENDENT_CODE=ON #-DCONFIG_MODE=ON #-DCMAKE_CXX_FLAGS+=-fPIC
+        make -j 8
+        cd $SCRIPT_DIR
+    fi 
+fi 
