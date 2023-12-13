@@ -35,13 +35,24 @@ You can find further details and videos on this [page](https://www.luigifreda.co
 
 ## Limitations 
 
-At present time, we have the following limitations on some specific sensor configurations.  
+At present, we have some limitations with some specific sensor configurations.  
 
-**Monocular sensors**
-- Lines and volumetric reconstruction are not supported with monocular sensors.
+### Monocular sensors
 
-**Stereo sensors**
-- Lines and volumetric reconstruction are only supported with rectified stereo pairs.   
+Line features and volumetric reconstruction are not supported with monocular sensors.
 
-**Incremental segmentation**
-- Incremental segmentation is only supported with RGBD sensors and octree-based dense map (`PointCloudMapping.type: "octree_point"`).
+### Stereo sensors 
+
+#### Line features 
+
+With fisheye (`Camera.type: "KannalaBrandt8"`) stereo cameras, line features are available only if you rectify stereo pairs: That is, you need to set `Camera.needRectification: 1` (use the new examples in the folder [Examples](./Examples/)). 
+  
+Note that, with pinhole (`Camera.type: "Pinhole"`) stereo cameras, rectification is automatically applied when using the new examples in the folder [Examples](./Examples/). 
+
+#### Volumetric reconstruction
+
+In general, with stereo cameras, volumetric reconstruction is available only if you rectify stereo pairs. This is automatic with `Camera.type: "Pinhole"`. With `Camera.type: "KannalaBrandt8"`, you need to set `Camera.needRectification: 1`.    
+
+### Incremental segmentation
+
+Incremental segmentation is only supported with RGBD sensors and octree-based dense map (`PointCloudMapping.type: "octree_point"`).
