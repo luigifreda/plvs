@@ -10,14 +10,16 @@ Viewer.on: 1
 
 Viewer.KeyFrameSize: 0.05
 Viewer.KeyFrameLineWidth: 1.0
-Viewer.GraphLineWidth: 0.9
+Viewer.GraphLineWidth: 1.0
 Viewer.PointSize: 2.0
-Viewer.CameraSize: 0.08
-Viewer.CameraLineWidth: 3.0
+Viewer.CameraSize: 0.05
+Viewer.CameraLineWidth: 2.0
 Viewer.ViewpointX: 0.0
+#Viewer.ViewpointY: -10.0
+#Viewer.ViewpointZ: -0.1
 Viewer.ViewpointY: -0.7
-Viewer.ViewpointZ: -3.5
-Viewer.ViewpointF: 500.0
+Viewer.ViewpointZ: -10.
+Viewer.ViewpointF: 2000.0
 
 #--------------------------------------------------------------------------------------------
 # Camera Parameters. Adjust them!
@@ -61,7 +63,7 @@ Stereo.T_c1_c2: !!opencv-matrix
   data: [ 0.999999445773493,   0.000791687752817,   0.000694034010224,   0.101063427414194,
             -0.000823363992158,   0.998899461915674,   0.046895490788700,   0.001946204678584,
             -0.000656143613644,  -0.046896036240590,   0.998899560146304,   0.001015350132563,
-          0.0,0.0,0.0,1.0]
+            0.0,0.0,0.0,1.0]
 
 # Camera resolution
 Camera.width: 512
@@ -86,43 +88,23 @@ Stereo.ThDepth: 40.0
 System.thFarPoints: 20.0  # In TUM outdoors, we ignore points too far away
 
 #--------------------------------------------------------------------------------------------
-# IMU Parameters
-#--------------------------------------------------------------------------------------------
-
-# Transformation from body-frame (imu) to left camera
-IMU.T_b_c1: !!opencv-matrix
-   rows: 4
-   cols: 4
-   dt: f
-   data: [-0.9995250378696743, 0.0075019185074052044, -0.02989013031643309, 0.045574835649698026, 
-          0.029615343885863205, -0.03439736061393144, -0.998969345370175, -0.071161801837997044,
-         -0.008522328211654736, -0.9993800792498829, 0.03415885127385616, -0.044681254117144367,
-          0.0, 0.0, 0.0, 1.0]
-
-# IMU noise (Use those from VINS-mono)
-IMU.NoiseGyro: 0.00016 # 0.004 (VINS) # 0.00016 (TUM) # 0.00016    # rad/s^0.5 
-IMU.NoiseAcc: 0.0028 # 0.04 (VINS) # 0.0028 (TUM) # 0.0028     # m/s^1.5
-IMU.GyroWalk: 0.000022 # 0.000022 (VINS and TUM) rad/s^1.5
-IMU.AccWalk: 0.00086 # 0.0004 (VINS) # 0.00086 # 0.00086    # m/s^2.5
-IMU.Frequency: 200.0
-
-#--------------------------------------------------------------------------------------------
 # ORB Parameters
 #--------------------------------------------------------------------------------------------
 
 # ORB Extractor: Number of features per image
-ORBextractor.nFeatures: 1000 # Tested with 1250
+ORBextractor.nFeatures: 1000
 
-# ORB Extractor: Scale factor between levels in the scale pyramid 	
+# ORB Extractor: Scale factor between levels in the scale pyramid
 ORBextractor.scaleFactor: 1.2
 
-# ORB Extractor: Number of levels in the scale pyramid	
+# ORB Extractor: Number of levels in the scale pyramid
 ORBextractor.nLevels: 8
+
 
 # ORB Extractor: Fast threshold
 # Image is divided in a grid. At each cell FAST are extracted imposing a minimum response.
 # Firstly we impose iniThFAST. If no corners are detected we impose a lower value minThFAST
-# You can lower these values if your images have low contrast			
+# You can lower these values if your images have low contrast
 ORBextractor.iniThFAST: 20
 ORBextractor.minThFAST: 7
 
@@ -170,13 +152,11 @@ KeyFrame.maxFovCentersDistance: 0.5
 # Sparse Mapping
 #--------------------------------------------------------------------------------------------
 
-SparseMapping.filename: "sparse_map_tum_vi_stereoi_rectified.atlas"
+SparseMapping.filename: "sparse_map.map"
 # use saved map on start 
 SparseMapping.reuseMap: 0  
 # save map on shutdown
 SparseMapping.saveMap: 0 
-# force immediate relocalization (or wait for loop-closing thread for relocalization): 1 is ON, 0 is OFF
-SparseMapping.forceRelocalization: 1
 
 #--------------------------------------------------------------------------------------------
 # Stereo Dense
@@ -195,7 +175,7 @@ PointCloudMapping.on: 0
 
 #PointCloudMapping.type: voxelgrid, octomap, octree_point, chisel, fastfusion, voxblox
 # NOTE: chisel and fastfusion require rectified images if you do not use pointcloud generation 
-PointCloudMapping.type: "voxblox"
+PointCloudMapping.type: "octree_point"
 
 PointCloudMapping.resolution: 0.02
 PointCloudMapping.numKeyframesToQueueBeforeProcessing: 1

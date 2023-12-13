@@ -231,5 +231,5 @@ cd ros_ws
 
 print_blue "compiling with catkin build... "
 #catkin_make --cmake-args -DCMAKE_BUILD_TYPE=Release -DCATKIN_ENABLE_TESTING=False $EXTERNAL_OPTION
-catkin build --cmake-args  -DCMAKE_BUILD_TYPE=Release -DCATKIN_ENABLE_TESTING=False $EXTERNAL_OPTION  # add "--verbose" option if needed 
+catkin build --cmake-args -DCMAKE_BUILD_TYPE=Release -DCATKIN_ENABLE_TESTING=False $EXTERNAL_OPTION  # add "--verbose" option if needed 
 

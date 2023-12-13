@@ -17,8 +17,12 @@ MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 find_package(CUDA)
 if (CUDA_FOUND AND WITH_GPU)
     set(USE_CUDA true)     # N.B.: here opencv libs are not used!
+    MESSAGE("USE_CUDA ${USE_CUDA}")
+else()
+    set(CUDA_LIBRARIES "")
+    MESSAGE("CUDA NOT FOUND!")
 endif()
-MESSAGE("USE_CUDA ${USE_CUDA}")
+
 
 # Set the C++ standard 
 set(CMAKE_CXX_STANDARD ${CPP_STANDARD_VERSION})

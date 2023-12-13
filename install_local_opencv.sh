@@ -87,7 +87,7 @@ export LD_LIBRARY_PATH=/usr/local/$CUDA_VERSION/lib64${LD_LIBRARY_PATH:+:${LD_LI
 if [ ! -d $TARGET_FOLDER/opencv ]; then
 	sudo apt-get update
 	sudo apt-get install -y pkg-config libglew-dev libtiff5-dev zlib1g-dev libjpeg-dev libeigen3-dev libtbb-dev libgtk2.0-dev libopenblas-dev
-    sudo apt-get install -y curl software-properties-common
+    sudo apt-get install -y curl software-properties-common unzip
     sudo apt-get install -y build-essential cmake 
     if [[ "$CUDA_ON" == "ON" ]]; then 
         sudo apt-get install -y libcudnn8 libcudnn8-dev
