@@ -5222,7 +5222,7 @@ void Tracking::ChangeCalibration(const string &strSettingPath)
 }
 
 //TODO: [Luigi] do we need to update the adopted camera model too? 
-void Tracking::SetCalibration(const float fx, const float fy, const float cx, const float cy, const cv::Mat& DistCoef, const float bf)
+void Tracking::SetCameraCalibration(const float fx, const float fy, const float cx, const float cy, const cv::Mat& DistCoef, const float bf)
 {
     cv::Mat K = cv::Mat::eye(3,3,CV_32F);
     K.at<float>(0,0) = fx;

@@ -17,9 +17,11 @@ DATASET=""
 DATASET_PATH=$DATASET_BASE_FOLDER/$DATASET
 eval DATASET_PATH=$DATASET_PATH
 
+#export CAMERA_SETTINGS="../Settings/oak-d-vga.yaml"  # NOTE: it does not work at the moment. Depth does not come aligned with RGB image. 
 export CAMERA_SETTINGS="../Settings/oak-d.yaml"
 
 export REMAP_COLOR_TOPIC="/camera/rgb/image_raw:=/oak/rgb/image_rect"
+#export REMAP_COLOR_TOPIC="/camera/rgb/image_raw:=/oak/rgb/image_raw"
 export REMAP_DEPTH_TOPIC="camera/depth_registered/image_raw:=/oak/stereo/image_raw"    # we use rectify_rgb:=true below
 export REMAP_CAMERA_INFO="/camera/rgb/camera_info:=/oak/stereo/camera_info"
 

@@ -148,19 +148,37 @@ mpAtlas(atlas), mpLocalMapping(localMap), bInitCamGridPoints_(false),bFinished_(
 
     /// < NOTE: here we manage a simple model (without distortion) which is used for projecting point clouds;
     /// <       it assumes input rectified images; in particular chisel framework works under these assumptions
-    pCameraParams = std::make_shared<CameraModelParams>();
-    pCameraParams->fx = fsSettings["Camera.fx"];
-    pCameraParams->fy = fsSettings["Camera.fy"];
-    pCameraParams->cx = fsSettings["Camera.cx"];
-    pCameraParams->cy = fsSettings["Camera.cy"];
-    pCameraParams->width = fsSettings["Camera.width"];
-    pCameraParams->height = fsSettings["Camera.height"];
-    pCameraParams->minDist = minDepthDistance;
-    pCameraParams->maxDist = maxDepthDistance;
+    pCameraParams_ = std::make_shared<CameraModelParams>();
+    pCameraParams_->fx = fsSettings["Camera.fx"];
+    pCameraParams_->fy = fsSettings["Camera.fy"];
+    pCameraParams_->cx = fsSettings["Camera.cx"];
+    pCameraParams_->cy = fsSettings["Camera.cy"];
+    pCameraParams_->width = fsSettings["Camera.width"];
+    pCameraParams_->height = fsSettings["Camera.height"];
+    pCameraParams_->minDist = minDepthDistance;
+    pCameraParams_->maxDist = maxDepthDistance;
     
+    float imageScale = 1.f;
+    auto node = fsSettings["Camera.imageScale"];
+    if(!node.empty() && node.isReal())
+    {
+        imageScale = node.real();
+    }
+
+    if(imageScale != 1.f)
+    {
+        // K matrix parameters must be scaled.
+        pCameraParams_->fx *= imageScale;
+        pCameraParams_->fy *= imageScale;
+        pCameraParams_->cx *= imageScale;
+        pCameraParams_->cy *= imageScale;
+        pCameraParams_->width  *= imageScale;
+        pCameraParams_->height *= imageScale;
+    }
+
 //    /// < NOTE: we assume frames are already rectified and depth camera and rgb camera have the same projection models 
-//    pPointCloudMap_->SetColorCameraModel(*pCameraParams);
-//    pPointCloudMap_->SetDepthCameraModel(*pCameraParams);
+//    pPointCloudMap_->SetColorCameraModel(*pCameraParams_);
+//    pPointCloudMap_->SetDepthCameraModel(*pCameraParams_);
     
     pointCloudTimestamp_ = 0;
 
@@ -258,8 +276,8 @@ mpAtlas(atlas), mpLocalMapping(localMap), bInitCamGridPoints_(false),bFinished_(
     //NOTE: each new pPointCloudMap will be set with pPointCloudMapParameters_ by mpPointCloudAtlas
     
     /// < NOTE: we assume frames are already rectified and depth camera and rgb camera have the same projection models 
-    pPointCloudMap_->SetColorCameraModel(*pCameraParams);
-    pPointCloudMap_->SetDepthCameraModel(*pCameraParams);
+    pPointCloudMap_->SetColorCameraModel(*pCameraParams_);
+    pPointCloudMap_->SetDepthCameraModel(*pCameraParams_);
     
     //TODO: Luigi these can be removed since now we should use pPointCloudMapParameters_
 //    pPointCloudMap_->SetDownsampleStep(skDownsampleStep);
@@ -1293,14 +1311,14 @@ void PointCloudMapping::SetCameraCalibration(float fx, float fy, float cx, float
     unique_lock<recursive_timed_mutex> lck(pointCloudMutex_);    
     pPointCloudMap_ = mpPointCloudAtlas->GetCurrentMap();
     
-    pCameraParams->fx = fx;
-    pCameraParams->fy = fy;
-    pCameraParams->cx = cx;
-    pCameraParams->cy = cy;
+    pCameraParams_->fx = fx;
+    pCameraParams_->fy = fy;
+    pCameraParams_->cx = cx;
+    pCameraParams_->cy = cy;
     
     /// < NOTE: we assume frames are already rectified and depth camera and rgb camera have the same projection models 
-    pPointCloudMap_->SetColorCameraModel(*pCameraParams);
-    pPointCloudMap_->SetDepthCameraModel(*pCameraParams);    
+    pPointCloudMap_->SetColorCameraModel(*pCameraParams_);
+    pPointCloudMap_->SetDepthCameraModel(*pCameraParams_);    
 }
 
 

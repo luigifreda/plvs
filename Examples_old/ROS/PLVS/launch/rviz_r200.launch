@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>	
-<launch>
-
-
-	<node name="rviz" pkg="rviz" type="rviz" respawn="false" args="-d $(find plvs)/rviz/r200.rviz" >
-	</node> 
-    
-</launch>

@@ -189,7 +189,7 @@ protected:
 
     std::shared_ptr<PointCloudMap<PointT> > pPointCloudMap_;
     std::recursive_timed_mutex pointCloudMutex_;
-    std::shared_ptr<CameraModelParams> pCameraParams;
+    std::shared_ptr<CameraModelParams> pCameraParams_;
 
     std::uint64_t pointCloudTimestamp_;
     std::mutex pointCloudTimestampMutex_;

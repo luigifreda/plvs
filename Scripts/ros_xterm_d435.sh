@@ -8,40 +8,21 @@
 
 source ../ros_ws/devel/setup.bash
 
-USE_LIVE=0
-RES=1  # 1 vga, 2 mres, 3 hres
+USE_LIVE=1
 USE_RVIZ=0
 
 
 # possible dataset 
 RGBD_DATASET_FOLDER="$HOME/Work/datasets/rgbd_datasets/d435"
-DATASET='test/office.bag'
+DATASET='office/office.bag'
 
 #ROS_BAG_PLAY_OPTIONS="--rate 0.5"  # comment this to remove rate adjustment
 
-case "$RES" in
-"1")
-	echo "setting vga"
-	export CAMERA_SETTINGS="../Settings/d435.yaml"
-	export LAUNCHER="d435.launch"	
-    ;;
-"2")
-	echo "setting mres"
-	export CAMERA_SETTINGS="../Settings/d435_mres.yaml"
-	export LAUNCHER="d435.launch desired_width:=848 desired_height:=480" 
-    ;;
-"3")
-	echo "setting hres"
-	export CAMERA_SETTINGS="../Settings/d435_hres.yaml"
-	export LAUNCHER="d435.launch desired_width:=1280 desired_height:=720" 
-    ;;    
-#*)
-#    do_nothing()
-#    ;;
-esac
+export CAMERA_SETTINGS="../Settings/d435.yaml"
 
-export REMAP_COLOR_TOPIC="/camera/rgb/image_raw:=/camera/color/image_rect_color"
+export REMAP_COLOR_TOPIC="/camera/rgb/image_raw:=/camera/color/image_raw"
 export REMAP_DEPTH_TOPIC="camera/depth_registered/image_raw:=/camera/aligned_depth_to_color/image_raw"
+export REMAP_CAMERA_INFO="/camera/rgb/camera_info:=/camera/aligned_depth_to_color/camera_info"
 
 #export DEBUG_PREFIX="--prefix 'gdb -ex run --args'"  # uncomment this in order to debug with gdb
 
@@ -59,13 +40,13 @@ fi
 
 # ======================================================================
 
-xterm -e "echo plvs ; rosrun $DEBUG_PREFIX  plvs RGBD ../Vocabulary/ORBvoc.txt $CAMERA_SETTINGS  $REMAP_COLOR_TOPIC  $REMAP_DEPTH_TOPIC; bash" &
+xterm -e "echo plvs ; rosrun $DEBUG_PREFIX  plvs RGBD ../Vocabulary/ORBvoc.txt $CAMERA_SETTINGS $REMAP_CAMERA_INFO $REMAP_COLOR_TOPIC $REMAP_DEPTH_TOPIC; bash" &
 
 # ======================================================================
 
 if [ $USE_LIVE -eq 1 ]
 then
-    xterm -e "echo LIVE ; roslaunch plvs $LAUNCHER ; bash" &
+    xterm -e "echo LIVE ; roslaunch plvs d435.launch ; bash" &
 else
     sleep 8
     rosparam set use_sim_time true
@@ -79,7 +60,7 @@ fi
 
 if [ $USE_RVIZ -eq 1 ]
 then
-    xterm -e "echo RVIZ ; roslaunch plvs rviz_r200.launch ; bash" &
+    xterm -e "echo RVIZ ; roslaunch plvs rviz_plvs.launch ; bash" &
 fi
 
 # ======================================================================

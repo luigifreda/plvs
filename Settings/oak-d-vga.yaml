@@ -35,18 +35,18 @@ Camera.type: "PinHole"
 
 # $ rostopic echo /oak/rgb/camera_info
 # header: 
-#   seq: 5577
+#   seq: 104
 #   stamp: 
-#     secs: 1702822925
-#     nsecs: 684588382
+#     secs: 1702725956
+#     nsecs: 338001424
 #   frame_id: "oak_rgb_camera_optical_frame"
-# height: 800
-# width: 1280
+# height: 480
+# width: 640
 # distortion_model: "rational_polynomial"
 # D: [22.44871711730957, -31.197345733642578, 0.0005211468087509274, 0.0008370006107725203, 10.014442443847656, 21.85323715209961, -29.477294921875, 8.749837875366211]
-# K: [799.9114990234375, 0.0, 621.0980834960938, 0.0, 799.2045288085938, 415.0484619140625, 0.0, 0.0, 1.0]
+# K: [399.95574951171875, 0.0, 310.5490417480469, 0.0, 399.6022644042969, 247.52423095703125, 0.0, 0.0, 1.0]
 # R: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
-# P: [799.9114990234375, 0.0, 621.0980834960938, 0.0, 0.0, 799.2045288085938, 415.0484619140625, 0.0, 0.0, 0.0, 1.0, 0.0]
+# P: [399.95574951171875, 0.0, 310.5490417480469, 0.0, 0.0, 399.6022644042969, 247.52423095703125, 0.0, 0.0, 0.0, 1.0, 0.0]
 # binning_x: 0
 # binning_y: 0
 # roi: 
@@ -58,18 +58,18 @@ Camera.type: "PinHole"
 
 # rostopic echo /oak/stereo/camera_info   <= referring to this for the stereo depth 
 # header: 
-#   seq: 241
+#   seq: 196
 #   stamp: 
-#     secs: 1702822747
-#     nsecs: 403395194
+#     secs: 1702727187
+#     nsecs: 285326302
 #   frame_id: "oak_rgb_camera_optical_frame"
-# height: 800
-# width: 1280
+# height: 480
+# width: 640
 # distortion_model: "rational_polynomial"
 # D: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-# K: [799.9114990234375, 0.0, 621.0980834960938, 0.0, 799.2045288085938, 415.0484619140625, 0.0, 0.0, 1.0]
+# K: [399.95574951171875, 0.0, 310.5490417480469, 0.0, 399.6022644042969, 247.52423095703125, 0.0, 0.0, 1.0]
 # R: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
-# P: [799.9114990234375, 0.0, 621.0980834960938, 0.0, 0.0, 799.2045288085938, 415.0484619140625, 0.0, 0.0, 0.0, 1.0, 0.0]
+# P: [399.95574951171875, 0.0, 310.5490417480469, 0.0, 0.0, 399.6022644042969, 247.52423095703125, 0.0, 0.0, 0.0, 1.0, 0.0]
 # binning_x: 0
 # binning_y: 0
 # roi: 
@@ -80,10 +80,11 @@ Camera.type: "PinHole"
 #   do_rectify: False
 
 
-Camera.fx: 799.9114990234375
-Camera.fy: 799.2045288085938
-Camera.cx: 621.0980834960938
-Camera.cy: 415.0484619140625
+
+Camera.fx: 399.95574951171875
+Camera.fy: 399.6022644042969
+Camera.cx: 310.5490417480469
+Camera.cy: 247.52423095703125
 
 # NOTE: if you use  rectified  image the distortion params should be set to zero!
 # see https://github.com/raulmur/ORB_SLAM2/issues/293
@@ -92,8 +93,8 @@ Camera.k2: 0.
 Camera.p1: 0.
 Camera.p2: 0.
 
-Camera.width: 1280
-Camera.height: 720
+Camera.width: 640
+Camera.height: 480
 
 # Camera frames per second
 Camera.fps: 30.0
@@ -106,7 +107,7 @@ Camera.bf: 50.
 Camera.RGB: 1
 
 # Image scale, it changes the image size to be processed (<1.0: reduce, >1.0: increase)
-Camera.imageScale: 0.5 # 0.5 #0.7071 # 1/sqrt(2)
+Camera.imageScale: 1.0 # 0.5 #0.7071 # 1/sqrt(2)
 
 # Camera.waitCameraInfoOn: 1 is ON, 0 is OFF (before starting mapping wait for CameraInfo)
 Camera.waitCameraInfoOn: 1
@@ -222,13 +223,13 @@ PointCloudMapping.on: 1
 
 #PointCloudMapping.type: voxelgrid, octomap, octree_point, chisel, fastfusion, voxblox
 # NOTE: chisel and fastfusion require rectified images if you do not use pointcloud generation 
-PointCloudMapping.type: "octree_point"
+PointCloudMapping.type: "voxblox"
 
 PointCloudMapping.resolution: 0.02
 PointCloudMapping.numKeyframesToQueueBeforeProcessing: 1
 PointCloudMapping.downSampleStep: 2
-PointCloudMapping.minDepth: 0.9
-PointCloudMapping.maxDepth: 8
+PointCloudMapping.minDepth: 0.1
+PointCloudMapping.maxDepth: 5
 PointCloudMapping.removeUnstablePoints: 1
 PointCloudMapping.resetOnSparseMapChange: 1
 PointCloudMapping.kfAdjustmentOnSparseMapChange: 0

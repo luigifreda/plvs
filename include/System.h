@@ -256,7 +256,7 @@ public:
 
     bool ShouldFinished();
     
-    void SetCalibration(const float fx, const float fy, const float cx, const float cy, const cv::Mat& distCoef, const float bf);      
+    void SetCameraCalibration(const float fx, const float fy, const float cx, const float cy, const cv::Mat& distCoef, const float bf);      
 
 private:
 

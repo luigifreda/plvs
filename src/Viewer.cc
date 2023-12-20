@@ -182,6 +182,7 @@ bool Viewer::ParseViewerParamFile(cv::FileStorage &fSettings)
     }
     if (mImageWidth < 1 || mImageHeight < 1)
     {
+        std::cerr << "*Camera width and height must be positive. Setting VGA as default*" << std::endl;        
         mImageWidth = 640;
         mImageHeight = 480;
     }

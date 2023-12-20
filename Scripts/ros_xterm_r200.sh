@@ -63,7 +63,7 @@ fi
 
 if [ $USE_RVIZ -eq 1 ]
 then
-    xterm -e "echo RVIZ ; roslaunch plvs rviz_r200.launch ; bash" &
+    xterm -e "echo RVIZ ; roslaunch plvs rviz_plvs.launch ; bash" &
 fi
 
 # ======================================================================

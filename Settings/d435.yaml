@@ -57,10 +57,16 @@ Camera.fps: 30.0
 
 # IR projector baseline times fx (aprox.)
 # baseline 50 mm  => 0.05 * 614.7178955078125 = 
-Camera.bf: 32
+Camera.bf: 32.
 
 # Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
 Camera.RGB: 0
+
+# Image scale, it changes the image size to be processed (<1.0: reduce, >1.0: increase)
+Camera.imageScale: 1.0 # 0.5 #0.7071 # 1/sqrt(2)
+
+# Camera.waitCameraInfoOn: 1 is ON, 0 is OFF (before starting mapping wait for CameraInfo)
+Camera.waitCameraInfoOn: 1
 
 # Close/Far threshold. Baseline times.
 ThDepth: 40.0
@@ -142,9 +148,9 @@ SparseMapping.saveMap: 1
 PointCloudMapping.on: 1
 
 #PointCloudMapping.type: voxelgrid, octomap, octree_point, chisel (wants rectified image), fastfusion, voxblox
-PointCloudMapping.type: "voxblox"
+PointCloudMapping.type: "octree_point"
 
-PointCloudMapping.resolution: 0.01
+PointCloudMapping.resolution: 0.02
 PointCloudMapping.numKeyframesToQueueBeforeProcessing: 1
 PointCloudMapping.downSampleStep: 2
 PointCloudMapping.minDepth: 0.1

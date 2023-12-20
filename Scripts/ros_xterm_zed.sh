@@ -24,7 +24,7 @@ eval DATASET_PATH=$DATASET_PATH
 
 #ROS_BAG_PLAY_OPTIONS="--rate 0.5 --pause"  # comment this to remove rate adjustment (pause on start)
 #ROS_BAG_PLAY_OPTIONS="--rate 0.4 --start=240"  # comment this to remove rate adjustment (start from X secs)
-ROS_BAG_PLAY_OPTIONS="--rate 0.5"
+#ROS_BAG_PLAY_OPTIONS="--rate 0.5"
 
 export CAMERA_SETTINGS="../Settings/zed.yaml"
 #export CAMERA_SETTINGS="../Settings/zed_vga.yaml"

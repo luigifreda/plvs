@@ -2108,9 +2108,9 @@ std::string System::CalculateCheckSum(std::string filename, int type)
 }
 
 
-void System::SetCalibration(const float fx, const float fy, const float cx, const float cy, const cv::Mat& distCoef, const float bf)
+void System::SetCameraCalibration(const float fx, const float fy, const float cx, const float cy, const cv::Mat& distCoef, const float bf)
 {
-    mpTracker->SetCalibration(fx, fy, cx, cy, distCoef, bf);   
+    mpTracker->SetCameraCalibration(fx, fy, cx, cy, distCoef, bf);   
     if(mpViewer) mpViewer->SetCameraCalibration(fx, fy, cx, cy);
     if(mpPointCloudMapping) mpPointCloudMapping->SetCameraCalibration(fx, fy, cx, cy);
 }

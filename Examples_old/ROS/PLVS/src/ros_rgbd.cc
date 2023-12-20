@@ -79,6 +79,9 @@ bool bUseViewer = true;
 
 std::shared_ptr<PLVS2::System> pSLAM;
 
+class ImageGrabber;
+std::shared_ptr<ImageGrabber> igb;
+
 std::shared_ptr<PLVS2::PointCloudMapping> pPointCloudMapping;
 ros::Publisher pointCloudPublisher;
 std::uint64_t map_timestamp = 0;
@@ -120,12 +123,16 @@ public:
     void SetSlamSystem(PLVS2::System* pSLAM)
     {
         mpSLAM = pSLAM;
+
+        imageScale = pSLAM->GetImageScale();
     }
 
     void SendInitialMapTransform();
     void SendTransform(const ros::Time& time);
 
     void GrabRGBD(const sensor_msgs::ImageConstPtr& msgRGB, const sensor_msgs::ImageConstPtr& msgD);
+
+    void SetMaxDisparity(float value) { maxDisparity = value; }
 
 protected:
 
@@ -142,11 +149,81 @@ protected:
     Sophus::SE3f T_ol;
 
     std::mutex grab_mutex;
+
+    float imageScale = 1.0f; 
+    float maxDisparity = 1.0f; 
+    size_t frameCounter = 0; 
 };
 
-// TODO: to re-enable
+
 #define USE_POINTCLOUD_MAPPING 0
 #if USE_POINTCLOUD_MAPPING
+
+template<typename PointT>   
+void convertToRosMsg(const pcl::PointCloud<PointT>& cloud, sensor_msgs::PointCloud2& out_pcl)
+{
+    // see https://medium.com/@tonyjacob_/pointcloud2-message-explained-853bd9907743#id_token=eyJhbGciOiJSUzI1NiIsImtpZCI6ImY4MzNlOGE3ZmUzZmU0Yjg3ODk0ODIxOWExNjg0YWZhMzczY2E4NmYiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiIyMTYyOTYwMzU4MzQtazFrNnFlMDYwczJ0cDJhMmphbTRsamRjbXMwMHN0dGcuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiIyMTYyOTYwMzU4MzQtazFrNnFlMDYwczJ0cDJhMmphbTRsamRjbXMwMHN0dGcuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMTY5ODM3MzIyNjg1Nzk2ODcyNjQiLCJlbWFpbCI6Imx1aWdpZnJlZGFAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsIm5iZiI6MTY5OTg3OTI1OSwibmFtZSI6Ikx1aWdpIEZyZWRhIiwicGljdHVyZSI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL0FDZzhvY0tEcE5JUXVGUXJoWDVHLXhIV3EyZFc0TElxRGRncGhzT2F1SEFyYlJFSmxYMD1zOTYtYyIsImdpdmVuX25hbWUiOiJMdWlnaSIsImZhbWlseV9uYW1lIjoiRnJlZGEiLCJsb2NhbGUiOiJpdCIsImlhdCI6MTY5OTg3OTU1OSwiZXhwIjoxNjk5ODgzMTU5LCJqdGkiOiI1NTFkYWYyNjg5MGM0MjYxMWQzMWM4Mjg5ZGRjM2EwMTY5ZmY2Y2Q4In0.XqEMEFVZysjB2bPPqHabJUtySu4DBzK0iXem7xGgJ0sTiBvzNX8X_21cVld3MRh7eR7RJiSduc7iSw5QCTGtEFpy57q__wBpQJ4W7o-nFlU_yZzIp7_9Q_pBegA_-zPA26ewLbzuICcnW-fh1OXhZGInsrA-0CA4CLnpmAvOHJ5l4uxWxzyJGaVGyCjct1EXlkk-2eccu0DeiQc2xZNLdjlT-8FfDcoScjm0Y9SZDm8-SoE2f8YaPToG1bOhOFhWW2he_hVHJ6bo2Kc--QcbRU5znkumo_OdCFPueGW-74O3tZz-47qqret4eyVS28YDl4Gaoc5ZoybBTsr-9A_5dw
+    out_pcl.header.frame_id = cloud.header.frame_id;
+    
+    ros::Time stamp; 
+    stamp.fromNSec(cloud.header.stamp * 1000ull);
+    out_pcl.header.stamp = stamp; 
+
+    out_pcl.header.seq = cloud.header.seq;
+    out_pcl.width = 0;
+    out_pcl.height = 1;  
+
+    out_pcl.fields.resize(4);
+    out_pcl.fields[0].name = "x";
+    out_pcl.fields[0].offset = 0;
+    out_pcl.fields[0].datatype = sensor_msgs::PointField::FLOAT32;
+    out_pcl.fields[0].count = 1;
+
+    out_pcl.fields[1].name = "y";
+    out_pcl.fields[1].offset = 4; // out_pcl.fields[0].offset + "sizeof(sensor_msgs::PointField::FLOAT32)""
+    out_pcl.fields[1].datatype = sensor_msgs::PointField::FLOAT32;
+    out_pcl.fields[1].count = 1;
+
+    out_pcl.fields[2].name = "z";
+    out_pcl.fields[2].offset = 8; // out_pcl.fields[1].offset + "sizeof(sensor_msgs::PointField::FLOAT32)"
+    out_pcl.fields[2].datatype = sensor_msgs::PointField::FLOAT32;
+    out_pcl.fields[2].count = 1;
+
+    out_pcl.fields[3].name = "rgb";
+    out_pcl.fields[3].offset = 12; // out_pcl.fields[2].offset + "sizeof(sensor_msgs::PointField::FLOAT32)"
+    out_pcl.fields[3].datatype = sensor_msgs::PointField::FLOAT32;
+    out_pcl.fields[3].count = 1;
+   
+
+    const uint32_t POINT_STEP = 16; // out_pcl.fields[3].offset + "sizeof(sensor_msgs::PointField::FLOAT32)"
+
+    out_pcl.point_step = POINT_STEP;
+    out_pcl.is_dense = true;  // dense means that there are no invalid points
+    out_pcl.is_bigendian = false;
+
+    out_pcl.data.clear();
+    out_pcl.data.reserve(POINT_STEP*cloud.size());
+
+    struct PointRGBA
+    {
+        float x, y, z, rgb; 
+    } pointRGBA;
+
+    // traverse point cloud
+    for (size_t i = 0; i < cloud.size(); i++)
+    {
+        pointRGBA.x = cloud[i].x;
+        pointRGBA.y = cloud[i].y;
+        pointRGBA.z = cloud[i].z;
+        pointRGBA.rgb = cloud[i].rgb;
+
+        const char* ptr = reinterpret_cast<const char*> (&pointRGBA);
+        out_pcl.width++;
+        out_pcl.data.insert(out_pcl.data.end(), ptr, ptr + sizeof(pointRGBA));
+    }
+    out_pcl.row_step = out_pcl.data.size() * POINT_STEP;  // we set out_pcl.height = 1  
+}
+
 void pointcloudCallback(const ros::TimerEvent& event)
 {
     if (pPointCloudMapping)
@@ -159,9 +236,9 @@ void pointcloudCallback(const ros::TimerEvent& event)
             if (!pMap) return; /// < EXIT POINT
             pMap->header.frame_id = "map";
             sensor_msgs::PointCloud2 map_msg;
-            pcl::PointCloud<pcl::PointXYZRGB>* pMapRGB = (pcl::PointCloud<pcl::PointXYZRGB>*)(pMap.get());
-            pcl::toROSMsg(*pMapRGB, map_msg);
-            pointCloudPublisher.publish(map_msg);
+            //pcl::toROSMsg(*pMap, map_msg);
+            convertToRosMsg<PLVS2::PointCloudMapping::PointT>(*pMap, map_msg);
+            pointCloudPublisher.publish(map_msg); 
             ROS_INFO_STREAM("*** map published ***");
         }
     }
@@ -179,19 +256,9 @@ void cameraInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& msg)
         //     [fx  0 cx]
         // K = [ 0 fy cy]
         //     [ 0  0  1]        
-        const float fx = msg->K[0]; const float cx = msg->K[2];
-        const float fy = msg->K[4]; const float cy = msg->K[5];
-        
-        std:stringstream ss;
-        ss << std::fixed << std::setprecision(8);
-        
-        ss << "fx: " << fx << std::endl;
-        ss << "fy: " << fy << std::endl;
-        ss << "cx: " << cx << std::endl;
-        ss << "cy: " << cy << std::endl;           
-               
-        const float bf = baseline * fx;
-        ss << "bf: " << bf << std::endl;      
+        float fx = msg->K[0]; float cx = msg->K[2];
+        float fy = msg->K[4]; float cy = msg->K[5];
+        float bf = baseline * fx;
 
         // For "plumb_bob", D = [k1, k2, t1, t2, k3].        
         cv::Mat distCoef(5,1,CV_32F);
@@ -199,12 +266,37 @@ void cameraInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& msg)
         distCoef.at<float>(1) = msg->D[1];
         distCoef.at<float>(2) = msg->D[2];
         distCoef.at<float>(3) = msg->D[3];
-        distCoef.at<float>(4) = msg->D[4];
-        ss << "distCoef: " << distCoef << std::endl;      
+        distCoef.at<float>(4) = msg->D[4];   
         
+        float imageScale = pSLAM->GetImageScale();
+        if(imageScale != 1.f)
+        {
+            // K matrix parameters must be scaled.
+            fx *= imageScale;
+            fy *= imageScale;
+            cx *= imageScale;
+            cy *= imageScale;
+            bf *= imageScale;
+        }
+
+        igb->SetMaxDisparity(fx);  
+
+        pSLAM->SetCameraCalibration(fx, fy, cx, cy, distCoef, bf);
+    
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision(8);
         
-        pSLAM->SetCalibration(fx, fy, cx, cy, distCoef, bf);
-        
+        ss << "imageScale: " << imageScale << std::endl;        
+        ss << "width: " << msg->width << std::endl; 
+        ss << "height: " << msg->height << std::endl; 
+
+        ss << "fx: " << fx << std::endl;
+        ss << "fy: " << fy << std::endl;
+        ss << "cx: " << cx << std::endl;
+        ss << "cy: " << cy << std::endl;           
+        ss << "bf: " << bf << std::endl;              
+        ss << "distCoef: " << distCoef << std::endl;   
+
         Logger logger("receivedCalibration.txt");
         logger << ss.str();      
         
@@ -244,14 +336,14 @@ int main(int argc, char **argv)
     
     baseline = static_cast<float>(fSettings["Camera.bf"])/static_cast<float>(fSettings["Camera.fx"]);
 
-    ImageGrabber igb;
-    igb.SendInitialMapTransform();
+    igb = std::make_shared<ImageGrabber>();
+    igb->SendInitialMapTransform();
 
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
     //PLVS2::System SLAM(argv[1], argv[2], PLVS2::System::RGBD, bUseViewer);
     pSLAM = std::make_shared<PLVS2::System >(argv[1], argv[2], PLVS2::System::RGBD, bUseViewer);
 
-    igb.SetSlamSystem(pSLAM.get());
+    igb->SetSlamSystem(pSLAM.get());
 
     ros::NodeHandle nh;
 
@@ -263,7 +355,7 @@ int main(int argc, char **argv)
 
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> sync_pol;
     message_filters::Synchronizer<sync_pol> sync(sync_pol(10), rgb_sub, depth_sub);
-    sync.registerCallback(boost::bind(&ImageGrabber::GrabRGBD, &igb, _1, _2));
+    sync.registerCallback(boost::bind(&ImageGrabber::GrabRGBD, igb, _1, _2));
     
     ros::Subscriber info_color_sub;
     ros::Timer timerWaitCameraInfo;
@@ -386,6 +478,7 @@ void ImageGrabber::GrabRGBD(const sensor_msgs::ImageConstPtr& msgRGB, const sens
      
     
     cv::Mat convertedImg = cv_ptrRGB->image;  
+    cv::Mat depthImg = cv_ptrD->image;
     if ( cv_ptrRGB->image.channels() == 4 ) 
     {
         //std::cout << "converting image from 4 channels to 3 channels" << std::endl;         
@@ -406,12 +499,44 @@ void ImageGrabber::GrabRGBD(const sensor_msgs::ImageConstPtr& msgRGB, const sens
         }        
     }
     
+    if(imageScale != 1.f)
+    {
+        int width = convertedImg.cols * imageScale;
+        int height = convertedImg.rows * imageScale;
+        cv::resize(convertedImg, convertedImg, cv::Size(width, height));
+        cv::resize(depthImg, depthImg, cv::Size(width, height));        
+    }
+
+#if 0
+    // DEBUG: save rgb and depth image and check their alignment 
+    cv::Mat depthForBlend, coloredDepthImage;   
+    double minVal, maxVal;
+    cv::minMaxLoc(depthImg, &minVal, &maxVal);
+    float scale = 5.0 * 255.0 / (maxVal - minVal);
+    depthImg.convertTo(depthForBlend, CV_8UC1, scale);
+    cv::applyColorMap(depthForBlend, coloredDepthImage, cv::COLORMAP_HOT);    
+
+    cv::Mat blend;
+    float rgbWeight = 0.4;
+    float depthWeight = 0.6;
+    cv::addWeighted(convertedImg, rgbWeight, coloredDepthImage, depthWeight, 0, blend);
+
+    std::stringstream ssb;
+    ssb << "/tmp/blend" << frameCounter << ".png";
+    cv::imwrite(ssb.str(), blend);
+
+    std::stringstream ssd;
+    ssd << "/tmp/depth" << frameCounter << ".png";
+    cv::imwrite(ssd.str(), coloredDepthImage);    
+
+    frameCounter = (frameCounter+1) % 10; 
+#endif 
 
     // w = WORLD
     // o = OPTICAL FRAME
     // l = LINK FRAME
     
-    Sophus::SE3f T_ow = mpSLAM->TrackRGBD(convertedImg, cv_ptrD->image, cv_ptrRGB->header.stamp.toSec());
+    Sophus::SE3f T_ow = mpSLAM->TrackRGBD(convertedImg, depthImg, cv_ptrRGB->header.stamp.toSec());
     trackingState = mpSLAM->GetTrackingState();
 
 
@@ -429,12 +554,7 @@ void ImageGrabber::GrabRGBD(const sensor_msgs::ImageConstPtr& msgRGB, const sens
         b_was_lost = false;
     }
 
-    //static cv::Mat pose_inv  = cv::Mat::eye(4,4, CV_32F);
-
-    //pose_inv = pose.inv(); // T_wc
     T_wo = T_ow.inverse();
-
-    // pose = pose_inv*T_co-cl; // T_wcl
     T_wl = T_wo*T_ol;
 
     //std::cout << "tracking state: " << trackingState << std::endl;

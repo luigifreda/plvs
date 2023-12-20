@@ -293,9 +293,6 @@ namespace PLVS2 {
                 vPinHoleDistorsion1_ = {k0,k1,k2,k3}; // Luigi: TODO improperly used as pin-hole distortion       
             } else {
 
-            vCalibration = {fx,fy,cx,cy,k0,k1,k2,k3};
-            vCalibration = {fx,fy,cx,cy,k0,k1,k2,k3};
-
                 vCalibration = {fx,fy,cx,cy,k0,k1,k2,k3};
 
                 calibration1_ = new KannalaBrandt8(vCalibration);
