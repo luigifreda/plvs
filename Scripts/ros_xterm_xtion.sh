@@ -6,12 +6,14 @@
 
 #echo "usage: ./${0##*/} "
 
-source ../ros_ws/devel/setup.bash
+#source ../ros_ws/devel/setup.bash  # this makes openni crash since we use a custom version of opencv and vision_opencv (w.r.t. openni and openni2)
 
-USE_LIVE=0
+USE_LIVE=1
+USE_RVIZ=0   # if you set this to 1, you should also set Viewer.on: 0 in the yaml settings
+
 
 # possible dataset smallOfficeDIAG.bag desktop-change.bag
-DATASET_BASE_FOLDER="$HOME/Work/datasets/rgbd_datasets/dataset_xtion/"
+DATASET_BASE_FOLDER="$HOME/Work/datasets/rgbd_datasets/xtion/"
 #ROS_BAG_PLAY_OPTIONS="--rate 0.5"  # comment this to remove rate adjustment
 DATASET="danger_zone.bag"
 #DATASET="desktop-change.bag"
@@ -39,7 +41,7 @@ fi
 
 # ======================================================================
 
-xterm -e "echo plvs ; rosrun $DEBUG_PREFIX  plvs RGBD ../Vocabulary/ORBvoc.bin $CAMERA_SETTINGS  $REMAP_COLOR_TOPIC  $REMAP_DEPTH_TOPIC; bash" &
+xterm -e "echo plvs; source ../ros_ws/devel/setup.bash; rosrun $DEBUG_PREFIX  plvs RGBD ../Vocabulary/ORBvoc.bin $CAMERA_SETTINGS  $REMAP_COLOR_TOPIC  $REMAP_DEPTH_TOPIC; bash" &
 
 # ======================================================================
 
@@ -55,6 +57,12 @@ fi
 # NOTE: you can use the following command to get the xterm window live if the app terminates or crashes
 # xterm -e "<you_command>; bash" &
 
+# ======================================================================
+
+if [ $USE_RVIZ -eq 1 ]
+then
+    xterm -e "echo RVIZ; source ../ros_ws/devel/setup.bash; roslaunch plvs rviz_plvs.launch ; bash" &
+fi
 
 # ======================================================================
 

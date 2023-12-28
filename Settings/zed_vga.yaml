@@ -99,7 +99,7 @@ Line.on: 1
 
 # set to 0 if keeping all lines
 Line.nfeatures:    100
-Line.scale: 1.4
+Line.scaleFactor: 1.2
 # min. line length (relative to img size)
 Line.minLineLength: 0.01
 Line.maxDistLine2LineForTracking: 100

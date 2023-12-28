@@ -9,6 +9,8 @@
 source ../ros_ws/devel/setup.bash
 
 USE_LIVE=1
+USE_RVIZ=0   # if you set this to 1, you should also set Viewer.on: 0 in the yaml settings
+
 
 DATASET_BASE_FOLDER="$HOME/Work/datasets/rgbd_datasets/dataset_oak/"
 #ROS_BAG_PLAY_OPTIONS="--rate 0.5"  # comment this to remove rate adjustment
@@ -57,6 +59,12 @@ fi
 
 # wait a bit the OAK ros driver to wake up 
 xterm -e "echo plvs ; rosrun $DEBUG_PREFIX  plvs RGBD ../Vocabulary/ORBvoc.bin $CAMERA_SETTINGS $REMAP_CAMERA_INFO $REMAP_COLOR_TOPIC $REMAP_DEPTH_TOPIC; bash" &
+
+# ======================================================================
+
+if [ $USE_RVIZ -eq 1 ]; then
+    xterm -e "echo RVIZ ; roslaunch plvs rviz_plvs.launch ; bash" &
+fi
 
 # ======================================================================
 

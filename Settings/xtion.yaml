@@ -76,10 +76,13 @@ Camera.fps: 30.0
 
 # IR projector baseline times fx (aprox.)
 # baseline
-Camera.bf: 50
+Camera.bf: 50.
 
 # Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
-Camera.RGB: 1
+Camera.RGB: 0
+
+# Image scale, it changes the image size to be processed (<1.0: reduce, >1.0: increase)
+Camera.imageScale: 1.0 # 0.5 #0.7071 # 1/sqrt(2)
 
 # Camera.waitCameraInfoOn: 1 is ON, 0 is OFF (before starting mapping wait for CameraInfo)
 Camera.waitCameraInfoOn: 0
@@ -135,7 +138,7 @@ Line.nfeatures: 100
 # number of levels in the scale pyramid	
 Line.nLevels: 3
 # scale factor between levels in the scale pyramid 
-Line.scaleFactor: 1.4
+Line.scaleFactor: 1.2
 # noise standard deviation on line extraction (in pixel)
 Line.sigma: 2
 # min. line length (relative to img size)

@@ -144,6 +144,9 @@ Scripts/run_euroc_mh
 Scripts/__pycache__
 Scripts/f_dataset*
 Scripts/kf_dataset*
+Scripts/receivedCalibration.txt
+Scripts/debug.txt
+Scripts/*.map
 
 Benchmarking/results*
 Benchmarking/test*

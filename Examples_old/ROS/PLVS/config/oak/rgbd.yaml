@@ -1,6 +1,33 @@
 /oak:
     camera_i_nn_type: none
-    stereo_i_subpixel: true
 
-    rgb_i_resolution: '720P'
+    stereo_i_subpixel: true
+    stereo_i_align_depth: true
+
+    # option 1 
+    rgb_i_resolution: '800P'
     rgb_i_set_isp_scale: false   # for OAK-D Pro with OV9782
+
+    # option 2 
+    # rgb_i_set_isp_scale: true   
+    # rgb_i_set_output_isp: false
+    # #rgb_i_isp_den: 3
+    # #rgb_i_isp_num: 2
+    # rgb_i_width: 720
+    # rgb_i_height: 480
+
+    # rgb_i_preview_height: 720
+    # rgb_i_preview_width: 480
+
+    # right_i_width: 720
+    # right_i_height: 480
+
+    # left_i_width: 720
+    # left_i_height: 480
+
+    # stereo_i_width: 720
+    # stereo_i_height: 480  
+    # stereo_i_isp_den: 4
+    # stereo_i_isp_num: 3
+
+    #camera_i_laser_dot_brightness: 1200.0

@@ -137,6 +137,7 @@ set(PGK_DEPS
   roscpp
   sensor_msgs
   tf
+  tf2_ros
   pcl_ros
 )
 

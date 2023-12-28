@@ -9,7 +9,7 @@
 source ../ros_ws/devel/setup.bash
 
 USE_LIVE=1
-USE_RVIZ=0
+USE_RVIZ=0   # if you set this to 1, you should also set Viewer.on: 0 in the yaml settings
 
 
 # possible dataset 

@@ -113,7 +113,7 @@ Line.nfeatures: 100
 # number of levels in the scale pyramid	
 Line.nLevels: 1
 # scale factor between levels in the scale pyramid 
-Line.scale: 1.4
+Line.scaleFactor: 1.4
 # min. line length (relative to img size)
 Line.minLineLength: 0.02
 # max. line-seg line-seg distance in pixel 

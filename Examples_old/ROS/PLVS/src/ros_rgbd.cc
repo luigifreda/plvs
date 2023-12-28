@@ -48,6 +48,7 @@
 #include <geometry_msgs/TransformStamped.h>
 #include <tf/transform_datatypes.h>
 #include <tf/transform_broadcaster.h>
+#include <tf2_ros/static_transform_broadcaster.h>
 
 #include <../../../include/PointDefinitions.h>
 
@@ -69,9 +70,6 @@
 #include <../../../Thirdparty/Sophus/sophus/geometry.hpp>
 
 
-// Set to true if you want a direct transformation from Optical Frame to World
-#define T_WORLD_OPTICAL true
-
 using namespace std;
 
 bool bRGB = true;
@@ -88,7 +86,10 @@ std::uint64_t map_timestamp = 0;
 
 int trackingState = (int)PLVS2::Tracking::NOT_INITIALIZED;
 
-std::string camera_slam_frame_id = "camera_link_orbslam";
+std::string map_frame_id = "map";
+std::string camera_zero_frame_id = "camera_optical_zero";
+std::string camera_optical_frame_id = "camera_optical_slam";
+std::string camera_link_frame_id = "camera_link_slam";
 
 bool bWaitForCameraInfo = true;
 std::mutex mMutexGotCameraInfo;
@@ -104,20 +105,18 @@ public:
 
     ImageGrabber() : b_was_lost(false)
     {
-        // T_wo = cv::Mat::eye(4, 4, CV_32F);
-        // T_wl = cv::Mat::eye(4, 4, CV_32F);
-
         // T_ol = (cv::Mat_<float>(4, 4) << 0, -1, 0, 0,
         //         0, 0, -1, 0,
         //         1, 0, 0, 0,
         //         0, 0, 0, 1);
+
         Eigen::Matrix3f rotation_matrix;
         rotation_matrix << 0, -1, 0,  0, 0, -1,  1, 0, 0;
         Eigen::Vector3f translation;
         translation << 0, 0, 0;
         T_ol = Sophus::SE3f(rotation_matrix, translation);
 
-        // T_wo_zero = cv::Mat::eye(4, 4, CV_32F);
+        T_mw = T_ol.inverse();
     }
 
     void SetSlamSystem(PLVS2::System* pSLAM)
@@ -138,15 +137,20 @@ protected:
 
     PLVS2::System* mpSLAM;
     bool b_was_lost;
+    bool b_is_first_frame = true;
 
-    // w = WORLD
+    tf::TransformBroadcaster br;
+    tf2_ros::StaticTransformBroadcaster static_broadcaster_mw;
+    tf2_ros::StaticTransformBroadcaster static_broadcaster_lo;    
+
+    // m = MAP 
+    // w = WORLD  (first optical frame for slam)
     // o = OPTICAL FRAME
     // l = LINK FRAME
-    tf::TransformBroadcaster br;
-    Sophus::SE3f T_wo_zero;
     Sophus::SE3f T_wo;
     Sophus::SE3f T_wl;
     Sophus::SE3f T_ol;
+    Sophus::SE3f T_mw;
 
     std::mutex grab_mutex;
 
@@ -156,7 +160,7 @@ protected:
 };
 
 
-#define USE_POINTCLOUD_MAPPING 0
+#define USE_POINTCLOUD_MAPPING 1
 #if USE_POINTCLOUD_MAPPING
 
 template<typename PointT>   
@@ -234,7 +238,7 @@ void pointcloudCallback(const ros::TimerEvent& event)
             map_timestamp = current_timestamp;
             PLVS2::PointCloudMapping::PointCloudT::Ptr pMap = pPointCloudMapping->GetMap();
             if (!pMap) return; /// < EXIT POINT
-            pMap->header.frame_id = "map";
+            pMap->header.frame_id = camera_zero_frame_id;
             sensor_msgs::PointCloud2 map_msg;
             //pcl::toROSMsg(*pMap, map_msg);
             convertToRosMsg<PLVS2::PointCloudMapping::PointT>(*pMap, map_msg);
@@ -336,12 +340,19 @@ int main(int argc, char **argv)
     
     baseline = static_cast<float>(fSettings["Camera.bf"])/static_cast<float>(fSettings["Camera.fx"]);
 
+    if(!bUseViewer)
+    {
+        // If the user wants to disable the viewer, we invert the RGB fields for RVIZ visualization.
+        ROS_WARN_STREAM("Pangolin viewer is disabled => inverting RGB fields for RVIZ visualization");
+        bRGB = !bRGB;
+    }
+
+
     igb = std::make_shared<ImageGrabber>();
     igb->SendInitialMapTransform();
 
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
-    //PLVS2::System SLAM(argv[1], argv[2], PLVS2::System::RGBD, bUseViewer);
-    pSLAM = std::make_shared<PLVS2::System >(argv[1], argv[2], PLVS2::System::RGBD, bUseViewer);
+    pSLAM = std::make_shared<PLVS2::System>(argv[1], argv[2], PLVS2::System::RGBD, bUseViewer);
 
     igb->SetSlamSystem(pSLAM.get());
 
@@ -404,41 +415,51 @@ void ImageGrabber::SendInitialMapTransform()
 {
     T_wl = T_wo*T_ol;
 
-    SendTransform(ros::Time::now());
+    auto timestamp = ros::Time::now();
+
+    SendTransform(timestamp);
+
+    geometry_msgs::TransformStamped tf_map_world;
+    tf_map_world.header.stamp = timestamp;
+    tf_map_world.header.frame_id = map_frame_id;
+    tf_map_world.child_frame_id = camera_zero_frame_id;
+    auto translation_mw = T_mw.translation();
+    auto rotation_mw = T_mw.unit_quaternion();
+    tf_map_world.transform.translation.x = translation_mw.x();
+    tf_map_world.transform.translation.y = translation_mw.y();
+    tf_map_world.transform.translation.z = translation_mw.z();
+    tf_map_world.transform.rotation.x = rotation_mw.x();
+    tf_map_world.transform.rotation.y = rotation_mw.y();
+    tf_map_world.transform.rotation.z = rotation_mw.z();
+    tf_map_world.transform.rotation.w = rotation_mw.w();
+    static_broadcaster_mw.sendTransform(tf_map_world);        
+
+    geometry_msgs::TransformStamped tf_optical_link;
+    tf_optical_link.header.stamp = timestamp;
+    tf_optical_link.header.frame_id = camera_optical_frame_id;
+    tf_optical_link.child_frame_id = camera_link_frame_id;
+    auto translation_ol = T_ol.translation();
+    auto rotation_ol = T_ol.unit_quaternion();
+    tf_optical_link.transform.translation.x = translation_ol.x();
+    tf_optical_link.transform.translation.y = translation_ol.y();
+    tf_optical_link.transform.translation.z = translation_ol.z();
+    tf_optical_link.transform.rotation.x = rotation_ol.x();
+    tf_optical_link.transform.rotation.y = rotation_ol.y();
+    tf_optical_link.transform.rotation.z = rotation_ol.z();
+    tf_optical_link.transform.rotation.w = rotation_ol.w();
+    static_broadcaster_lo.sendTransform(tf_optical_link);
 }
 
 void ImageGrabber::SendTransform(const ros::Time& time)
 {
-    //std::cout << "SendTransform()" << std::endl;
-
-#if T_WORLD_OPTICAL
-
     Sophus::SE3f::Transformation T_wo_mat = T_wo.matrix(); 
-    // tf::Matrix3x3 cameraRotation(T_wo.at<float>(0, 0), T_wo.at<float>(0, 1), T_wo.at<float>(0, 2),
-    //                              T_wo.at<float>(1, 0), T_wo.at<float>(1, 1), T_wo.at<float>(1, 2),
-    //                              T_wo.at<float>(2, 0), T_wo.at<float>(2, 1), T_wo.at<float>(2, 2));
     tf::Matrix3x3 cameraRotation(T_wo_mat(0, 0), T_wo_mat(0, 1), T_wo_mat(0, 2),
                                  T_wo_mat(1, 0), T_wo_mat(1, 1), T_wo_mat(1, 2),
                                  T_wo_mat(2, 0), T_wo_mat(2, 1), T_wo_mat(2, 2));                                 
-
     tf::Vector3 cameraTranslation(T_wo_mat(0, 3), T_wo_mat(1, 3), T_wo_mat(2, 3));
 
     tf::Transform T_WorldOptical = tf::Transform(cameraRotation, cameraTranslation);
-    br.sendTransform(tf::StampedTransform(T_WorldOptical, ros::Time::now(), "map", camera_slam_frame_id));
-
-#else
-
-    tf::Matrix3x3 cameraRotation(T_wl.at<float>(0, 0), T_wl.at<float>(0, 1), T_wl.at<float>(0, 2),
-                                 T_wl.at<float>(1, 0), T_wl.at<float>(1, 1), T_wl.at<float>(1, 2),
-                                 T_wl.at<float>(2, 0), T_wl.at<float>(2, 1), T_wl.at<float>(2, 2));
-
-    tf::Vector3 cameraTranslation(T_wl.at<float>(0, 3), T_wl.at<float>(1, 3), T_wl.at<float>(2, 3));
-
-    tf::Transform T_WorldLink = tf::Transform(cameraRotation, cameraTranslation);
-    //StampedTransform (const tf::Transform &input, const ros::Time &timestamp, const std::string &frame_id, const std::string &child_frame_id)
-    br.sendTransform(tf::StampedTransform(T_WorldLink, time, "map", camera_slam_frame_id)); // camera_link frame w.r.t. map frame
-
-#endif
+    br.sendTransform(tf::StampedTransform(T_WorldOptical, time, camera_zero_frame_id, camera_optical_frame_id));
 }
 
 void ImageGrabber::GrabRGBD(const sensor_msgs::ImageConstPtr& msgRGB, const sensor_msgs::ImageConstPtr& msgD)
@@ -507,30 +528,31 @@ void ImageGrabber::GrabRGBD(const sensor_msgs::ImageConstPtr& msgRGB, const sens
         cv::resize(depthImg, depthImg, cv::Size(width, height));        
     }
 
-#if 0
-    // DEBUG: save rgb and depth image and check their alignment 
-    cv::Mat depthForBlend, coloredDepthImage;   
-    double minVal, maxVal;
-    cv::minMaxLoc(depthImg, &minVal, &maxVal);
-    float scale = 5.0 * 255.0 / (maxVal - minVal);
-    depthImg.convertTo(depthForBlend, CV_8UC1, scale);
-    cv::applyColorMap(depthForBlend, coloredDepthImage, cv::COLORMAP_HOT);    
+    if(0)
+    {
+        // DEBUG: save rgb and depth image and check their alignment 
+        cv::Mat depthForBlend, coloredDepthImage;   
+        double minVal, maxVal;
+        cv::minMaxLoc(depthImg, &minVal, &maxVal);
+        float scale = 5.0 * 255.0 / (maxVal - minVal);
+        depthImg.convertTo(depthForBlend, CV_8UC1, scale);
+        cv::applyColorMap(depthForBlend, coloredDepthImage, cv::COLORMAP_HOT);    
 
-    cv::Mat blend;
-    float rgbWeight = 0.4;
-    float depthWeight = 0.6;
-    cv::addWeighted(convertedImg, rgbWeight, coloredDepthImage, depthWeight, 0, blend);
+        cv::Mat blend;
+        float rgbWeight = 0.4;
+        float depthWeight = 0.6;
+        cv::addWeighted(convertedImg, rgbWeight, coloredDepthImage, depthWeight, 0, blend);
 
-    std::stringstream ssb;
-    ssb << "/tmp/blend" << frameCounter << ".png";
-    cv::imwrite(ssb.str(), blend);
+        std::stringstream ssb;
+        ssb << "/tmp/blend" << frameCounter << ".png";
+        cv::imwrite(ssb.str(), blend);
 
-    std::stringstream ssd;
-    ssd << "/tmp/depth" << frameCounter << ".png";
-    cv::imwrite(ssd.str(), coloredDepthImage);    
+        std::stringstream ssd;
+        ssd << "/tmp/depth" << frameCounter << ".png";
+        cv::imwrite(ssd.str(), coloredDepthImage);    
 
-    frameCounter = (frameCounter+1) % 10; 
-#endif 
+        frameCounter = (frameCounter+1) % 10; 
+    }
 
     // w = WORLD
     // o = OPTICAL FRAME
@@ -545,7 +567,7 @@ void ImageGrabber::GrabRGBD(const sensor_msgs::ImageConstPtr& msgRGB, const sens
     {
         if (!b_was_lost) ROS_WARN_STREAM("mpSLAM->TrackRGBD() returned empty pose");
         b_was_lost = true;
-        T_ow = T_wo_zero;
+        T_ow = Sophus::SE3f();
         //return;
     }
     else

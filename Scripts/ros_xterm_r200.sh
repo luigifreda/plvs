@@ -9,6 +9,8 @@
 source ../ros_ws/devel/setup.bash
 
 USE_LIVE=0
+USE_RVIZ=0   # if you set this to 1, you should also set Viewer.on: 0 in the yaml settings
+
 
 # possible dataset smallOfficeDIAG.bag bigOfficeDIAG.bag outdoorDIAG.bag
 RGBD_DATASET_FOLDER="$HOME/Work/datasets/rgbd_datasets/TRADR_r200"
@@ -17,7 +19,6 @@ RGBD_DATASET_FOLDER="$HOME/Work/datasets/rgbd_datasets/TRADR_r200"
 DATASET="new_2018-04-06-16-21-57.bag"
 #ROS_BAG_PLAY_OPTIONS="--rate 0.5"  # comment this to remove rate adjustment
 
-USE_RVIZ=0
 
 export CAMERA_SETTINGS="../Settings/r200.yaml"
 

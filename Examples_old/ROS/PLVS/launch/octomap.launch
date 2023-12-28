@@ -5,10 +5,10 @@
     <arg name="respawn_value" default="false" /> <!-- boolean: true, false -->
     
     <!--param name="/use_sim_time" value="true"/-->
-	<node pkg="tf" type="static_transform_publisher" name="tf_static_camera_rgb_optical_frame" args="0 0 0 0 0 0 1 camera_link_slam camera_link 100"/>
+	<node pkg="tf" type="static_transform_publisher" name="tf_static_camera_rgb_optical_frame" args="0 0 0 0 0 0 1 camera_optical_slam camera_link 100"/>
 
 	<node name="mapping" pkg="octomap_server" type="octomap_server_node" respawn="$(arg respawn_value)" output="screen">
-	 <param name = "base_frame_id" value = "/camera_link_slam"/>
+	 <param name = "base_frame_id" value = "/camera_optical_slam"/>
 	 <param name = "resolution" value = "0.03"/>
 	 <param name = "sensor_model/hit" value = "0.75"/>
 	 <param name = "sensor_model/miss" value = "0.45" />

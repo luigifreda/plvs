@@ -157,7 +157,7 @@ Line.nfeatures: 100
 # number of levels in the scale pyramid	
 Line.nLevels: 3
 # scale factor between levels in the scale pyramid 
-Line.scaleFactor: 1.4
+Line.scaleFactor: 1.2
 # noise standard deviation on line extraction (in pixel)
 Line.sigma: 2
 # min. line length (relative to img size)
@@ -227,7 +227,7 @@ PointCloudMapping.type: "octree_point"
 PointCloudMapping.resolution: 0.02
 PointCloudMapping.numKeyframesToQueueBeforeProcessing: 1
 PointCloudMapping.downSampleStep: 2
-PointCloudMapping.minDepth: 0.9
+PointCloudMapping.minDepth: 1
 PointCloudMapping.maxDepth: 8
 PointCloudMapping.removeUnstablePoints: 1
 PointCloudMapping.resetOnSparseMapChange: 1
