@@ -1,6 +1,5 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -254,6 +253,9 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
     vnKeyFramesLM.clear();
     vnMapPointsLM.clear();
     vnMapLinesLM.clear();
+
+    std::cout << "Tracking - check : DistCoef = " << mDistCoef.t() << std::endl;     
+    std::cout << "Tracking - check : mpCamera2 = " << (mpCamera2 ? "true" : "false") << std::endl;       
 }
 
 #ifdef REGISTER_TIMES
@@ -692,7 +694,7 @@ void Tracking::newParameterLoader(Settings *settings) {
         mTlr = settings->Tlr();
 
         mpFrameDrawer->both = true;
-    }
+    }  
 
     if(mSensor==System::STEREO || mSensor==System::RGBD || mSensor==System::IMU_STEREO || mSensor==System::IMU_RGBD ){
         mbf = settings->bf();
@@ -764,7 +766,7 @@ void Tracking::newParameterLoader(Settings *settings) {
     const float sf = sqrt(mImuFreq);
     mpImuCalib = new IMU::Calib(Tbc,Ng*sf,Na*sf,Ngw/sf,Naw/sf);
 
-    mpImuPreintegratedFromLastKF = new IMU::Preintegrated(IMU::Bias(),*mpImuCalib);
+    mpImuPreintegratedFromLastKF = new IMU::Preintegrated(IMU::Bias(),*mpImuCalib);      
 }
 
 bool Tracking::ParseCamParamFile(cv::FileStorage &fSettings)
@@ -2893,6 +2895,38 @@ void Tracking::StereoInitialization()
                     mCurrentFrame.mvpMapPoints[rightIndex + mCurrentFrame.Nleft]=pNewMP;
                 }
             }
+
+#if CREATE_NEW_LINES_ON_TRACKING  
+            if(mbLineTrackerOn)
+            {                  
+                // Create MapLines and associate to KeyFrame
+                for(int i=0; i<mCurrentFrame.NlinesLeft;i++)
+                {
+                    int rightIndex = mCurrentFrame.mvLeftToRightLinesMatch[i];
+                    if(rightIndex != -1)             
+                    {                         
+                        Eigen::Vector3f xs3D = mCurrentFrame.mvStereo3DLineStartPoints[i]; 
+                        Eigen::Vector3f xe3D = mCurrentFrame.mvStereo3DLineEndPoints[i];                         
+              
+                        //MapLinePtr pNewLine = new MapLine(xs3D,xe3D,pKFini,mpAtlas->GetCurrentMap());
+                        MapLinePtr pNewLine = MapLineNewPtr(xs3D,xe3D,pKFini,mpAtlas->GetCurrentMap());
+                        
+                        pNewLine->AddObservation(pKFini,i);
+                        pNewLine->AddObservation(pKFini,rightIndex + mCurrentFrame.NlinesLeft);    
+
+                        pKFini->AddMapLine(pNewLine,i);
+                        pKFini->AddMapLine(pNewLine,rightIndex + mCurrentFrame.NlinesLeft);                        
+
+                        pNewLine->ComputeDistinctiveDescriptors();
+                        pNewLine->UpdateNormalAndDepth();
+                        mpAtlas->AddMapLine(pNewLine);
+
+                        mCurrentFrame.mvpMapLines[i]=pNewLine;         
+                        mCurrentFrame.mvpMapLines[rightIndex + mCurrentFrame.NlinesLeft]=pNewLine;                                                              
+                    }
+                }                     
+            }    
+#endif                     
         }
 
         Verbose::PrintMess("New Map created with " + to_string(mpAtlas->MapPointsInMap()) + " points and " + to_string( mpAtlas->MapLinesInMap()) + " lines", Verbose::VERBOSITY_NORMAL);
@@ -3528,7 +3562,16 @@ void Tracking::UpdateLastFrameLines(bool updatePose)
         if(bCreateNew)
         {             
             Eigen::Vector3f x3DStart,x3DEnd;
-            if(mLastFrame.UnprojectStereoLine(i,x3DStart,x3DEnd))
+            bool unproject = false; 
+            if(mLastFrame.NlinesLeft == -1)
+            {
+                unproject = mLastFrame.UnprojectStereoLine(i,x3DStart,x3DEnd);
+            }
+            else
+            {
+                unproject = mLastFrame.UnprojectStereoLineFishEye(i,x3DStart,x3DEnd);
+            }
+            if(unproject)
             {
                 //MapLinePtr pNewML = new MapLine(x3DStart,x3DEnd,mpAtlas->GetCurrentMap(),&mLastFrame,i);
                 MapLinePtr pNewML = MapLineNewPtr(x3DStart,x3DEnd,mpAtlas->GetCurrentMap(),&mLastFrame,i);
@@ -4309,7 +4352,16 @@ void Tracking::CreateNewKeyFrame()
                     if(bCreateNew)
                     {
                         Eigen::Vector3f x3DStart,x3DEnd;
-                        if(mCurrentFrame.UnprojectStereoLine(i,x3DStart,x3DEnd))
+                        bool unproject = false;
+                        if(mCurrentFrame.NlinesLeft == -1)
+                        {
+                            unproject = mCurrentFrame.UnprojectStereoLine(i,x3DStart,x3DEnd);
+                        }
+                        else
+                        {
+                            unproject = mCurrentFrame.UnprojectStereoLineFishEye(i,x3DStart,x3DEnd);
+                        }
+                        if(unproject)
                         {
                             //MapLinePtr pNewML = new MapLine(x3DStart,x3DEnd,pKF,mpAtlas->GetCurrentMap());
                             MapLinePtr pNewML = MapLineNewPtr(x3DStart,x3DEnd,pKF,mpAtlas->GetCurrentMap());
@@ -4419,10 +4471,10 @@ void Tracking::SearchLocalPoints()
             pMP->IncreaseVisible();
             nToMatch++;
         }
-        if(pMP->mbTrackInView)
-        {
-            mCurrentFrame.mmProjectPoints[pMP->mnId] = cv::Point2f(pMP->mTrackProjX, pMP->mTrackProjY);
-        }
+        // if(pMP->mbTrackInView)
+        // {
+        //     mCurrentFrame.mmProjectPoints[pMP->mnId] = cv::Point2f(pMP->mTrackProjX, pMP->mTrackProjY);
+        // }
     }
 
     if(nToMatch>0)
@@ -4494,11 +4546,11 @@ void Tracking::SearchLocalLines()
             pML->IncreaseVisible();
             nToMatch++;
         }
-        if(pML->mbTrackInView)
-        {
-            mCurrentFrame.mmProjectLines[pML->mnId] = std::make_pair(cv::Point2f(pML->mTrackProjStartX, pML->mTrackProjStartY),
-                                                                     cv::Point2f(pML->mTrackProjEndX, pML->mTrackProjEndY));        
-        }        
+        // if(pML->mbTrackInView)
+        // {
+        //     mCurrentFrame.mmProjectLines[pML->mnId] = std::make_pair(cv::Point2f(pML->mTrackProjStartX, pML->mTrackProjStartY),
+        //                                                              cv::Point2f(pML->mTrackProjEndX, pML->mTrackProjEndY));        
+        // }        
     }
 
     bool bLargerLineSearch = false; 

@@ -1,7 +1,7 @@
 # New Features 
 
 This is a list of the **new features** provided by PLVS: 
-* **Line segment** detection, matching, triangulation and tracking. 
+* **Line segment** detection, matching, triangulation and tracking with both pinhole and **fisheye cameras** (**NEW**). 
   - This capability can be enabled via the option `Line.on` in the yaml settings.
   - Removed some bugs and optimized parts of the adopted [line_descriptor](https://github.com/opencv/opencv_contrib/tree/4.x/modules/line_descriptor) OpenCV module. 
 * Dense reconstruction with different **volumetric mapping methods**: *voxelgrid*, *octree_point*, *[octomap](https://github.com/OctoMap/octomap)*, *[fastfusion](https://github.com/tum-vision/fastfusion)*, *[chisel](https://github.com/personalrobotics/OpenChisel)*, *[voxblox](https://github.com/ethz-asl/voxblox)*.  
@@ -10,9 +10,10 @@ This is a list of the **new features** provided by PLVS:
   - It can be enabled by using the option `Segmentation.on` in the yaml settings of the RGBD cameras (only working when `octree_point` is selected as volumetric mapping method). 
 * **Augmented reality** with overlay of tracked features, built meshes and loaded 3D models. 
   - This viz can be enabled by using the button `AR Camera` in the viewer GUI. 
+  - A shader allows to viz points and lines with fisheye cameras.
 * Generated **sparse and dense maps** can be **saved** and **reloaded**. 
   - You can save the generated sparse and dense maps anytime by using the GUI: first press the button `Pause` and then press the button `Save`. As a consequence, maps will be saved in the *Scripts* folder. In particular, *(1)* a sparse map will be always saved, *(2)* a dense map will be saved in the form of a ply (or of another custom format) only in the case you have set `PointCloudMapping.on: 1`. 
-  - Use the `SparseMapping` options (as showed in this [TUM configuration file](./Settings/old/RGB-D-TUM1.yaml)) in order to reload the sparse map. In particular, be sure to set the `SparseMapping.filename` and then set `SparseMapping.reuseMap: 1`. 
+  - Use the `SparseMapping` options (as showed in this [TUM configuration file](./Settings/old/RGB-D-TUM1.yaml)) in order to reload the sparse map. In particular, be sure to properly specify the `SparseMapping.filename` and then set `SparseMapping.reuseMap: 1`. 
   - As for reloading the dense map, set `PointCloudMapping.loadMap: 1` and configure `PointCloudMapping.loadFilename`.
 * Extraction of **ORB** keypoints via **CUDA**. 
   - This capability can be optionally activated by using the option `USE_CUDA` in [config.sh](./config.sh) 
@@ -37,22 +38,13 @@ You can find further details and videos on this [page](https://www.luigifreda.co
 
 At present, we have some limitations with some specific sensor configurations.  
 
-### Monocular sensors
+- **Monocular sensors**
+  * Line features and volumetric reconstruction are not supported with monocular sensors.
+- **Stereo sensors** 
+  * Volumetric reconstruction: In general, with stereo cameras, volumetric reconstruction is available only if you rectify stereo pairs. This is automatic with `Camera.type: "Pinhole"`. On the other hand, with `Camera.type: "KannalaBrandt8"`, you need to set `Camera.needRectification: 1` (to this aim, use the new examples in the folder [Examples](./Examples/)).
+   
+**Incremental segmentation**: Incremental segmentation is only supported with RGBD sensors and octree-based dense map (`PointCloudMapping.type: "octree_point"`).
 
-Line features and volumetric reconstruction are not supported with monocular sensors.
+## Other important notes  
 
-### Stereo sensors 
-
-#### Line features 
-
-With fisheye (`Camera.type: "KannalaBrandt8"`) stereo cameras, line features are available only if you rectify stereo pairs: That is, you need to set `Camera.needRectification: 1` (use the new examples in the folder [Examples](./Examples/)). 
-  
-Note that, with pinhole (`Camera.type: "Pinhole"`) stereo cameras, rectification is automatically applied when using the new examples in the folder [Examples](./Examples/). 
-
-#### Volumetric reconstruction
-
-In general, with stereo cameras, volumetric reconstruction is available only if you rectify stereo pairs. This is automatic with `Camera.type: "Pinhole"`. With `Camera.type: "KannalaBrandt8"`, you need to set `Camera.needRectification: 1`.    
-
-### Incremental segmentation
-
-Incremental segmentation is only supported with RGBD sensors and octree-based dense map (`PointCloudMapping.type: "octree_point"`).
+- With pinhole stereo cameras (`Camera.type: "Pinhole"`), rectification is automatically applied when using the new examples in the folder [Examples](./Examples/). 

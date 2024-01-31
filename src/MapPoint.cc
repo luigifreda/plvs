@@ -1,6 +1,5 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -673,6 +672,7 @@ void MapPoint::PreSave(set<KeyFramePtr>& spKF,set<MapPointPtr>& spMP)
     }
 }
 
+#if 0
 void MapPoint::PostLoad(map<long unsigned int, KeyFramePtr>& mpKFid, map<long unsigned int, MapPointPtr>& mpMPid)
 {
     mpRefKF = mpKFid[mBackupRefKFId];
@@ -704,6 +704,7 @@ void MapPoint::PostLoad(map<long unsigned int, KeyFramePtr>& mpKFid, map<long un
     mBackupObservationsId1.clear();
     mBackupObservationsId2.clear();
 }
+#endif 
 
 
 // template<class Archive>

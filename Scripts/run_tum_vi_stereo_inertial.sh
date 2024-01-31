@@ -6,17 +6,16 @@
 
 DATASET_BASE_FOLDER="$HOME/Work/datasets/tum_vi_dataset" #Example, it is necesary to change it by the dataset path
 
-
 #DATASET_NAME="dataset-magistrale1_512_16"
-#DATASET_NAME="dataset-corridor1_512_16"
-DATASET_NAME="dataset-room1_512_16"
+DATASET_NAME="dataset-corridor1_512_16"
+#DATASET_NAME="dataset-room1_512_16"
 #DATASET_NAME="dataset-outdoors8_512_16"   # <-- use the "far" YAML settings 
 #DATASET_NAME="dataset-slides3_512_16"
 
 # NOTE: The "rectified" settings allows to use lines and volumetric mapping
-#TUM_YAML="TUM-VI.yaml"
+TUM_YAML="TUM-VI.yaml"
 #TUM_YAML="TUM-VI_far.yaml"  # for outdoor envs 
-TUM_YAML="TUM-VI_rectified.yaml" # use this if you want to pre-rectify the images
+#TUM_YAML="TUM-VI_rectified.yaml" # use this if you want to pre-rectify the images
 #TUM_YAML="TUM-VI_far_rectified.yaml" # use this if you want to pre-rectify the images
 
 

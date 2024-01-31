@@ -50,10 +50,10 @@ void EdgeLineMono::linearizeOplus()
 
     // NOTE: [Luigi] below some notes about the derivation
 
-    // projS = [us;vs] = cam projection of Sw
-    // projE = [ue;ve] = cam projection of Ew
-    const Eigen::Matrix<double,2,3> proj_jac_S = VPose->estimate().pCamera[cam_idx]->projectJac(XSc); // d[us;vs]/dSc
-    const Eigen::Matrix<double,2,3> proj_jac_E = VPose->estimate().pCamera[cam_idx]->projectJac(XEc); // d[ue;ve]/dEc
+    // projS = [us;vs] = cam projection of Sc
+    // projE = [ue;ve] = cam projection of Ec
+    const Eigen::Matrix<double,2,3> proj_jac_S = VPose->estimate().pCamera[cam_idx]->projectJacLinear(XSc); // d[us;vs]/dSc
+    const Eigen::Matrix<double,2,3> proj_jac_E = VPose->estimate().pCamera[cam_idx]->projectJacLinear(XEc); // d[ue;ve]/dEc
 
     // _jacobianOplusXi = de2/d(Sw,Ew) = [ deS/d(Sw,Ew) ] = [ deS/dSc * dSc/dSw,                  0 ]  \in IR^2x6
     //                                   [ deE/d(Sw,Ew) ]   [                 0,  deE/dEc * dEc/dEw ] 
@@ -136,10 +136,10 @@ void EdgeLineMonoOnlyPose::linearizeOplus()
 
     // NOTE: [Luigi] below some notes about the derivation
 
-    // projS = [us;vs] = cam projection of Sw
-    // projE = [ue;ve] = cam projection of Ew
-    const Eigen::Matrix<double,2,3> proj_jac_S = VPose->estimate().pCamera[cam_idx]->projectJac(XSc); // deS/dSc
-    const Eigen::Matrix<double,2,3> proj_jac_E = VPose->estimate().pCamera[cam_idx]->projectJac(XEc); // deE/dEw
+    // projS = [us;vs] = cam projection of Sc
+    // projE = [ue;ve] = cam projection of Ec
+    const Eigen::Matrix<double,2,3> proj_jac_S = VPose->estimate().pCamera[cam_idx]->projectJacLinear(XSc); // d[ue;ve]/dEc
+    const Eigen::Matrix<double,2,3> proj_jac_E = VPose->estimate().pCamera[cam_idx]->projectJacLinear(XEc); // d[ue;ve]/dEc 
 
     const Eigen::Matrix<double,1,3> JlineS = _measurement.head(2).transpose() * proj_jac_S; // deS/dSc = [nx,ny]*proj_jac_S
     const Eigen::Matrix<double,1,3> JlineE = _measurement.head(2).transpose() * proj_jac_E; // deE/dEc = [nx,ny]*proj_jac_E    
@@ -214,10 +214,10 @@ void EdgeLineStereo::linearizeOplus()
 
     // NOTE: [Luigi] below some notes about the derivation
 
-    // projS = [us;vs] = cam projection of Sw
-    // projE = [ue;ve] = cam projection of Ew
-    const Eigen::Matrix<double,2,3> proj_jac_S = VPose->estimate().pCamera[cam_idx]->projectJac(XSc); // d[us;vs]/dSc
-    const Eigen::Matrix<double,2,3> proj_jac_E = VPose->estimate().pCamera[cam_idx]->projectJac(XEc); // d[ue;ve]/dEc
+    // projS = [us;vs] = cam projection of Sc
+    // projE = [ue;ve] = cam projection of Ec
+    const Eigen::Matrix<double,2,3> proj_jac_S = VPose->estimate().pCamera[cam_idx]->projectJacLinear(XSc); // d[us;vs]/dSc
+    const Eigen::Matrix<double,2,3> proj_jac_E = VPose->estimate().pCamera[cam_idx]->projectJacLinear(XEc); // d[ue;ve]/dEc
 
     // _jacobianOplusXi = de4/d(Sw,Ew) = [ deS/d(Sw,Ew)   ] = [   deS/dSc * dSc/dSw,                  0  ]  \in IR^4x6
     //                                   [ deE/d(Sw,Ew)   ]   [                   0,  deE/dEc * dEc/dEw  ] 
@@ -349,10 +349,10 @@ void EdgeLineStereoOnlyPose::linearizeOplus()
 
     // NOTE: [Luigi] below some notes about the derivation
 
-    // projS = [us;vs] = cam projection of Sw
-    // projE = [ue;ve] = cam projection of Ew
-    const Eigen::Matrix<double,2,3> proj_jac_S = VPose->estimate().pCamera[cam_idx]->projectJac(XSc); // d[us;vs]/dSc
-    const Eigen::Matrix<double,2,3> proj_jac_E = VPose->estimate().pCamera[cam_idx]->projectJac(XEc); // d[ue;ve]/dEc
+    // projS = [us;vs] = cam projection of Sc
+    // projE = [ue;ve] = cam projection of Ec
+    const Eigen::Matrix<double,2,3> proj_jac_S = VPose->estimate().pCamera[cam_idx]->projectJacLinear(XSc); // d[us;vs]/dSc
+    const Eigen::Matrix<double,2,3> proj_jac_E = VPose->estimate().pCamera[cam_idx]->projectJacLinear(XEc); // d[ue;ve]/dEc
 
     // deS/dSc = [nx,ny]*d[us;vs]/dSc = [nx,ny]*proj_jac_S  
     // deE/dEc = [nx,ny]*d[ue;ve]/dEc = [nx,ny]*proj_jac_E

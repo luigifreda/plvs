@@ -1,6 +1,5 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -125,8 +124,8 @@ cv::Mat FrameDrawer::DrawFrame(float imageScale)
     
     vector<MapObjectData> vCurrentObjectsData; 
 
-    vector<float> vCurrentDepth;
-    float thDepth;
+    //vector<float> vCurrentDepth;
+    //float thDepth;
 
     Frame currentFrame;
     vector<MapPointPtr> vpLocalMapPoints;
@@ -134,16 +133,16 @@ cv::Mat FrameDrawer::DrawFrame(float imageScale)
     vector<MapPointPtr> vpMatchedMPs;
     vector<cv::KeyPoint> vOutlierKeys;
     vector<MapPointPtr> vpOutlierMPs;
-    map<long unsigned int, cv::Point2f> mProjectPoints;
-    map<long unsigned int, cv::Point2f> mMatchedInImage;
+    // map<long unsigned int, cv::Point2f> mProjectPoints;
+    // map<long unsigned int, cv::Point2f> mMatchedInImage;
     
     vector<MapLinePtr> vpLocalMapLines;
     vector<cv::line_descriptor_c::KeyLine> vMatchedKeyLines;
     vector<MapLinePtr> vpMatchedMLs;
     vector<cv::line_descriptor_c::KeyLine>  vOutlierKeyLines;
     vector<MapLinePtr> vpOutlierMLs;
-    map<long unsigned int, LineEndPoints> mProjectLines;
-    map<long unsigned int, LineEndPoints> mMatchedLinesInImage;    
+    // map<long unsigned int, LineEndPoints> mProjectLines;
+    // map<long unsigned int, LineEndPoints> mMatchedLinesInImage;    
 
     cv::Scalar standardColor(0,255,0);
     cv::Scalar odometryColor(255,0,0);
@@ -177,19 +176,19 @@ cv::Mat FrameDrawer::DrawFrame(float imageScale)
             vpMatchedMPs = mvpMatchedMPs;
             vOutlierKeys = mvOutlierKeys;
             vpOutlierMPs = mvpOutlierMPs;
-            mProjectPoints = mmProjectPoints;
-            mMatchedInImage = mmMatchedPointsInImage;
+            // mProjectPoints = mmProjectPoints;
+            // mMatchedInImage = mmMatchedPointsInImage;
             
             vpLocalMapLines = mvpLocalMapLines;
             vMatchedKeyLines = mvMatchedKeyLines;
             vpMatchedMLs = mvpMatchedMLs;
             vOutlierKeyLines = mvOutlierKeyLines;
             vpOutlierMLs = mvpOutlierMLs;
-            mProjectLines = mmProjectLines;
-            mMatchedLinesInImage = mmMatchedLinesInImage;            
+            // mProjectLines = mmProjectLines;
+            // mMatchedLinesInImage = mmMatchedLinesInImage;            
 
-            vCurrentDepth = mvCurrentDepth;
-            thDepth = mThDepth;
+            //vCurrentDepth = mvCurrentDepth;
+            //thDepth = mThDepth;
 
             if(mbLineTracking)
             {
@@ -403,13 +402,15 @@ cv::Mat FrameDrawer::DrawFrame(float imageScale)
 
 cv::Mat FrameDrawer::DrawRightFrame(float imageScale)
 {
-    // < TODO: Luigi Add line management here!
     cv::Mat im;
     vector<cv::KeyPoint> vIniKeys; // Initialization: KeyPoints in reference frame
     vector<int> vMatches; // Initialization: correspondeces with reference keypoints
     vector<cv::KeyPoint> vCurrentKeys; // KeyPoints in current frame
     vector<bool> vbVO, vbMap; // Tracked MapPoints in current frame
     int state; // Tracking state
+
+    std::vector<cv::line_descriptor_c::KeyLine> vCurrentKeyLines;
+    vector<bool> vbLineVO, vbLineMap; // Tracked MapLines in current frame
 
     //Copy variables within scoped mutex
     {
@@ -431,10 +432,22 @@ cv::Mat FrameDrawer::DrawRightFrame(float imageScale)
             vCurrentKeys = mvCurrentKeysRight;
             vbVO = mvbVO;
             vbMap = mvbMap;
+
+            if(mbLineTracking)
+            {
+                vCurrentKeyLines = mvCurrentKeyLinesRight;
+                vbLineVO  = mvbLineVO;
+                vbLineMap = mvbLineMap;
+            }            
         }
         else if(mState==Tracking::LOST)
         {
             vCurrentKeys = mvCurrentKeysRight;
+
+            if(mbLineTracking)
+            {
+                vCurrentKeyLines = mvCurrentKeyLinesRight;
+            }            
         }
     } // destroy scoped mutex -> release mutex
 
@@ -525,6 +538,42 @@ cv::Mat FrameDrawer::DrawRightFrame(float imageScale)
         }
     }
 
+    if(mbLineTracking && (state==Tracking::OK))
+    {
+        mnLinesTracked  =0;
+        mnLinesTrackedVO=0;
+        const int nLines = mvCurrentKeyLinesRight.size();
+        const int nLinesLeft = mvCurrentKeyLines.size();        
+        for(int i=0;i<nLines;i++)
+        {
+            if(vbLineVO[i + nLinesLeft] || vbLineMap[i + nLinesLeft])
+            {
+                // This is a match to a MapLine in the map
+                int nOctaveL = mvCurrentKeyLinesRight[i].octave;
+
+                if(vbLineMap[i + nLinesLeft])
+                {
+                    cv::line(im,mvCurrentKeyLinesRight[i].getStartPoint()/imageScale, mvCurrentKeyLinesRight[i].getEndPoint()/imageScale, kColorLinesOctave[nOctaveL],2);
+
+                    mnLinesTracked++;
+                }
+                else // This is match to a "visual odometry" MapLine created in the last frame
+                {
+                    cv::line(im,mvCurrentKeyLinesRight[i].getStartPoint()/imageScale, mvCurrentKeyLinesRight[i].getEndPoint()/imageScale, cv::Scalar(255,0,0),2);
+
+                    mnLinesTrackedVO++;
+                }
+            }
+#if SHOW_ALL_DETECTED_LINES
+            else
+            {
+                // in order to show all detected lines
+                cv::line(im,mvCurrentKeyLinesRight[i].getStartPoint()/imageScale, mvCurrentKeyLinesRight[i].getEndPoint()/imageScale, cv::Scalar(255,0,255));
+            }
+#endif
+        }
+    }
+        
     cv::Mat imWithInfo;
     DrawTextInfo(im,state, imWithInfo);
 
@@ -593,8 +642,8 @@ void FrameDrawer::Update(Tracking *pTracker)
         pTracker->mImRGB.copyTo(mIm);
 
     mvCurrentKeys=pTracker->mCurrentFrame.mvKeys;
-    mThDepth = pTracker->mCurrentFrame.mThDepth;
-    mvCurrentDepth = pTracker->mCurrentFrame.mvDepth;
+    //mThDepth = pTracker->mCurrentFrame.mThDepth;
+    //mvCurrentDepth = pTracker->mCurrentFrame.mvDepth;
 
     if(both)
     {
@@ -640,11 +689,11 @@ void FrameDrawer::Update(Tracking *pTracker)
 
     //Variables for the new visualization
     mCurrentFrame = pTracker->mCurrentFrame;
-    mmProjectPoints = mCurrentFrame.mmProjectPoints;
-    mmMatchedPointsInImage.clear();
+    // mmProjectPoints = mCurrentFrame.mmProjectPoints;
+    // mmMatchedPointsInImage.clear();
     
-    mmProjectLines = mCurrentFrame.mmProjectLines;
-    mmMatchedLinesInImage.clear();    
+    // mmProjectLines = mCurrentFrame.mmProjectLines;
+    // mmMatchedLinesInImage.clear();    
 
     mvpLocalMapPoints = pTracker->GetLocalMapMPS();
     mvMatchedKeys.clear();
@@ -689,7 +738,7 @@ void FrameDrawer::Update(Tracking *pTracker)
                     else
                         mvbVO[i]=true;
 
-                    mmMatchedPointsInImage[pMP->mnId] = mvCurrentKeys[i].pt;
+                    //mmMatchedPointsInImage[pMP->mnId] = mvCurrentKeys[i].pt;
 
                 }
                 else
@@ -714,18 +763,8 @@ void FrameDrawer::Update(Tracking *pTracker)
                         else
                             mvbLineVO[i]=true;
                         
-                        //mvpMatchedMPs.push_back(pMP);
-                        //mvMatchedKeys.push_back(mvCurrentKeys[i]);
-                        mmMatchedLinesInImage[pML->mnId] = std::make_pair(cv::Point2f(mvCurrentKeyLines[i].startPointX,mvCurrentKeyLines[i].startPointY),
-                                                                          cv::Point2f(mvCurrentKeyLines[i].startPointX,mvCurrentKeyLines[i].startPointY));
-                        //cv::Point2f point3d_proy;
-                        //float u, v;
-                        //bool bIsInImage = mCurrentFrame.ProjectPointDistort(pML, point3d_proy, u, v);
-                        //if(bIsInImage)
-                        //{
-                            //mvMatchedKeyLines.push_back(mvCurrentKeysLine.s[i]);
-                            //mvProjectLines.push_back(cv::Point2f(u, v));
-                        //}
+                        // mmMatchedLinesInImage[pML->mnId] = std::make_pair(cv::Point2f(mvCurrentKeyLines[i].startPointX,mvCurrentKeyLines[i].startPointY),
+                        //                                                   cv::Point2f(mvCurrentKeyLines[i].startPointX,mvCurrentKeyLines[i].startPointY));
                     }
                     else
                     {

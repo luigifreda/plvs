@@ -1,6 +1,5 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -210,6 +209,23 @@ Eigen::Vector3d ImuCamPose::ProjectStereo(const Eigen::Vector3d &Xw, int cam_idx
     Eigen::Vector3d pc;
     double invZ = 1/Pc(2);
     pc.head(2) = pCamera[cam_idx]->project(Pc);
+    pc(2) = pc(0) - bf*invZ;
+    return pc;
+}
+
+Eigen::Vector2d ImuCamPose::ProjectLinear(const Eigen::Vector3d &Xw, int cam_idx) const
+{
+    Eigen::Vector3d Xc = Rcw[cam_idx] * Xw + tcw[cam_idx];
+
+    return pCamera[cam_idx]->projectLinear(Xc);
+}
+
+Eigen::Vector3d ImuCamPose::ProjectStereoLinear(const Eigen::Vector3d &Xw, int cam_idx) const
+{
+    Eigen::Vector3d Pc = Rcw[cam_idx] * Xw + tcw[cam_idx];
+    Eigen::Vector3d pc;
+    double invZ = 1/Pc(2);
+    pc.head(2) = pCamera[cam_idx]->projectLinear(Pc);
     pc(2) = pc(0) - bf*invZ;
     return pc;
 }

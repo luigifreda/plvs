@@ -1,6 +1,5 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -54,6 +53,7 @@
 #include "SerializationUtils.h"
 
 #include <mutex>
+#include <unordered_set>
 #include "BoostArchiver.h"
 #include "Pointers.h"
 
@@ -156,6 +156,7 @@ public:
     void EraseMapPointMatch(MapPointPtr& pMP);
     void ReplaceMapPointMatch(const size_t &idx, MapPointPtr pMP);
     std::set<MapPointPtr> GetMapPoints();
+    std::unordered_set<MapPointPtr> GetMapPointsUnordered();
     std::vector<MapPointPtr> GetMapPointMatches();
     int TrackedMapPoints(const int &minObs);
     MapPointPtr GetMapPoint(const size_t &idx);
@@ -166,6 +167,7 @@ public:
     void EraseMapLineMatch(MapLinePtr& pMP);
     void ReplaceMapLineMatch(const size_t &idx, MapLinePtr pMP);
     std::set<MapLinePtr> GetMapLines();
+    std::unordered_set<MapLinePtr> GetMapLinesUnordered();
     std::vector<MapLinePtr> GetMapLineMatches();
     int TrackedMapLines(const int &minObs);
     MapLinePtr GetMapLine(const size_t &idx);    
@@ -187,9 +189,10 @@ public:
 
     // KeyLine functions
     bool UnprojectStereoLine(const int& i, Eigen::Vector3f& p3DStart, Eigen::Vector3f& p3DEnd);
-    std::vector<size_t> GetLineFeaturesInArea(const float &xs, const float &ys, const float &xe, const float &ye, const float& dtheta = kDeltaTheta, const float& dd = kDeltaD) const;
-    std::vector<size_t> GetLineFeaturesInArea(const Line2DRepresentation& lineRepresentation, const float& dtheta = kDeltaTheta, const float& dd = kDeltaD) const; 
-    void GetLineFeaturesInArea(const float thetaMin, const float thetaMax, const float dMin, const float dMax, std::vector<size_t>& vIndices) const;
+    bool UnprojectStereoLineFishEye(const int &i, Eigen::Vector3f& p3DStart, Eigen::Vector3f& p3DEnd);    
+    std::vector<size_t> GetLineFeaturesInArea(const float &xs, const float &ys, const float &xe, const float &ye, const float& dtheta = kDeltaTheta, const float& dd = kDeltaD, const bool bRight = false) const;
+    std::vector<size_t> GetLineFeaturesInArea(const Line2DRepresentation& lineRepresentation, const float& dtheta = kDeltaTheta, const float& dd = kDeltaD, const bool bRight = false) const; 
+    void GetLineFeaturesInArea(const float thetaMin, const float thetaMax, const float dMin, const float dMax, std::vector<size_t>& vIndices, const bool bRight = false) const;
 
     // Image
     bool IsInImage(const float &x, const float &y) const;
@@ -327,10 +330,10 @@ public:
     // KeyLines, stereo coordinate and descriptors (all associated by an index)
     const std::vector<cv::line_descriptor_c::KeyLine> mvKeyLines;
     const std::vector<cv::line_descriptor_c::KeyLine> mvKeyLinesUn;
-    /*const*/ std::vector<float> mvuRightLineStart;
-    /*const*/ std::vector<float> mvDepthLineStart;
-    /*const*/ std::vector<float> mvuRightLineEnd;
-    /*const*/ std::vector<float> mvDepthLineEnd;
+    /*const*/ std::vector<float> mvuRightLineStart; 
+    /*const*/ std::vector<float> mvDepthLineStart;   
+    /*const*/ std::vector<float> mvuRightLineEnd;    
+    /*const*/ std::vector<float> mvDepthLineEnd;     
     const cv::Mat mLineDescriptors;
 
     //BoW
@@ -485,6 +488,7 @@ public:
 
     //Indexes of stereo observations correspondences
     std::vector<int> mvLeftToRightMatch, mvRightToLeftMatch;
+    std::vector<int> mvLeftToRightLinesMatch, mvRightToLeftLinesMatch;
 
     //Transformation matrix between cameras in stereo fisheye
     Sophus::SE3f GetRelativePoseTrl();
@@ -492,10 +496,11 @@ public:
 
     //KeyPoints in the right image (for stereo fisheye, coordinates are needed)
     const std::vector<cv::KeyPoint> mvKeysRight;
-    std::vector<cv::line_descriptor_c::KeyLine> mvKeyLinesRight;
+    const std::vector<cv::line_descriptor_c::KeyLine> mvKeyLinesRight;
+    const std::vector<cv::line_descriptor_c::KeyLine> mvKeyLinesRightUn; // mvKeyLinesRightUn to be used only with fisheye cameras (i.e. pCamera2 != nullptr)
 
     const int NLeft, NRight;
-    const int NlinesLeft, NlinesRight;
+    const int NlinesLeft=-1, NlinesRight=-1;
 
     std::vector< std::vector <std::vector<size_t> > > mGridRight;
     std::vector< std::vector <std::vector<size_t> > > mLineGridRight;

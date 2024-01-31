@@ -1,6 +1,5 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -470,7 +469,7 @@ void PointCloudDrawer::DrawNormals()
 #endif
 
     normalsProgram_->Bind();
-    normalsProgram_->setUniform(Uniform("matModelView", normalsProgram_->matProjModelView_)); // this mat is set in the main viewer
+    normalsProgram_->setUniform(Uniform("matModelView", normalsProgram_->GetProjectionModelViewMatrix())); // this mat is set in the main viewer
 
     //glDrawArrays(glDrawingModePoints_, 0, vertexBufferNumPoints_);
     if(vertexBufferNumPoints_ > 0)
@@ -514,7 +513,7 @@ void PointCloudDrawer::DrawSegments(float pointSize)
 
 
     segmentsProgram_->Bind();
-    segmentsProgram_->setUniform(Uniform("matModelView", segmentsProgram_->matProjModelView_)); // this mat is set in the main viewer
+    segmentsProgram_->setUniform(Uniform("matModelView", segmentsProgram_->GetProjectionModelViewMatrix())); // this mat is set in the main viewer
     segmentsProgram_->setUniform(Uniform("labelConfidenceThreshold",labelConfidenceThreshold_));
 
     //glDrawArrays(glDrawingModePoints_, 0, vertexBufferNumPoints_);
@@ -622,7 +621,7 @@ void PointCloudDrawer::SetDisplaySegments(bool val)
     bDisplaySegments_ = val;
 }
 
-void PointCloudDrawer::setUseAR(bool value) 
+void PointCloudDrawer::SetUseAR(bool value) 
 { 
     if(!mbUseAR && value) 
     {

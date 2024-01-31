@@ -968,7 +968,7 @@ PointCloudMapping::PointCloudT::Ptr PointCloudMapping::GeneratePointCloudInCamer
         static const int downsampleRows = (int) ceil( float(depth.rows)/skDownsampleStep);
         static const int downsampleCols = (int) ceil( float(depth.cols)/skDownsampleStep);
         
-        const std::vector<cv::line_descriptor_c::KeyLine>& keyLines = kf->mvKeyLines; 
+        const std::vector<cv::line_descriptor_c::KeyLine>& keyLines = kf->mvKeyLines;  // draw detected raw keylines 
         cv::Mat& linesImg = vecImages_[3].img;
         vecImages_[3].name = "lines";
         //linesImg = cv::Mat_<uchar>::zeros(depth.rows, depth.cols);

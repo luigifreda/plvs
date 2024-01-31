@@ -1,6 +1,5 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -45,9 +44,9 @@
 #include "MapObject.h"
 #include <pangolin/pangolin.h>
 #include <mutex>
+#include <unordered_set>
 
-
-#define USE_ORIGINAL_MAP_LOCK_STYLE 1
+#define USE_ORIGINAL_MAP_LOCK_STYLE 0
 #define DRAW_FOV_CENTERS 0
 
 
@@ -187,61 +186,101 @@ void MapDrawer::DrawMapPoints()
     set<MapPointPtr> spRefMPs(vpRefMPs.begin(), vpRefMPs.end());
 #else
     const vector<MapPointPtr> vpMPs = pActiveMap->GetAllMapPoints();   
-    
-    //set<MapPointPtr> spRefMPs;
-    //pActiveMap->GetSetOfReferenceMapPoints(spRefMPs); // this makes the vector-to-set conversion occur while blocking the reference points in the map 
-    
     const vector<MapPointPtr> vpRefMPs = pActiveMap->GetReferenceMapPoints();
-    set<MapPointPtr> spRefMPs(vpRefMPs.begin(), vpRefMPs.end());    // this makes the vector-to-set conversion occur in this thread   
+
+    const unordered_set<MapPointPtr> spRefMPs(vpRefMPs.begin(), vpRefMPs.end());    // this makes the vector-to-set conversion occur in this thread   
 #endif 
 
     if(vpMPs.empty())
         return;
 
-    glPointSize(mPointSize);
-    glBegin(GL_POINTS);
-    glColor3f(0.0,0.0,0.0);
 
-    for(size_t i=0, iend=vpMPs.size(); i<iend;i++)
+    if(mbUseAR && mbUseKbRawFeatures)
     {
-        if(vpMPs[i]->isBad() || spRefMPs.count(vpMPs[i]))
-            continue;
-        Eigen::Matrix<float,3,1> pos = vpMPs[i]->GetWorldPos();
-        glVertex3f(pos(0),pos(1),pos(2));
+        // draw points with the KB shader 
+
+        std::vector<Eigen::Vector3f> points;
+        points.reserve(vpMPs.size() + vpRefMPs.size());
+        for(size_t i=0, iend=vpMPs.size(); i<iend;i++)
+        {
+            if(vpMPs[i]->isBad() || spRefMPs.count(vpMPs[i]))
+                continue;            
+            points.push_back(vpMPs[i]->GetWorldPos());
+        }
+        for(auto sit=spRefMPs.begin(), send=spRefMPs.end(); sit!=send; sit++)
+        {
+            if((*sit)->isBad())
+                continue;            
+            points.push_back((*sit)->GetWorldPos());
+        }        
+        kbFeaturesProgram_->DrawPoints(points);
     }
-    glEnd();
-
-    if(!mbUseAR)
+    else 
     {
+        // draw points in the starndar way 
+
         glPointSize(mPointSize);
-    }
-    else
-    {
-        glPointSize(mPointSize+1);
-    }
-    glBegin(GL_POINTS);
-    if(!mbUseAR)
-    {
-        glColor3f(1.0,0.0,0.0);
-    }
-    else
-    {
-        glColor3f(COLOR_LINE_OBJECT);
-    }
-    for(set<MapPointPtr>::iterator sit=spRefMPs.begin(), send=spRefMPs.end(); sit!=send; sit++)
-    {
-        if((*sit)->isBad())
-            continue;
-        Eigen::Matrix<float,3,1> pos = (*sit)->GetWorldPos();
-        glVertex3f(pos(0),pos(1),pos(2));
 
-    }
+        glBegin(GL_POINTS);
+        glColor3f(0.0,0.0,0.0);
+        for(size_t i=0, iend=vpMPs.size(); i<iend;i++)
+        {
+            if(vpMPs[i]->isBad() || spRefMPs.count(vpMPs[i]))
+                continue;
+            Eigen::Matrix<float,3,1> pos = vpMPs[i]->GetWorldPos();
+            glVertex3f(pos(0),pos(1),pos(2));
+        }
+        glEnd();
 
-    glEnd();
+        if(!mbUseAR)
+        {
+            glPointSize(mPointSize);
+        }
+        else
+        {
+            glPointSize(mPointSize+1);
+        }
+
+        glBegin(GL_POINTS);
+        if(!mbUseAR)
+        {
+            glColor3f(1.0,0.0,0.0);
+        }
+        else
+        {
+            glColor3f(COLOR_LINE_OBJECT);
+        }
+        for(auto sit=spRefMPs.begin(), send=spRefMPs.end(); sit!=send; sit++)
+        {
+            if((*sit)->isBad())
+                continue;
+            Eigen::Matrix<float,3,1> pos = (*sit)->GetWorldPos();
+            glVertex3f(pos(0),pos(1),pos(2));
+
+        }
+        glEnd();
+    }
 }
+
+
+void splitLine(const Eigen::Vector3f& posStart, const Eigen::Vector3f& posEnd, std::vector<Eigen::Vector3f>& linePoints, const int numSplits)
+{   
+    // split the line into multiple line segments for having better rendering with the line shader 
+    const Eigen::Vector3f direction = posEnd-posStart;
+    const Eigen::Vector3f delta = direction/numSplits;    
+    Eigen::Vector3f pi = posStart; 
+    for(size_t i=0;i<numSplits;i++)
+    {
+        linePoints.push_back(pi);    
+        pi += delta; 
+        linePoints.push_back(pi);
+    }                
+}       
 
 void MapDrawer::DrawMapLines()
 {
+    constexpr int numSplits = 10;
+    constexpr float distanceForSplit = 0.1f; // meters  
 
 #if USE_ORIGINAL_MAP_LOCK_STYLE    
     const vector<MapLinePtr> &vpMLs = mpAtlas->GetAllMapLines();
@@ -250,67 +289,106 @@ void MapDrawer::DrawMapLines()
     set<MapLinePtr> spRefMLs(vpRefMLs.begin(), vpRefMLs.end());
 #else
     const vector<MapLinePtr> vpMLs = mpAtlas->GetAllMapLines(); 
-    
-    //set<MapLinePtr> spRefMLs;
-    //mpAtlas->GetSetOfReferenceMapLines(spRefMLs); // this makes the vector-to-set conversion occur while blocking the reference lines in the map 
-    
     const vector<MapLinePtr> vpRefMLs = mpAtlas->GetReferenceMapLines();
-    set<MapLinePtr> spRefMLs(vpRefMLs.begin(), vpRefMLs.end());    // this makes the vector-to-set conversion occur in this thread  
+
+    const unordered_set<MapLinePtr> spRefMLs(vpRefMLs.begin(), vpRefMLs.end());    // this makes the vector-to-set conversion occur in this thread  
 #endif 
 
     if(vpMLs.empty())
         return;
 
-    glLineWidth(mLineSize);
-    glBegin(GL_LINES);
-    glColor3f(0.0,0.0,0.0);
-
-    for(size_t i=0, iend=vpMLs.size(); i<iend;i++)
+    if(mbUseAR && mbUseKbRawFeatures)
     {
-        if(vpMLs[i]->isBad() || spRefMLs.count(vpMLs[i]))
-            continue;
+        // draw lines with the KB shader 
 
-        //if(vpMLs[i]->Observations() < 3) continue;
-
+        std::vector<Eigen::Vector3f> linePoints;
+        linePoints.reserve(2*(vpMLs.size() + spRefMLs.size())*numSplits);
         Eigen::Vector3f posStart, posEnd;
-        vpMLs[i]->GetWorldEndPoints(posStart, posEnd);
+        float length = 0;
 
-        glVertex3f(posStart(0),posStart(1),posStart(2));
-        glVertex3f(posEnd(0),posEnd(1),posEnd(2));
+        for(size_t i=0, iend=vpMLs.size(); i<iend;i++)
+        {
+            if(vpMLs[i]->isBad() || spRefMLs.count(vpMLs[i]))
+                continue;            
+            vpMLs[i]->GetWorldEndPointsAndLength(posStart, posEnd, length);
+            if(length > distanceForSplit)
+            {
+                splitLine(posStart, posEnd, linePoints, numSplits);
+            }
+            else
+            {
+                linePoints.push_back(posStart);
+                linePoints.push_back(posEnd);
+            }
+        }
+        for(auto sit=spRefMLs.begin(), send=spRefMLs.end(); sit!=send; sit++)
+        {
+            if((*sit)->isBad())
+                continue;            
+            (*sit)->GetWorldEndPointsAndLength(posStart, posEnd, length);                
+            if(length > distanceForSplit)
+            {
+                splitLine(posStart, posEnd, linePoints, numSplits);
+            }
+            else
+            {
+                linePoints.push_back(posStart);
+                linePoints.push_back(posEnd);
+            }
+        }        
+        kbFeaturesProgram_->DrawLines(linePoints);
     }
-    glEnd();
+    else 
+    {
+        // draw lines in the standard way  
 
-
-
-    if(!mbUseAR){
         glLineWidth(mLineSize);
-    }else{
-        glLineWidth(mLineSize+2);
+        glBegin(GL_LINES);
+        glColor3f(0.0,0.0,0.0);
+
+        for(size_t i=0, iend=vpMLs.size(); i<iend;i++)
+        {
+            if(vpMLs[i]->isBad() || spRefMLs.count(vpMLs[i]))
+                continue;
+
+            //if(vpMLs[i]->Observations() < 3) continue;
+
+            Eigen::Vector3f posStart, posEnd;
+            vpMLs[i]->GetWorldEndPoints(posStart, posEnd);
+
+            glVertex3f(posStart(0),posStart(1),posStart(2));
+            glVertex3f(posEnd(0),posEnd(1),posEnd(2));
+        }
+        glEnd();
+
+        if(!mbUseAR){
+            glLineWidth(mLineSize);
+        }else{
+            glLineWidth(mLineSize+2);
+        }
+
+        glBegin(GL_LINES);
+        if(!mbUseAR){
+            glColor3f(1.0,0.0,0.0);
+        }else{
+            glColor3f(COLOR_LINE_OBJECT);
+        }
+        for(auto sit=spRefMLs.begin(), send=spRefMLs.end(); sit!=send; sit++)
+        {
+            if((*sit)->isBad())
+                continue;
+
+            //if((*sit)->Observations() < 3) continue;
+
+            Eigen::Vector3f posStart, posEnd;
+            (*sit)->GetWorldEndPoints(posStart, posEnd);
+
+            glVertex3f(posStart(0),posStart(1),posStart(2));
+            glVertex3f(posEnd(0),posEnd(1),posEnd(2));
+
+        }
+        glEnd();
     }
-    glBegin(GL_LINES);
-    if(!mbUseAR){
-        glColor3f(1.0,0.0,0.0);
-    }else{
-        glColor3f(COLOR_LINE_OBJECT);
-    }
-
-
-    for(set<MapLinePtr>::iterator sit=spRefMLs.begin(), send=spRefMLs.end(); sit!=send; sit++)
-    {
-        if((*sit)->isBad())
-            continue;
-
-        //if((*sit)->Observations() < 3) continue;
-
-        Eigen::Vector3f posStart, posEnd;
-        (*sit)->GetWorldEndPoints(posStart, posEnd);
-
-        glVertex3f(posStart(0),posStart(1),posStart(2));
-        glVertex3f(posEnd(0),posEnd(1),posEnd(2));
-
-    }
-
-    glEnd();
 }
 
 
@@ -322,12 +400,8 @@ void MapDrawer::DrawMapObjects()
     set<MapObjectPtr > spRefMObjs(vpRefMObjs.begin(), vpRefMObjs.end());
 #else
     const std::vector<MapObjectPtr > vpMObjs = mpAtlas->GetAllMapObjects();    
-    
-    //set<MapObjectPtr > spRefMObjs;
-    //mpAtlas->GetSetOfReferenceMapObjects(spRefMObjs);
-    
     const vector<MapObjectPtr > vpRefMObjs = mpAtlas->GetReferenceMapObjects();    
-    set<MapObjectPtr > spRefMObjs(vpRefMObjs.begin(), vpRefMObjs.end());    
+    const unordered_set<MapObjectPtr > spRefMObjs(vpRefMObjs.begin(), vpRefMObjs.end());    
 #endif     
     
     if(vpMObjs.empty())
@@ -366,7 +440,7 @@ void MapDrawer::DrawMapObjects()
         glColor3f(COLOR_LINE_OBJECT);
     }    
     
-    for(set<MapObjectPtr >::iterator sit=spRefMObjs.begin(), send=spRefMObjs.end(); sit!=send; sit++)
+    for(auto sit=spRefMObjs.begin(), send=spRefMObjs.end(); sit!=send; sit++)
     {
         const MapObjectPtr& pObj = (*sit);         
         
@@ -395,8 +469,8 @@ void MapDrawer::DrawKeyFrames(const bool bDrawKF, const bool bDrawGraph, const b
 
     Map* pActiveMap = mpAtlas->GetCurrentMap();
     // DEBUG LBA
-    std::set<long unsigned int> sOptKFs = pActiveMap->msOptKFs;
-    std::set<long unsigned int> sFixedKFs = pActiveMap->msFixedKFs;
+    const std::set<long unsigned int> sOptKFs = bDrawOptLba? pActiveMap->msOptKFs : std::set<long unsigned int>();
+    const std::set<long unsigned int> sFixedKFs = bDrawOptLba? pActiveMap->msFixedKFs : std::set<long unsigned int>();
 
     if(!pActiveMap)
         return;

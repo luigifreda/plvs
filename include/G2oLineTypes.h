@@ -23,7 +23,7 @@
 #include "g2o/types_sba_line.h"
 
 
-#define USE_ANALYTIC_JACS_IMU 1
+#define USE_ANALYTIC_JACS_IMU 0
 
 #define USE_ANALYTIC_JACS_FULL_MONO_IMU      (1 && USE_ANALYTIC_JACS_IMU)
 #define USE_ANALYTIC_JACS_ONLY_POSE_MONO_IMU (1 && USE_ANALYTIC_JACS_IMU)
@@ -48,8 +48,8 @@ public:
         const g2o::VertexSBALine* VLine = static_cast<const g2o::VertexSBALine*>(_vertices[0]); // i
         const VertexPose* VPose = static_cast<const VertexPose*>(_vertices[1]);                 // j 
 
-        const Eigen::Vector2d projS = VPose->estimate().Project(VLine->estimate().head(3),cam_idx); // [us;vs] start point Sw cam projection
-        const Eigen::Vector2d projE = VPose->estimate().Project(VLine->estimate().tail(3),cam_idx); // [ue;ve] end point Ew cam projection
+        const Eigen::Vector2d projS = VPose->estimate().ProjectLinear(VLine->estimate().head(3),cam_idx); // [us;vs] start point Sw cam projection
+        const Eigen::Vector2d projE = VPose->estimate().ProjectLinear(VLine->estimate().tail(3),cam_idx); // [ue;ve] end point Ew cam projection
         
         // _measurement[0,1,2] come as a line representation [l1,l2,l3]=[nx,ny,-d] with [nx,ny] defining a unit normal
         // e2 = [eS] = [ [nx,ny]*projS -d ]
@@ -88,8 +88,8 @@ public:
         const g2o::VertexSBALine* VLine = static_cast<const g2o::VertexSBALine*>(_vertices[0]); // i
         const VertexPose* VPose = static_cast<const VertexPose*>(_vertices[1]);                 // j 
 
-        projS = VPose->estimate().Project(VLine->estimate().head(3),cam_idx); // [us;vs] start point Sw cam projection
-        projE = VPose->estimate().Project(VLine->estimate().tail(3),cam_idx); // [ue;ve] end point Ew cam projection                
+        projS = VPose->estimate().ProjectLinear(VLine->estimate().head(3),cam_idx); // [us;vs] start point Sw cam projection
+        projE = VPose->estimate().ProjectLinear(VLine->estimate().tail(3),cam_idx); // [ue;ve] end point Ew cam projection                
     }  
 
 public:
@@ -111,8 +111,8 @@ public:
     void computeError(){
         const VertexPose* VPose = static_cast<const VertexPose*>(_vertices[0]);
 
-        const Eigen::Vector2d projS = VPose->estimate().Project(XSw,cam_idx); // [us;vs] start point Sw cam projection 
-        const Eigen::Vector2d projE = VPose->estimate().Project(XEw,cam_idx); // [ue;ve] end point Ew cam projection
+        const Eigen::Vector2d projS = VPose->estimate().ProjectLinear(XSw,cam_idx); // [us;vs] start point Sw cam projection 
+        const Eigen::Vector2d projE = VPose->estimate().ProjectLinear(XEw,cam_idx); // [ue;ve] end point Ew cam projection
         
         // _measurement[0,1,2] come as a line representation [l1,l2,l3]=[nx,ny,-d] with [nx,ny] defining a unit normal
         // e2 = [eS] = [ [nx,ny]*projS -d ]
@@ -140,8 +140,8 @@ public:
 
     void getMapLineProjections(Eigen::Vector2d& projS, Eigen::Vector2d& projE)  {
         const VertexPose* VPose = static_cast<const VertexPose*>(_vertices[0]);
-        projS = VPose->estimate().Project(XSw,cam_idx); // [us;vs] start point Sw cam projection 
-        projE = VPose->estimate().Project(XEw,cam_idx); // [ue;ve] end point Ew cam projection
+        projS = VPose->estimate().ProjectLinear(XSw,cam_idx); // [us;vs] start point Sw cam projection 
+        projE = VPose->estimate().ProjectLinear(XEw,cam_idx); // [ue;ve] end point Ew cam projection
     }  
 
 public:
@@ -170,8 +170,8 @@ public:
 
         const Eigen::Vector3d XSc = imuCamPose.ToCam(mapLine.head(3),cam_idx); // S w.r.t. camera frame (aka P)
         const Eigen::Vector3d XEc = imuCamPose.ToCam(mapLine.tail(3),cam_idx); // E w.r.t. camera frame (aka Q)       
-        const Eigen::Vector2d projS = imuCamPose.pCamera[cam_idx]->project(XSc); // [us;vs] start point Sw cam projection
-        const Eigen::Vector2d projE = imuCamPose.pCamera[cam_idx]->project(XEc); // [ue;ve] end point Ew cam projection
+        const Eigen::Vector2d projS = imuCamPose.pCamera[cam_idx]->projectLinear(XSc); // [us;vs] start point Sw cam projection
+        const Eigen::Vector2d projE = imuCamPose.pCamera[cam_idx]->projectLinear(XEc); // [ue;ve] end point Ew cam projection
         
         // NOTE: 
         // _measurement[0,1,2] come as a line representation [l1,l2,l3]=[nx,ny,-d] with [nx,ny] defining a unit normal
@@ -275,8 +275,8 @@ public:
 
         mapS = imuCamPose.ToCam(mapLine.head(3),cam_idx); // S w.r.t. camera frame (aka P)
         mapE = imuCamPose.ToCam(mapLine.tail(3),cam_idx); // E w.r.t. camera frame (aka Q)       
-        projS = imuCamPose.pCamera[cam_idx]->project(mapS); // [us;vs] start point Sw cam projection
-        projE = imuCamPose.pCamera[cam_idx]->project(mapE); // [ue;ve] end point Ew cam projection        
+        projS = imuCamPose.pCamera[cam_idx]->projectLinear(mapS); // [us;vs] start point Sw cam projection
+        projE = imuCamPose.pCamera[cam_idx]->projectLinear(mapE); // [ue;ve] end point Ew cam projection        
     }
     
 
@@ -311,8 +311,8 @@ public:
 
         const Eigen::Vector3d XSc = imuCamPose.ToCam(XSw,cam_idx); // S w.r.t. camera frame (aka P)
         const Eigen::Vector3d XEc = imuCamPose.ToCam(XEw,cam_idx); // E w.r.t. camera frame (aka Q)       
-        const Eigen::Vector2d projS = imuCamPose.pCamera[cam_idx]->project(XSc); // [us;vs] start point Sw cam projection
-        const Eigen::Vector2d projE = imuCamPose.pCamera[cam_idx]->project(XEc); // [ue;ve] end point Ew cam projection
+        const Eigen::Vector2d projS = imuCamPose.pCamera[cam_idx]->projectLinear(XSc); // [us;vs] start point Sw cam projection
+        const Eigen::Vector2d projE = imuCamPose.pCamera[cam_idx]->projectLinear(XEc); // [ue;ve] end point Ew cam projection
         
         // NOTE: 
         // _measurement[0,1,2] come as a line representation [l1,l2,l3]=[nx,ny,-d] with [nx,ny] defining a unit normal
@@ -392,8 +392,8 @@ public:
 
         mapS = imuCamPose.ToCam(XSw,cam_idx); // S w.r.t. camera frame (aka P)
         mapE = imuCamPose.ToCam(XEw,cam_idx); // E w.r.t. camera frame (aka Q)       
-        projS = imuCamPose.pCamera[cam_idx]->project(mapS); // [us;vs] start point Sw cam projection
-        projE = imuCamPose.pCamera[cam_idx]->project(mapE); // [ue;ve] end point Ew cam projection
+        projS = imuCamPose.pCamera[cam_idx]->projectLinear(mapS); // [us;vs] start point Sw cam projection
+        projE = imuCamPose.pCamera[cam_idx]->projectLinear(mapE); // [ue;ve] end point Ew cam projection
     }
 
 public:

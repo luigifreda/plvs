@@ -1,6 +1,5 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -118,8 +117,13 @@ public:
     void UpdateW(const double *pu); // update in the world reference
     Eigen::Vector3d ToBody(const Eigen::Vector3d &Xw) const;       
     Eigen::Vector3d ToCam(const Eigen::Vector3d &Xw, int cam_idx=0) const; 
+
     Eigen::Vector2d Project(const Eigen::Vector3d &Xw, int cam_idx=0) const; // Mono
     Eigen::Vector3d ProjectStereo(const Eigen::Vector3d &Xw, int cam_idx=0) const; // Stereo
+
+    Eigen::Vector2d ProjectLinear(const Eigen::Vector3d &Xw, int cam_idx=0) const; // Mono without distortion model
+    Eigen::Vector3d ProjectStereoLinear(const Eigen::Vector3d &Xw, int cam_idx=0) const; // Stereo without distortion model
+
     bool isDepthPositive(const Eigen::Vector3d &Xw, int cam_idx=0) const;
 
 public:

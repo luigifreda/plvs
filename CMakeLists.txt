@@ -451,6 +451,7 @@ src/G2oLineTypes.cc
 src/CameraModels/Pinhole.cpp
 src/CameraModels/KannalaBrandt8.cpp
 src/OptimizableTypes.cpp
+src/OptimizableLineTypes.cpp
 src/MLPnPsolver.cpp
 src/GeometricTools.cc
 src/TwoViewReconstruction.cc
@@ -481,6 +482,7 @@ include/CameraModels/GeometricCamera.h
 include/CameraModels/Pinhole.h
 include/CameraModels/KannalaBrandt8.h
 include/OptimizableTypes.h
+include/OptimizableLineTypes.h
 include/MLPnPsolver.h
 include/GeometricTools.h
 include/TwoViewReconstruction.h

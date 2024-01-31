@@ -76,7 +76,7 @@ public:
 
     void SetDisplaySegments(bool val);
 
-    void setUseAR(bool value);
+    void SetUseAR(bool value);
 
     void SetNormalsProgram(std::shared_ptr<Shader>& normalsProgram);
 

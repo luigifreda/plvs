@@ -1,6 +1,5 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -50,12 +49,21 @@
 
 using namespace std;
 
+#define USE_NEW_HISTOGRAM_FACTOR 1 
+
 namespace PLVS2
 {
 
     const int ORBmatcher::TH_HIGH = 100;
     const int ORBmatcher::TH_LOW = 50;
+
+#define USE_NEW_HISTOGRAM_FACTOR 1 
+
+#if USE_NEW_HISTOGRAM_FACTOR
+    const int ORBmatcher::HISTO_LENGTH = 12; // NOTE: with 12 bins => new factor = 12/360 equals to old factor = 1/30 
+#else     
     const int ORBmatcher::HISTO_LENGTH = 30;
+#endif     
 
     ORBmatcher::ORBmatcher(float nnratio, bool checkOri): mfNNratio(nnratio), mbCheckOrientation(checkOri)
     {
@@ -304,7 +312,11 @@ namespace PLVS2
         vector<int> rotHist[HISTO_LENGTH];
         for(int i=0;i<HISTO_LENGTH;i++)
             rotHist[i].reserve(500);
+#if USE_NEW_HISTOGRAM_FACTOR
+        constexpr float factor = HISTO_LENGTH/360.0f; 
+#else             
         const float factor = 1.0f/HISTO_LENGTH;
+#endif         
 
         // We perform the matching over ORB that belong to the same vocabulary node (at a certain level)
         DBoW2::FeatureVector::const_iterator KFit = vFeatVecKF.begin();
@@ -509,7 +521,8 @@ namespace PLVS2
         Eigen::Vector3f Ow = Tcw.inverse().translation();
 
         // Set of MapPoints already found in the KeyFrame
-        set<MapPointPtr> spAlreadyFound(vpMatched.begin(), vpMatched.end());
+        //set<MapPointPtr> spAlreadyFound(vpMatched.begin(), vpMatched.end());
+        unordered_set<MapPointPtr> spAlreadyFound(vpMatched.begin(), vpMatched.end());
         spAlreadyFound.erase(static_cast<MapPointPtr>(NULL));
 
         int nmatches=0;
@@ -616,7 +629,8 @@ namespace PLVS2
         Eigen::Vector3f Ow = Tcw.inverse().translation();
 
         // Set of MapPoints already found in the KeyFrame
-        set<MapPointPtr> spAlreadyFound(vpMatched.begin(), vpMatched.end());
+        //set<MapPointPtr> spAlreadyFound(vpMatched.begin(), vpMatched.end());
+        unordered_set<MapPointPtr> spAlreadyFound(vpMatched.begin(), vpMatched.end());
         spAlreadyFound.erase(static_cast<MapPointPtr>(NULL));
 
         int nmatches=0;
@@ -725,7 +739,11 @@ namespace PLVS2
         vector<int> rotHist[HISTO_LENGTH];
         for(int i=0;i<HISTO_LENGTH;i++)
             rotHist[i].reserve(500);
+#if USE_NEW_HISTOGRAM_FACTOR
+        constexpr float factor = HISTO_LENGTH/360.0f; 
+#else             
         const float factor = 1.0f/HISTO_LENGTH;
+#endif       
 
         vector<int> vMatchedDistance(F2.mvKeysUn.size(),INT_MAX);
         vector<int> vnMatches21(F2.mvKeysUn.size(),-1);
@@ -853,7 +871,11 @@ namespace PLVS2
         for(int i=0;i<HISTO_LENGTH;i++)
             rotHist[i].reserve(500);
 
+#if USE_NEW_HISTOGRAM_FACTOR
+        constexpr float factor = HISTO_LENGTH/360.0f; 
+#else             
         const float factor = 1.0f/HISTO_LENGTH;
+#endif       
 
         int nmatches = 0;
 
@@ -1025,7 +1047,11 @@ namespace PLVS2
         for(int i=0;i<HISTO_LENGTH;i++)
             rotHist[i].reserve(500);
 
+#if USE_NEW_HISTOGRAM_FACTOR
+        constexpr float factor = HISTO_LENGTH/360.0f; 
+#else             
         const float factor = 1.0f/HISTO_LENGTH;
+#endif       
 
         DBoW2::FeatureVector::const_iterator f1it = vFeatVec1.begin();
         DBoW2::FeatureVector::const_iterator f2it = vFeatVec2.begin();
@@ -1245,25 +1271,25 @@ namespace PLVS2
         const int nMPs = vpMapPoints.size();
 
         // For debbuging
-        int count_notMP = 0, count_bad=0, count_isinKF = 0, count_negdepth = 0, count_notinim = 0, count_dist = 0, count_normal=0, count_notidx = 0, count_thcheck = 0;
+        //int count_notMP = 0, count_bad=0, count_isinKF = 0, count_negdepth = 0, count_notinim = 0, count_dist = 0, count_normal=0, count_notidx = 0, count_thcheck = 0;
         for(int i=0; i<nMPs; i++)
         {
             MapPointPtr pMP = vpMapPoints[i];
 
             if(!pMP)
             {
-                count_notMP++;
+                //count_notMP++;
                 continue;
             }
 
             if(pMP->isBad())
             {
-                count_bad++;
+                //count_bad++;
                 continue;
             }
             else if(pMP->IsInKeyFrame(pKF))
             {
-                count_isinKF++;
+                //count_isinKF++;
                 continue;
             }
 
@@ -1273,7 +1299,7 @@ namespace PLVS2
             // Depth must be positive
             if(p3Dc(2)<0.0f)
             {
-                count_negdepth++;
+                //count_negdepth++;
                 continue;
             }
 
@@ -1284,7 +1310,7 @@ namespace PLVS2
             // Point must be inside the image
             if(!pKF->IsInImage(uv(0),uv(1)))
             {
-                count_notinim++;
+                //count_notinim++;
                 continue;
             }
 
@@ -1297,7 +1323,7 @@ namespace PLVS2
 
             // Depth must be inside the scale pyramid of the image
             if(dist3D<minDistance || dist3D>maxDistance) {
-                count_dist++;
+                //count_dist++;
                 continue;
             }
 
@@ -1306,7 +1332,7 @@ namespace PLVS2
 
             if(PO.dot(Pn)<0.5*dist3D)
             {
-                count_normal++;
+                //count_normal++;
                 continue;
             }
 
@@ -1319,7 +1345,7 @@ namespace PLVS2
 
             if(vIndices.empty())
             {
-                count_notidx++;
+                //count_notidx++;
                 continue;
             }
 
@@ -1401,8 +1427,8 @@ namespace PLVS2
                 }
                 nFused++;
             }
-            else
-                count_thcheck++;
+            // else
+            //     count_thcheck++;
 
         }
 
@@ -1423,7 +1449,8 @@ namespace PLVS2
         Eigen::Vector3f Ow = Tcw.inverse().translation();
 
         // Set of MapPoints already found in the KeyFrame
-        const set<MapPointPtr> spAlreadyFound = pKF->GetMapPoints();
+        //const set<MapPointPtr> spAlreadyFound = pKF->GetMapPoints();
+        const unordered_set<MapPointPtr> spAlreadyFound = pKF->GetMapPointsUnordered();
 
         int nFused=0;
 
@@ -1754,7 +1781,11 @@ namespace PLVS2
         vector<int> rotHist[HISTO_LENGTH];
         for(int i=0;i<HISTO_LENGTH;i++)
             rotHist[i].reserve(500);
+#if USE_NEW_HISTOGRAM_FACTOR
+        constexpr float factor = HISTO_LENGTH/360.0f; 
+#else             
         const float factor = 1.0f/HISTO_LENGTH;
+#endif       
 
         const Sophus::SE3f Tcw = CurrentFrame.GetPose();
         const Eigen::Vector3f twc = Tcw.inverse().translation();
@@ -1866,7 +1897,8 @@ namespace PLVS2
                     }
                     if(CurrentFrame.Nleft != -1){
                         Eigen::Vector3f x3Dr = CurrentFrame.GetRelativePoseTrl() * x3Dc;
-                        Eigen::Vector2f uv = CurrentFrame.mpCamera->project(x3Dr);
+                        //Eigen::Vector2f uv = CurrentFrame.mpCamera->project(x3Dr); // Luigi this is a bug
+                        Eigen::Vector2f uv = CurrentFrame.mpCamera2->project(x3Dr);
 
                         int nLastOctave = (LastFrame.Nleft == -1 || i < LastFrame.Nleft) ? LastFrame.mvKeys[i].octave
                                              : LastFrame.mvKeysRight[i - LastFrame.Nleft].octave;
@@ -1974,7 +2006,11 @@ namespace PLVS2
         vector<int> rotHist[HISTO_LENGTH];
         for(int i=0;i<HISTO_LENGTH;i++)
             rotHist[i].reserve(500);
+#if USE_NEW_HISTOGRAM_FACTOR
+        constexpr float factor = HISTO_LENGTH/360.0f; 
+#else             
         const float factor = 1.0f/HISTO_LENGTH;
+#endif       
 
         const vector<MapPointPtr> vpMPs = pKF->GetMapPointMatches();
 

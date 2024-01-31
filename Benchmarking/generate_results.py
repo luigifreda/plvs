@@ -51,6 +51,10 @@ def get_stats(writer,subdirectory,treshold_perc_track_lost = 5.0):
         std_rmse = round(np.std(rmse),6)
         median_rmse = round(np.median(rmse),6)
 
+        print(f'subdirectory: {subdirectory}')
+        print(f'\t rmse: {rmse}')
+        print(f'\t median_rmse: {median_rmse}, mean_rmse: {np.mean(rmse)}, std_rmse: {std_rmse}')
+
         for num, filename in enumerate(files_resources, 1):
             arr1 = np.genfromtxt(filename, dtype=None, usecols=(2), skip_header=1, delimiter=",")
             arr2 = np.genfromtxt(filename, dtype=None, usecols=(3), skip_header=1, delimiter=",")
@@ -83,8 +87,9 @@ if __name__ == '__main__':
     writer = csv.writer(csvfile, delimiter=',')
     writer.writerow(["Dataset","RMSE","STD_RMSE","TRACK_LOST","CPU","STD_CPU","RAM","STD_RAM","TRACK_TIME","STD_TRACK_TIME"])
     
-    dirlist = [ f for f in os.listdir(".") if not (f.endswith(".csv") or f.startswith('.')) ]
+    dirlist = [ f for f in os.listdir(".") if os.path.isdir(f) and (not (f.endswith(".csv") or f.startswith('.'))) ]
     for subdirectory in sorted(dirlist):
+        print('subdirectory: ', subdirectory)
         os.chdir(os.path.join(root, subdirectory))
         get_stats(writer,subdirectory)
         os.chdir(root)

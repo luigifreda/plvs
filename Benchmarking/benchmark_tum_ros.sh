@@ -96,7 +96,7 @@ while IFS=$'\n' read -r line || [[ -n "$line" ]]; do
 
 done < $DATASET_LIST_PATH
 
-python generate_results_ros.py
+python generate_results_ros.py 2>&1 | tee ./results/Stats.txt
 
 echo moving results to ouput folder $OUTPUT_FOLDER
 mv results $OUTPUT_FOLDER

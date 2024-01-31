@@ -1,6 +1,5 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -101,7 +100,7 @@ const float Frame::kDeltaZThresholdForRefiningEndPointsDepths = 0.0; // [m]
 const float Frame::kLinePointsMaxMisalignment = 0.03; // [m]
 const int Frame::kDeltaSizeForSearchingDepthMinMax = 1;
 const float Frame::kMinStereoLineOverlap = 2; // [pixels]  (for pure horizontal lines one has minimum = 1) 
-const float Frame::kLineNormalsDotProdThreshold = 0.05; //0.03f; // this a percentage over unitary modulus
+const float Frame::kLineNormalsDotProdThreshold = 0.005; // this a percentage over unitary modulus
 const float Frame::kMinVerticalLineSpan = 2; // [pixels] should be startY-endY>kMinVerticalLineSpan in order to avoid line too close to an epipolar plane (degeneracy in line triangulation)
 
 const int Frame::kMaxInt = std::numeric_limits<int>::max(); 
@@ -137,7 +136,7 @@ Frame::Frame(const Frame &frame)
      mpImuPreintegrated(frame.mpImuPreintegrated), mpImuPreintegratedFrame(frame.mpImuPreintegratedFrame), mImuBias(frame.mImuBias),
      mnId(frame.mnId),
      Nlines(frame.Nlines),
-     mvKeyLines(frame.mvKeyLines), mvKeyLinesRight(frame.mvKeyLinesRight), mvKeyLinesUn(frame.mvKeyLinesUn),
+     mvKeyLines(frame.mvKeyLines), mvKeyLinesRight(frame.mvKeyLinesRight), mvKeyLinesUn(frame.mvKeyLinesUn), mvKeyLinesRightUn(frame.mvKeyLinesRightUn),
      mvuRightLineStart(frame.mvuRightLineStart),  mvDepthLineStart(frame.mvDepthLineStart), mvuRightLineEnd(frame.mvuRightLineEnd), mvDepthLineEnd(frame.mvDepthLineEnd),
      mLineDescriptors(frame.mLineDescriptors.clone()), mLineDescriptorsRight(frame.mLineDescriptorsRight.clone()), // clone line descriptors 
      mvpMapLines(frame.mvpMapLines), mvbLineOutlier(frame.mvbLineOutlier), mvuNumLinePosOptFailures(frame.mvuNumLinePosOptFailures), 
@@ -153,6 +152,9 @@ Frame::Frame(const Frame &frame)
      Nleft(frame.Nleft), Nright(frame.Nright),
      monoLeft(frame.monoLeft), monoRight(frame.monoRight), mvLeftToRightMatch(frame.mvLeftToRightMatch),
      mvRightToLeftMatch(frame.mvRightToLeftMatch), mvStereo3Dpoints(frame.mvStereo3Dpoints),
+     NlinesLeft(frame.NlinesLeft), NlinesRight(frame.NlinesRight),
+     monoLinesLeft(frame.monoLinesLeft), monoLinesRight(frame.monoLinesRight),
+     mvLeftToRightLinesMatch(frame.mvLeftToRightLinesMatch), mvRightToLeftLinesMatch(frame.mvRightToLeftLinesMatch),
      mTlr(frame.mTlr), mRlr(frame.mRlr), mtlr(frame.mtlr), mTrl(frame.mTrl),
      mTcw(frame.mTcw),
      mnLineScaleLevels(frame.mnLineScaleLevels),
@@ -173,8 +175,12 @@ Frame::Frame(const Frame &frame)
     if(frame.mpLineExtractorLeft)
     {
         for(int i=0;i<LINE_D_GRID_COLS;i++)
-            for(int j=0; j<LINE_THETA_GRID_ROWS; j++)
+            for(int j=0; j<LINE_THETA_GRID_ROWS; j++) {
                 mLineGrid[i][j]=frame.mLineGrid[i][j];
+                if(frame.NlinesLeft > 0){
+                    mLineGridRight[i][j] = frame.mLineGridRight[i][j];
+                }
+            }
     }
 
     if(frame.mbHasPose)
@@ -185,11 +191,11 @@ Frame::Frame(const Frame &frame)
         SetVelocity(frame.GetVelocity());
     }
 
-    mmProjectPoints = frame.mmProjectPoints;
-    mmMatchedInImage = frame.mmMatchedInImage;
+    // mmProjectPoints = frame.mmProjectPoints;
+    // mmMatchedInImage = frame.mmMatchedInImage;
     
-    mmProjectLines = frame.mmProjectLines;
-    mmMatchedLinesInImage = frame.mmMatchedLinesInImage;
+    // mmProjectLines = frame.mmProjectLines;
+    // mmMatchedLinesInImage = frame.mmMatchedLinesInImage;
 
 #ifdef REGISTER_TIMES
     mTimeStereoMatch = frame.mTimeStereoMatch;
@@ -339,8 +345,8 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
 
     mvpMapPoints = vector<MapPointPtr>(N,static_cast<MapPointPtr>(NULL));
     mvbOutlier = vector<bool>(N,false);
-    mmProjectPoints.clear();
-    mmMatchedInImage.clear();
+    // mmProjectPoints.clear();
+    // mmMatchedInImage.clear();
     
     // LSD line segments extraction 
     if(mpLineExtractorLeft)
@@ -363,8 +369,8 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
         mvbLineOutlier = vector<bool>(Nlines,false);
         mvuNumLinePosOptFailures = vector<unsigned int>(Nlines,0);
 
-        mmProjectLines.clear();// = map<long unsigned int, LineEndPoints>(N, static_cast<LineEndPoints>(NULL));
-        mmMatchedLinesInImage.clear();
+        // mmProjectLines.clear();// = map<long unsigned int, LineEndPoints>(N, static_cast<LineEndPoints>(NULL));
+        // mmMatchedLinesInImage.clear();
 
     }    
 
@@ -534,8 +540,8 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
 
     mvpMapPoints = vector<MapPointPtr>(N,static_cast<MapPointPtr>(NULL));
 
-    mmProjectPoints.clear();
-    mmMatchedInImage.clear();
+    // mmProjectPoints.clear();
+    // mmMatchedInImage.clear();
 
     mvbOutlier = vector<bool>(N,false);
     
@@ -562,8 +568,8 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
         mvbLineOutlier = vector<bool>(Nlines,false);
         mvuNumLinePosOptFailures = vector<unsigned int>(Nlines,0);
 
-        mmProjectLines.clear();// = map<long unsigned int, LineEndPoints>(N, static_cast<LineEndPoints>(NULL));
-        mmMatchedLinesInImage.clear();
+        // mmProjectLines.clear();// = map<long unsigned int, LineEndPoints>(N, static_cast<LineEndPoints>(NULL));
+        // mmMatchedLinesInImage.clear();
     }
 
     TOCKTRACK("ExtractFeatures");    
@@ -628,8 +634,8 @@ Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extra
 
     mvpMapPoints = vector<MapPointPtr>(N,static_cast<MapPointPtr>(NULL));
 
-    mmProjectPoints.clear();// = map<long unsigned int, cv::Point2f>(N, static_cast<cv::Point2f>(NULL));
-    mmMatchedInImage.clear();
+    // mmProjectPoints.clear();// = map<long unsigned int, cv::Point2f>(N, static_cast<cv::Point2f>(NULL));
+    // mmMatchedInImage.clear();
 
     mvbOutlier = vector<bool>(N,false);
 
@@ -644,10 +650,10 @@ Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extra
         mfLineGridElementThetaInv=static_cast<float>(LINE_THETA_GRID_ROWS)/static_cast<float>(LINE_THETA_SPAN);
         mfLineGridElementDInv=static_cast<float>(LINE_D_GRID_COLS)/(2.0f*mnMaxDiag);
 
-        fx = static_cast<Pinhole*>(mpCamera)->toK().at<float>(0,0);
-        fy = static_cast<Pinhole*>(mpCamera)->toK().at<float>(1,1);
-        cx = static_cast<Pinhole*>(mpCamera)->toK().at<float>(0,2);
-        cy = static_cast<Pinhole*>(mpCamera)->toK().at<float>(1,2);
+        fx = mK.at<float>(0,0); //static_cast<Pinhole*>(mpCamera)->toK().at<float>(0,0);
+        fy = mK.at<float>(1,1); //static_cast<Pinhole*>(mpCamera)->toK().at<float>(1,1);
+        cx = mK.at<float>(0,2); //static_cast<Pinhole*>(mpCamera)->toK().at<float>(0,2);
+        cy = mK.at<float>(1,2); //static_cast<Pinhole*>(mpCamera)->toK().at<float>(1,2);
         invfx = 1.0f/fx;
         invfy = 1.0f/fy;
 
@@ -729,17 +735,31 @@ void Frame::AssignFeaturesToGrid()
     {
         int nReserve = 0.5f*Nlines/(LINE_D_GRID_COLS*LINE_THETA_GRID_ROWS);
         for(unsigned int i=0; i<LINE_D_GRID_COLS;i++)
-            for (unsigned int j=0; j<LINE_THETA_GRID_ROWS;j++)
+            for (unsigned int j=0; j<LINE_THETA_GRID_ROWS;j++){
                 mLineGrid[i][j].reserve(nReserve);
+                if(NlinesLeft != -1){
+                    mLineGridRight[i][j].reserve(nReserve);
+                }
+            }
 
         for(int i=0;i<Nlines;i++)
         {
-            const cv::line_descriptor_c::KeyLine& kl = mvKeyLinesUn[i];
+            //const cv::line_descriptor_c::KeyLine& kl = mvKeyLinesUn[i];
+            const cv::line_descriptor_c::KeyLine& kl = (NlinesLeft == -1) ? mvKeyLinesUn[i] :
+                                                       (i < NlinesLeft) ? mvKeyLinesUn[i]
+                                                                        : mvKeyLinesRightUn[i - NlinesLeft];
 
             int nGridPosX, nGridPosY;
             if(PosLineInGrid(kl,nGridPosX,nGridPosY))
             {
-                mLineGrid[nGridPosX][nGridPosY].push_back(i);
+                if(NlinesLeft == -1 || i < NlinesLeft)
+                {
+                    mLineGrid[nGridPosX][nGridPosY].push_back(i);
+                }
+                else
+                {
+                    mLineGridRight[nGridPosX][nGridPosY].push_back(i - NlinesLeft);
+                }
             }
         }
     
@@ -783,12 +803,18 @@ void Frame::ExtractLSD(int flag, const cv::Mat &im)
     if(flag==0)
     {
         if(mpLineExtractorLeft)
+        {
             (*mpLineExtractorLeft)(im,mvKeyLines,mLineDescriptors);
+            monoLinesLeft = 0; // TODO Luigi
+        }
     }
     else
     {
         if(mpLineExtractorRight)
+        {
             (*mpLineExtractorRight)(im,mvKeyLinesRight,mLineDescriptorsRight);
+            monoLinesRight = 0; // TODO Luigi
+        }
     }
 }
 
@@ -994,12 +1020,18 @@ bool Frame::isInFrustum(MapLinePtr& pML, float viewingCosLimit)
 {    
     /// < NOTE: Luigi add management of Right lines
     
-    if(NlinesLeft == -1)
+    if(NlinesLeft == -1) 
     {    
+        // here we have pinhole cameras (no distortion model is used when projecting or back-projecting)
+
         pML->mbTrackInView = false;
+        pML->mbTrackInViewR = false;
         pML->mTrackProjStartX = -1; pML->mTrackProjStartY = -1; 
+        pML->mTrackProjStartXR = -1; pML->mTrackProjStartYR = -1;         
         pML->mTrackProjEndX = -1; pML->mTrackProjEndY = -1;
-        pML->mTrackProjMiddleX = -1; pML->mTrackProjMiddleY = -1; 
+        pML->mTrackProjEndXR = -1; pML->mTrackProjEndYR = -1;        
+        //pML->mTrackProjMiddleX = -1; pML->mTrackProjMiddleY = -1; 
+        //pML->mTrackProjMiddleXR = -1; pML->mTrackProjMiddleYR = -1;
 
         // 3D in absolute coordinates
         Eigen::Vector3f p3DStart, p3DEnd;
@@ -1010,27 +1042,26 @@ bool Frame::isInFrustum(MapLinePtr& pML, float viewingCosLimit)
 
         // 3D in camera coordinates
         const Eigen::Vector3f p3DMc = mRcw*p3DMiddle+mtcw;
-        const float &pMcX = p3DMc(0);
-        const float &pMcY = p3DMc(1);
-        const float &pMcZ = p3DMc(2);
+        //const float &pMcX = p3DMc(0);
+        // const float &pMcY = p3DMc(1);
+        const float &pMcZ = p3DMc(2); 
 
         // Check positive depth
         if(pMcZ<0.0f)
             return false;
 
         // Project in image and check it is not outside
-        const float invMz = 1.0f/pMcZ;
-        pML->mTrackProjMiddleX = fx*pMcX*invMz+cx;
-        pML->mTrackProjMiddleY = fy*pMcY*invMz+cy;
-        pML->mTrackProjMiddleXR = pML->mTrackProjMiddleX - mbf*invMz;    
+        const Eigen::Vector2f uvM = mpCamera->project(p3DMc);  // pinhole projection with no distortion here
 
-        const float& u = pML->mTrackProjMiddleX;
-        const float& v = pML->mTrackProjMiddleY;
-
-        if(u<mnMinX || u>mnMaxX)
+        if(uvM(0)<mnMinX || uvM(0)>mnMaxX)
             return false;
-        if(v<mnMinY || v>mnMaxY)
+        if(uvM(1)<mnMinY || uvM(1)>mnMaxY)
             return false;    
+
+        //const float invMz = 1.0f/pMcZ;
+        //pML->mTrackProjMiddleX = uvM(0); //fx*pMcX*invMz+cx;
+        //pML->mTrackProjMiddleY = uvM(1); //fy*pMcY*invMz+cy;
+        //pML->mTrackProjMiddleXR = pML->mTrackProjMiddleX - mbf*invMz;
 
         // Check distance is in the scale invariance region of the MapPoint
         const float maxDistance = pML->GetMaxDistanceInvariance();
@@ -1053,26 +1084,28 @@ bool Frame::isInFrustum(MapLinePtr& pML, float viewingCosLimit)
 
         // 3D in camera coordinates
         const Eigen::Vector3f p3DSc = mRcw*p3DStart+mtcw;
-        const float &p3DScX = p3DSc(0);
-        const float &p3DScY = p3DSc(1);
+        //const float &p3DScX = p3DSc(0);
+        //const float &p3DScY = p3DSc(1);
         const float &p3DScZ = p3DSc(2);
+        const Eigen::Vector2f uvS = mpCamera->project(p3DSc); // pinhole projection with no distortion here
 
         const Eigen::Vector3f p3DEc = mRcw*p3DEnd+mtcw;
-        const float &p3DEcX = p3DEc(0);
-        const float &p3DEcY = p3DEc(1);
+        //const float &p3DEcX = p3DEc(0);
+        //const float &p3DEcY = p3DEc(1);
         const float &p3DEcZ = p3DEc(2);
+        const Eigen::Vector2f uvE = mpCamera->project(p3DEc); // pinhole projection with no distortion here
 
         // Project in image 
         const float invSz = 1.0f/p3DScZ;
-        pML->mTrackProjStartX = fx*p3DScX*invSz+cx;
-        pML->mTrackProjStartY = fy*p3DScY*invSz+cy;
+        pML->mTrackProjStartX = uvS(0);//fx*p3DScX*invSz+cx;
+        pML->mTrackProjStartY = uvS(1);//fy*p3DScY*invSz+cy;
         pML->mTrackStartDepth = p3DScZ;
         pML->mTrackProjStartXR = pML->mTrackProjStartX - mbf*invSz;
 
         // Project in image 
         const float invEz = 1.0f/p3DEcZ;
-        pML->mTrackProjEndX = fx*p3DEcX*invEz+cx;
-        pML->mTrackProjEndY = fy*p3DEcY*invEz+cy; 
+        pML->mTrackProjEndX = uvE(0);//fx*p3DEcX*invEz+cx;
+        pML->mTrackProjEndY = uvE(1);//fy*p3DEcY*invEz+cy; 
         pML->mTrackEndDepth = p3DEcZ;        
         pML->mTrackProjEndXR = pML->mTrackProjEndX - mbf*invEz;
 
@@ -1095,6 +1128,8 @@ bool Frame::isInFrustum(MapLinePtr& pML, float viewingCosLimit)
     }
     else
     {
+        // here we have fisheye cameras
+
         pML->mbTrackInView = false;
         pML->mbTrackInViewR = false;
         pML->mnTrackScaleLevel = -1;
@@ -1213,19 +1248,25 @@ vector<size_t> Frame::GetFeaturesInArea(const float &x, const float  &y, const f
 
     const bool bCheckLevels = (minLevel>0) || (maxLevel>=0);
 
+    const auto& grid = (!bRight) ? mGrid : mGridRight;
+    const auto& keys = (Nleft == -1) ? mvKeysUn : 
+                                      (!bRight) ? mvKeys : mvKeysRight;
+
     for(int ix = nMinCellX; ix<=nMaxCellX; ix++)
     {
         for(int iy = nMinCellY; iy<=nMaxCellY; iy++)
         {
-            const vector<size_t>& vCell = (!bRight) ? mGrid[ix][iy] : mGridRight[ix][iy];
+            //const vector<size_t>& vCell = (!bRight) ? mGrid[ix][iy] : mGridRight[ix][iy];
+            const vector<size_t>& vCell = grid[ix][iy];
             if(vCell.empty())
                 continue;
 
             for(size_t j=0, jend=vCell.size(); j<jend; j++)
             {
-                const cv::KeyPoint &kpUn = (Nleft == -1) ? mvKeysUn[vCell[j]]
-                                                         : (!bRight) ? mvKeys[vCell[j]]
-                                                                     : mvKeysRight[vCell[j]];
+                // const cv::KeyPoint &kpUn = (Nleft == -1) ? mvKeysUn[vCell[j]]
+                //                                          : (!bRight) ? mvKeys[vCell[j]]
+                //                                                      : mvKeysRight[vCell[j]];
+                const cv::KeyPoint &kpUn = keys[vCell[j]];
                 if(bCheckLevels)
                 {
                     if(kpUn.octave<minLevel)
@@ -1261,15 +1302,15 @@ bool Frame::PosInGrid(const cv::KeyPoint &kp, int &posX, int &posY)
 }
 
 vector<size_t> Frame::GetLineFeaturesInArea(const float &xs, const float  &ys, const float &xe, const float  &ye, 
-                                            const float& dtheta, const float& dd, const int minLevel, const int maxLevel) const
+                                            const float& dtheta, const float& dd, const int minLevel, const int maxLevel, const bool bRight) const
 {    
     Line2DRepresentation lineRepresentation;
     Geom2DUtils::GetLine2dRepresentation(xs, ys, xe, ye, lineRepresentation);
-    return GetLineFeaturesInArea(lineRepresentation,dtheta,dd,minLevel,maxLevel);
+    return GetLineFeaturesInArea(lineRepresentation,dtheta,dd,minLevel,maxLevel, bRight);
 }
 
 vector<size_t> Frame::GetLineFeaturesInArea(const Line2DRepresentation& lineRepresentation, 
-                                            const float& dtheta, const float& dd, const int minLevel, const int maxLevel) const
+                                            const float& dtheta, const float& dd, const int minLevel, const int maxLevel, const bool bRight) const
 {       
     vector<size_t> vIndices;
     vIndices.reserve(Nlines);
@@ -1289,12 +1330,12 @@ vector<size_t> Frame::GetLineFeaturesInArea(const Line2DRepresentation& lineRepr
     const float dMin = lineRepresentation.d - dd;
     const float dMax = lineRepresentation.d + dd;    
     
-    GetLineFeaturesInArea(thetaMin, thetaMax, dMin, dMax, bCheckLevels, minLevel, maxLevel, vIndices);
+    GetLineFeaturesInArea(thetaMin, thetaMax, dMin, dMax, bCheckLevels, minLevel, maxLevel, vIndices, bRight);
 
     return vIndices;
 }
 
-void Frame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax, const float dMin, const float dMax, const bool bCheckLevels, const int minLevel, const int maxLevel, vector<size_t>& vIndices) const
+void Frame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax, const float dMin, const float dMax, const bool bCheckLevels, const int minLevel, const int maxLevel, vector<size_t>& vIndices, const bool bRight) const
 {                    
     //std::cout << "GetLineFeaturesInArea - thetaMin: " << thetaMin << ", thetaMax: " << thetaMax << ", dMin: " << dMin << ", dMax: " << dMax << std::endl; 
     
@@ -1311,13 +1352,13 @@ void Frame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax, co
         const float thetaMax1 = M_PI_2 - std::numeric_limits<float>::epsilon();
         const float dMin1 = -dMax; 
         const float dMax1 = -dMin; 
-        GetLineFeaturesInArea(thetaMin1,thetaMax1,dMin1,dMax1,bCheckLevels,minLevel,maxLevel,vIndices);
+        GetLineFeaturesInArea(thetaMin1,thetaMax1,dMin1,dMax1,bCheckLevels,minLevel,maxLevel,vIndices, bRight);
         
         const float thetaMin2 = -M_PI_2 + std::numeric_limits<float>::epsilon(); 
         const float thetaMax2 = thetaMax;
         const float dMin2 = dMin; 
         const float dMax2 = dMax; 
-        GetLineFeaturesInArea(thetaMin2,thetaMax2,dMin2,dMax2,bCheckLevels,minLevel,maxLevel,vIndices);
+        GetLineFeaturesInArea(thetaMin2,thetaMax2,dMin2,dMax2,bCheckLevels,minLevel,maxLevel,vIndices, bRight);
         
         //std::cout << "end split " << std::endl;        
         
@@ -1337,13 +1378,13 @@ void Frame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax, co
         const float thetaMax1 = thetaMax - M_PI;
         const float dMin1 = -dMax; 
         const float dMax1 = -dMin; 
-        GetLineFeaturesInArea(thetaMin1,thetaMax1,dMin1,dMax1,bCheckLevels,minLevel,maxLevel,vIndices);
+        GetLineFeaturesInArea(thetaMin1,thetaMax1,dMin1,dMax1,bCheckLevels,minLevel,maxLevel,vIndices, bRight);
         
         const float thetaMin2 = thetaMin; 
         const float thetaMax2 = M_PI_2 - std::numeric_limits<float>::epsilon();
         const float dMin2 = dMin; 
         const float dMax2 = dMax; 
-        GetLineFeaturesInArea(thetaMin2,thetaMax2,dMin2,dMax2,bCheckLevels,minLevel,maxLevel,vIndices);
+        GetLineFeaturesInArea(thetaMin2,thetaMax2,dMin2,dMax2,bCheckLevels,minLevel,maxLevel,vIndices, bRight);
         
         //std::cout << "end split " << std::endl;           
         
@@ -1376,13 +1417,18 @@ void Frame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax, co
         return; 
     }
         
+    const auto& grid = (!bRight) ? mLineGrid : mLineGridRight;
+    const auto& keyLines = (NlinesLeft == -1) ? mvKeyLinesUn : 
+                                               (!bRight) ? mvKeyLinesUn : mvKeyLinesRightUn;
+
     for(int ix = nMinCellDCol; ix<=nMaxCellDCol; ix++)
     {
         for(int iy = nMinCellThetaRow; iy<=nMaxCellThetaRow; iy++)
         {
             //const int iyW = Utils::Modulus(iy,LINE_THETA_GRID_ROWS);
             const int iyW = iy;
-            const vector<size_t>& vCell = mLineGrid[ix][iyW];
+            //const vector<size_t>& vCell = mLineGrid[ix][iyW];
+            const vector<size_t>& vCell = grid[ix][iyW];
             if(vCell.empty())
                 continue;
 
@@ -1391,7 +1437,8 @@ void Frame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax, co
 #else
             for(size_t j=0, jend=vCell.size(); j<jend; j++)
             {
-                const cv::line_descriptor_c::KeyLine &klUn = mvKeyLinesUn[vCell[j]];
+                //const cv::line_descriptor_c::KeyLine &klUn = mvKeyLinesUn[vCell[j]];
+                const cv::line_descriptor_c::KeyLine &klUn = keyLines[vCell[j]];
                 if(bCheckLevels)
                 {
                     if(klUn.octave<minLevel)
@@ -1445,6 +1492,7 @@ void Frame::ComputeBoW()
 
 void Frame::UndistortKeyPoints()
 {
+    // mDistCoef == 0.0 means no pinhole distortion
     if(mDistCoef.at<float>(0)==0.0)
     {
         mvKeysUn=mvKeys;
@@ -1462,7 +1510,18 @@ void Frame::UndistortKeyPoints()
 
     // Undistort points
     mat=mat.reshape(2);
-    cv::undistortPoints(mat,mat, static_cast<Pinhole*>(mpCamera)->toK(),mDistCoef,cv::Mat(),mK);
+    if(mpCamera->GetType() == GeometricCamera::CAM_PINHOLE)
+    {
+        cv::undistortPoints(mat,mat, static_cast<Pinhole*>(mpCamera)->toK(),mDistCoef,cv::Mat(),mK);
+    }
+    else
+    {
+        MSG_ASSERT(mpCamera->GetType() == GeometricCamera::CAM_FISHEYE, "Invalid camera type - It should be fisheye!");
+        cv::Mat D = (cv::Mat_<float>(4,1) << mpCamera->getParameter(4), mpCamera->getParameter(5), mpCamera->getParameter(6), mpCamera->getParameter(7));
+        cv::Mat R = cv::Mat::eye(3,3,CV_32F);
+        cv::Mat K = static_cast<KannalaBrandt8*>(mpCamera)->toK();              
+        cv::fisheye::undistortPoints(mat,mat, K, D, R, K);        
+    }    
     mat=mat.reshape(1);
 
 
@@ -1470,10 +1529,11 @@ void Frame::UndistortKeyPoints()
     mvKeysUn.resize(N);
     for(int i=0; i<N; i++)
     {
-        cv::KeyPoint kp = mvKeys[i];
+        cv::KeyPoint& kp = mvKeysUn[i];
+        kp = mvKeys[i];
         kp.pt.x=mat.at<float>(i,0);
         kp.pt.y=mat.at<float>(i,1);
-        mvKeysUn[i]=kp;
+        //mvKeysUn[i]=kp;
     }
 
 }
@@ -1481,45 +1541,108 @@ void Frame::UndistortKeyPoints()
 
 void Frame::UndistortKeyLines()
 {
+    constexpr float DEG2RAD = M_PI/180.0f; 
+
     if(Nlines==0) return; 
     
-    if(mDistCoef.at<float>(0)==0.0)
+    // mDistCoef == 0.0 means no pinhole distortion
+    // If no pinehole distortion and no second camera (i.e. fisheye), no need to undistort
+    if(mDistCoef.at<float>(0)==0.0 && !mpCamera2)
     {
         mvKeyLinesUn = mvKeyLines;
+        if(mvKeyLinesRight.size()>0) mvKeyLinesRightUn = mvKeyLinesRight;
         return;
     }
 
+    // if(mpCamera2)
+    // {
+    //     std::cout << "undistorting " << Nlines << " keylines for fisheye cameras" << std::endl;
+    // }
+
+    // with fisheye Nlines = NlinesLeft + NlinesRight
+    const size_t numLines = NlinesLeft == -1 ? Nlines : NlinesLeft;
+
     // Fill matrix with points
-    cv::Mat mat(2*Nlines,2,CV_32F);
-    for(int i=0, j=0; i<Nlines; i++, j+=2)
+    cv::Mat mat(2*numLines,2,CV_32F);   // left keylines
+    for(size_t i=0, j=0; i<numLines; i++, j+=2)
     {
         mat.at<float>(j,0)  = mvKeyLines[i].startPointX;
         mat.at<float>(j,1)  = mvKeyLines[i].startPointY;
         mat.at<float>(j+1,0)= mvKeyLines[i].endPointX;
         mat.at<float>(j+1,1)= mvKeyLines[i].endPointY;
     }
+    cv::Mat matRight = NlinesRight>0 ? cv::Mat(2*NlinesRight,2,CV_32F) : cv::Mat(); // right keylines
+    if(NlinesRight>0)
+    {
+        for(size_t i=0, j=0; i<NlinesRight; i++, j+=2)
+        {
+            matRight.at<float>(j,0)  = mvKeyLinesRight[i].startPointX;
+            matRight.at<float>(j,1)  = mvKeyLinesRight[i].startPointY;
+            matRight.at<float>(j+1,0)= mvKeyLinesRight[i].endPointX;
+            matRight.at<float>(j+1,1)= mvKeyLinesRight[i].endPointY;
+        }
+    }
 
     // Undistort points
     mat=mat.reshape(2);
-    cv::undistortPoints(mat,mat, static_cast<Pinhole*>(mpCamera)->toK(),mDistCoef,cv::Mat(),mK);
+    if(NlinesRight>0) matRight=matRight.reshape(2);
+    
+    if(mpCamera->GetType() == GeometricCamera::CAM_PINHOLE)
+    {
+        cv::undistortPoints(mat,mat, static_cast<Pinhole*>(mpCamera)->toK(),mDistCoef,cv::Mat(),mK);
+        //NOTE: here we should have NlinesRight == 0
+        MSG_ASSERT(NlinesRight == -1, "Should be NlinesRight == -1!");
+    }
+    else
+    {
+        MSG_ASSERT(mpCamera->GetType() == GeometricCamera::CAM_FISHEYE, "Invalid camera type - It should be fisheye!");
+        cv::Mat D = (cv::Mat_<float>(4,1) << mpCamera->getParameter(4), mpCamera->getParameter(5), mpCamera->getParameter(6), mpCamera->getParameter(7));
+        cv::Mat K = static_cast<KannalaBrandt8*>(mpCamera)->toK();                
+        cv::fisheye::undistortPoints(mat,mat, K, D, cv::Mat(), K);
+
+        if(NlinesRight>0)
+        {
+            cv::Mat D2 = (cv::Mat_<float>(4,1) << mpCamera2->getParameter(4), mpCamera2->getParameter(5), mpCamera2->getParameter(6), mpCamera2->getParameter(7));
+            cv::Mat K2 = static_cast<KannalaBrandt8*>(mpCamera)->toK();                
+            cv::fisheye::undistortPoints(matRight,matRight, K2, D2, cv::Mat(), K2);
+        }
+    }
     mat=mat.reshape(1);
+    if(NlinesRight>0) matRight=matRight.reshape(1);
 
     // Fill undistorted keypoint vector
-    mvKeyLinesUn.resize(Nlines);
-    for(int i=0, j=0; i<Nlines; i++, j+=2)
+    mvKeyLinesUn.resize(numLines);
+    for(size_t i=0, j=0; i<numLines; i++, j+=2)
     {
-        cv::line_descriptor_c::KeyLine kl = mvKeyLines[i];
+        cv::line_descriptor_c::KeyLine& kl = mvKeyLinesUn[i];
+        kl = mvKeyLines[i];
         kl.startPointX = mat.at<float>(j,0);
         kl.startPointY = mat.at<float>(j,1);
         kl.endPointX   = mat.at<float>(j+1,0);
         kl.endPointY   = mat.at<float>(j+1,1);
-        mvKeyLinesUn[i]=kl;
+        kl.angle = cv::fastAtan2( ( kl.endPointY - kl.startPointY ), ( kl.endPointX - kl.startPointX ) ) * DEG2RAD; // kl.angle is originally in radians
         //std::cout << "kl[" << i <<  "]: " << kl.startPointX <<", "<< kl.startPointY <<"  -  " << kl.endPointX << ", " << kl.endPointY << std::endl;  
+    }
+    if(NlinesRight>0)
+    {
+        mvKeyLinesRightUn.resize(NlinesRight);
+        for(size_t i=0, j=0; i<NlinesRight; i++, j+=2)
+        {
+            cv::line_descriptor_c::KeyLine& kl = mvKeyLinesRightUn[i];
+            kl = mvKeyLinesRight[i];
+            kl.startPointX = matRight.at<float>(j,0);
+            kl.startPointY = matRight.at<float>(j,1);
+            kl.endPointX   = matRight.at<float>(j+1,0);
+            kl.endPointY   = matRight.at<float>(j+1,1);
+            kl.angle = cv::fastAtan2( ( kl.endPointY - kl.startPointY ), ( kl.endPointX - kl.startPointX ) ) * DEG2RAD; // kl.angle is originally in radians
+            //std::cout << "kl[" << i <<  "]: " << kl.startPointX <<", "<< kl.startPointY <<"  -  " << kl.endPointX << ", " << kl.endPointY << std::endl;  
+        }
     }
 }
 
 void Frame::ComputeImageBounds(const cv::Mat &imLeft)
 {
+    // mDistCoef == 0.0 means no pinhole distortion
     if(mDistCoef.at<float>(0)!=0.0)
     {
         cv::Mat mat(4,2,CV_32F);
@@ -1775,7 +1898,7 @@ static double lineSegmentOverlapStereo( double ys1, double ye1, double ys2, doub
     return overlap;
 }
 
-// here we assume images have been rectified 
+// NOTE: here we assume images have been rectified 
 void Frame::ComputeStereoLineMatches()
 {    
     mvuRightLineStart = vector<float>(Nlines,-1);
@@ -1787,8 +1910,7 @@ void Frame::ComputeStereoLineMatches()
 #if DISABLE_STATIC_LINE_TRIANGULATION
     return; // just for testing: disable static stereo triangulation  
 #endif 
-
-    //const int thDescriptorDist = (LineMatcher::TH_HIGH + LineMatcher::TH_LOW)/2;     
+   
     const int thDescriptorDist = LineMatcher::TH_LOW_STEREO;    
     
     // Set limits for search (here we use the fact that uR = uL - fx*b/zL => disparity=fx*b/zL)
@@ -1805,7 +1927,7 @@ void Frame::ComputeStereoLineMatches()
     vValidMatches.reserve(Nlines);
     
     int nLineMatches = 0;    
-    LineMatcher lineMatcher(0.8);
+    LineMatcher lineMatcher(0.7);
     if( Nlines > 0 && mvKeyLinesRight.size()>0 ) 
     {
         nLineMatches = lineMatcher.SearchStereoMatchesByKnn(*this, vMatches, vValidMatches, thDescriptorDist);
@@ -2483,8 +2605,7 @@ bool Frame::UnprojectStereoLine(const int& i, Eigen::Vector3f& p3DStart, Eigen::
         Eigen::Vector3f xe3Dc(xE, yE, zE);
         p3DEnd = mRwc * xe3Dc + mOw;
         
-        res = true; 
-           
+        res = true;
     }
     else
     {
@@ -2581,27 +2702,6 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
         mvLineInvLevelSigma2 = mpLineExtractorLeft->GetInverseScaleSigmaSquares();
     }   
 
-    // ORB extraction
-#ifdef REGISTER_TIMES
-    std::chrono::steady_clock::time_point time_StartExtORB = std::chrono::steady_clock::now();
-#endif
-    thread threadLeft(&Frame::ExtractORB,this,0,imLeft,static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[0],static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[1]);
-    thread threadRight(&Frame::ExtractORB,this,1,imRight,static_cast<KannalaBrandt8*>(mpCamera2)->mvLappingArea[0],static_cast<KannalaBrandt8*>(mpCamera2)->mvLappingArea[1]);
-    threadLeft.join();
-    threadRight.join();
-#ifdef REGISTER_TIMES
-    std::chrono::steady_clock::time_point time_EndExtORB = std::chrono::steady_clock::now();
-
-    mTimeORB_Ext = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndExtORB - time_StartExtORB).count();
-#endif
-
-    Nleft = mvKeys.size();
-    Nright = mvKeysRight.size();
-    N = Nleft + Nright;
-
-    if(N == 0)
-        return;
-
     // This is done only for the first Frame (or after a change in the calibration)
     if(mbInitialComputations)
     {
@@ -2624,12 +2724,71 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     }
 
     mb = mbf / fx;
+    mbfInv = 1.f/mbf;
 
     // Sophus/Eigen
     mTlr = Tlr;
     mTrl = mTlr.inverse();
     mRlr = mTlr.rotationMatrix();
     mtlr = mTlr.translation();
+
+
+    // Features extraction
+
+#ifdef REGISTER_TIMES
+    std::chrono::steady_clock::time_point time_StartExtORB = std::chrono::steady_clock::now();
+#endif
+    if(mpLineExtractorLeft)
+    {            
+#ifndef USE_CUDA          
+        if( Tracking::skUsePyramidPrecomputation )
+        {
+            // pre-compute Gaussian pyramid to be used for the extraction of both keypoints and keylines        
+            std::thread threadGaussianLeft(&Frame::PrecomputeGaussianPyramid,this,0,imLeft);
+            std::thread threadGaussianRight(&Frame::PrecomputeGaussianPyramid,this,1,imRight);
+            threadGaussianLeft.join();
+            threadGaussianRight.join();              
+        }
+#else 
+        if( Tracking::skUsePyramidPrecomputation )
+        {
+            std::cout << IoColor::Yellow() << "Can't use pyramid precomputation when CUDA is active!" << std::endl;         
+        }
+#endif         
+        
+        // ORB extraction
+        thread threadLeft(&Frame::ExtractORB,this,0,imLeft,static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[0],static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[1]);
+        thread threadRight(&Frame::ExtractORB,this,1,imRight,static_cast<KannalaBrandt8*>(mpCamera2)->mvLappingArea[0],static_cast<KannalaBrandt8*>(mpCamera2)->mvLappingArea[1]);  
+        // Line extraction
+        std::thread threadLinesLeft(&Frame::ExtractLSD,this,0,imLeft);
+        std::thread threadLinesRight(&Frame::ExtractLSD,this,1,imRight);        
+        
+        threadLeft.join();
+        threadRight.join();
+        threadLinesLeft.join();     
+        threadLinesRight.join();            
+    } 
+    else
+    {
+        // ORB extraction
+        thread threadLeft(&Frame::ExtractORB,this,0,imLeft,static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[0],static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[1]);
+        thread threadRight(&Frame::ExtractORB,this,1,imRight,static_cast<KannalaBrandt8*>(mpCamera2)->mvLappingArea[0],static_cast<KannalaBrandt8*>(mpCamera2)->mvLappingArea[1]);
+        threadLeft.join();
+        threadRight.join();
+    } 
+#ifdef REGISTER_TIMES
+    std::chrono::steady_clock::time_point time_EndExtORB = std::chrono::steady_clock::now();
+
+    mTimeORB_Ext = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndExtORB - time_StartExtORB).count();
+#endif
+
+
+    Nleft = mvKeys.size();
+    Nright = mvKeysRight.size();
+    N = Nleft + Nright;
+
+    if(N == 0)
+        return;
 
 #ifdef REGISTER_TIMES
     std::chrono::steady_clock::time_point time_StartStereoMatches = std::chrono::steady_clock::now();
@@ -2648,6 +2807,34 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     mvpMapPoints = vector<MapPointPtr>(N,static_cast<MapPointPtr>(nullptr));
     mvbOutlier = vector<bool>(N,false);
 
+
+    // LSD line segments extraction 
+    if(mpLineExtractorLeft)
+    {
+        NlinesLeft = mvKeyLines.size();
+        NlinesRight = mvKeyLinesRight.size();
+        Nlines = NlinesLeft + NlinesRight;
+        
+        if(Nlines == 0)
+        {
+            std::cout << "frame " << mnId << " no lines dectected!" << std::endl; 
+        }
+        else
+        {                        
+            UndistortKeyLines(); 
+            
+            ComputeStereoFishEyeLineMatches(); // must be called before mLineDescriptorsRight are vconcatenated into mLineDescriptors
+        }
+
+        //Put all descriptors in the same matrix
+        cv::vconcat(mLineDescriptors,mLineDescriptorsRight,mLineDescriptors);
+
+        mvpMapLines = vector<MapLinePtr>(Nlines,static_cast<MapLinePtr>(NULL));
+        mvbLineOutlier = vector<bool>(Nlines,false);
+        mvuNumLinePosOptFailures = vector<unsigned int>(Nlines,0);
+
+    }    
+
     AssignFeaturesToGrid();
 
     mpMutexImu = new std::mutex();
@@ -2659,10 +2846,10 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
 void Frame::ComputeStereoFishEyeMatches() 
 {
     //Speed it up by matching keypoints in the lapping area
-    vector<cv::KeyPoint> stereoLeft(mvKeys.begin() + monoLeft, mvKeys.end());
-    vector<cv::KeyPoint> stereoRight(mvKeysRight.begin() + monoRight, mvKeysRight.end());
+    //vector<cv::KeyPoint> stereoLeft(mvKeys.begin() + monoLeft, mvKeys.end());
+    //vector<cv::KeyPoint> stereoRight(mvKeysRight.begin() + monoRight, mvKeysRight.end());
 
-    cv::Mat stereoDescLeft = mDescriptors.rowRange(monoLeft, mDescriptors.rows);
+    cv::Mat stereoDescLeft = mDescriptors.rowRange(monoLeft, mDescriptors.rows); // NOTE: here we haven't vconcatenated the descriptors yet!
     cv::Mat stereoDescRight = mDescriptorsRight.rowRange(monoRight, mDescriptorsRight.rows);
 
     mvLeftToRightMatch = vector<int>(Nleft,-1);
@@ -2686,17 +2873,157 @@ void Frame::ComputeStereoFishEyeMatches()
             //For every good match, check parallax and reprojection error to discard spurious matches
             Eigen::Vector3f p3D;
             descMatches++;
-            float sigma1 = mvLevelSigma2[mvKeys[(*it)[0].queryIdx + monoLeft].octave], sigma2 = mvLevelSigma2[mvKeysRight[(*it)[0].trainIdx + monoRight].octave];
-            float depth = static_cast<KannalaBrandt8*>(mpCamera)->TriangulateMatches(mpCamera2,mvKeys[(*it)[0].queryIdx + monoLeft],mvKeysRight[(*it)[0].trainIdx + monoRight],mRlr,mtlr,sigma1,sigma2,p3D);
+            const size_t leftIdx = (*it)[0].queryIdx + monoLeft;
+            const size_t rightIdx = (*it)[0].trainIdx + monoRight;
+            const float sigma1 = mvLevelSigma2[mvKeys[leftIdx].octave];
+            const float sigma2 = mvLevelSigma2[mvKeysRight[rightIdx].octave];
+            float depth = static_cast<KannalaBrandt8*>(mpCamera)->TriangulateMatches(mpCamera2,mvKeys[leftIdx],mvKeysRight[rightIdx],mRlr,mtlr,sigma1,sigma2,p3D);
             if(depth > 0.0001f){
-                mvLeftToRightMatch[(*it)[0].queryIdx + monoLeft] = (*it)[0].trainIdx + monoRight;
-                mvRightToLeftMatch[(*it)[0].trainIdx + monoRight] = (*it)[0].queryIdx + monoLeft;
-                mvStereo3Dpoints[(*it)[0].queryIdx + monoLeft] = p3D;
-                mvDepth[(*it)[0].queryIdx + monoLeft] = depth;
+                mvLeftToRightMatch[leftIdx] = rightIdx;
+                mvRightToLeftMatch[rightIdx] = leftIdx;
+                mvStereo3Dpoints[leftIdx] = p3D;
+                mvDepth[leftIdx] = depth;
                 nMatches++;
             }
         }
     }
+}
+
+// NOTE: we assume we haven't vconcatenated the line descriptors yet!
+void Frame::ComputeStereoFishEyeLineMatches() 
+{
+    MSG_ASSERT(mpCamera2, "No second camera");
+
+    // NOTE: here, we assume we haven't vconcatenated the descriptors yet!
+    cv::Mat stereoDescLinesLeft = mLineDescriptors.rowRange(monoLinesLeft, mLineDescriptors.rows); 
+    cv::Mat stereoDescLinesRight = mLineDescriptorsRight.rowRange(monoLinesRight, mLineDescriptorsRight.rows);
+
+    mvLeftToRightLinesMatch = vector<int>(NlinesLeft,-1);
+    mvRightToLeftLinesMatch = vector<int>(NlinesRight,-1);
+    mvDepthLineStart = vector<float>(NlinesLeft,-1.0f);
+    mvDepthLineEnd = vector<float>(NlinesLeft,-1.0f);    
+
+    // NOTE: We store in mvuRightLineStart/End fake positive values (+1) where depths are available (for both left and right lines). 
+    //       We need to enable stereo backprojection error in Optimization.cc when we have fisheye cameras. We can't really use this info though. 
+    mvuRightLineStart = vector<float>(Nlines,-1); // Nlines = NlinesLeft + NlinesRight
+    mvuRightLineEnd = vector<float>(Nlines,-1);   // Nlines = NlinesLeft + NlinesRight
+    
+    mvStereo3DLineStartPoints = vector<Eigen::Vector3f>(NlinesLeft);
+    mvStereo3DLineEndPoints = vector<Eigen::Vector3f>(NlinesLeft);    
+    //mnCloseMLs = 0;
+    
+#if DISABLE_STATIC_LINE_TRIANGULATION
+    return; // just for testing: disable static stereo triangulation  
+#endif     
+
+    const int thDescriptorDist = LineMatcher::TH_LOW_STEREO;    
+    
+    // Set limits for search 
+    const float minZ = mb; // baseline in meters 
+    const float maxZ = std::min(mbf, Tracking::skLineStereoMaxDist); 
+
+    //Perform a brute force between Keypoint in the left and right image
+    vector<vector<cv::DMatch>> matches;
+
+#define USE_LINE_MATCHER 1
+#if USE_LINE_MATCHER
+    // For each left keyline search a match in the right image
+    std::vector<cv::DMatch> vMatches;
+    std::vector<bool> vValidMatches;    
+    vMatches.reserve(NlinesLeft);  
+    vValidMatches.reserve(NlinesLeft);
+
+    int nLineMatches = 0;    
+    LineMatcher lineMatcher(0.7);   
+    if( mvKeyLines.size()>0 && mvKeyLinesRight.size()>0 ) 
+    {
+        nLineMatches = lineMatcher.SearchStereoMatchesByKnn(*this, vMatches, vValidMatches, thDescriptorDist);
+        MSG_ASSERT(vMatches.size()==vValidMatches.size(),"The two sizes must be equal");
+    }
+    else
+    {
+        return;
+    }    
+#else 
+    BFmatcher.knnMatch(stereoDescLinesLeft,stereoDescLinesRight,matches,2);
+#endif
+
+    int nMatches = 0;
+    int descMatches = 0;
+
+    CameraPairTriangulationInput camPairData; 
+    camPairData.K1 = mpCamera->toK_();       
+    camPairData.K2 = mpCamera2->toK_();
+    camPairData.R12 = mRlr;
+    camPairData.t12 = mtlr;
+    camPairData.R21 = mRlr.transpose();
+    camPairData.t21 = -mRlr.transpose()*mtlr;
+    camPairData.e2 = camPairData.K2*camPairData.t21; // epipole in image 2 (right)     
+
+    Eigen::Matrix3f K1inv;
+    const float invfx = 1.0f/mpCamera->getParameter(0);
+    const float invfy = 1.0f/mpCamera->getParameter(1);
+    const float cx = mpCamera->getParameter(2);
+    const float cy = mpCamera->getParameter(3);
+    K1inv <<  invfx,     0,  -cx*invfx, 
+                  0, invfy,  -cy*invfy, 
+                  0,     0,         1.;
+    camPairData.H21 = camPairData.K2*camPairData.R21*K1inv;        
+
+    camPairData.minZ = mb; // baseline in meters  
+    camPairData.maxZ = Tracking::skLineStereoMaxDist;   
+
+    LineTriangulationOutput lineTriangData; 
+#if USE_LINE_MATCHER
+    for( size_t ii = 0; ii < vMatches.size(); ii++ )
+    {                
+        if(vValidMatches[ii])
+        {
+            descMatches++;
+            const cv::DMatch& match = vMatches[ii]; // get first match from knn search             
+            const size_t leftIdx = match.queryIdx + monoLinesLeft;
+            const size_t rightIdx = match.trainIdx + monoLinesRight; 
+#else         
+    //Check matches using Lowe's ratio
+    for(vector<vector<cv::DMatch>>::iterator it = matches.begin(); it != matches.end(); ++it)
+    {
+        if((*it).size() >= 2 && (*it)[0].distance < (*it)[1].distance * 0.7)
+        {
+            descMatches++;
+            const size_t leftIdx = (*it)[0].queryIdx + monoLinesLeft;
+            const size_t rightIdx = (*it)[0].trainIdx + monoLinesRight;
+#endif                    
+            const float sigma1 = mvLineLevelSigma2[mvKeyLinesUn[leftIdx].octave];
+            const float sigma2 = mvLineLevelSigma2[mvKeyLinesRightUn[rightIdx].octave];
+
+            if(static_cast<KannalaBrandt8*>(mpCamera)->TriangulateLineMatches(mpCamera2,mvKeyLinesUn[leftIdx],mvKeyLinesRightUn[rightIdx],sigma1,sigma2,camPairData,lineTriangData))
+            {
+                mvLeftToRightLinesMatch[leftIdx] = rightIdx;
+                mvRightToLeftLinesMatch[rightIdx] = leftIdx;
+                mvStereo3DLineStartPoints[leftIdx] = lineTriangData.p3DS;
+                mvStereo3DLineEndPoints[leftIdx] = lineTriangData.p3DE;
+                mvDepthLineStart[leftIdx] = lineTriangData.depthS;
+                mvDepthLineEnd[leftIdx] = lineTriangData.depthE;
+
+                //const double disparity_s = mbf / lineTriangData.depthS;           
+                //const double disparity_e = mbf / lineTriangData.depthE;      
+                //mvKeyLinesUn[leftIdx].startPointX - disparity_s;
+                //mvKeyLinesUn[leftIdx].endPointX - disparity_e;                    
+
+                // Add virtual disparity 
+                // NOTE: We store in mvuRightLineStart/End fake positive values (+1) where depths are available (for both left and right lines). 
+                //       We need to enable stereo backprojection error in Optimization.cc when we have fisheye cameras. We can't really use this info though. 
+                mvuRightLineStart[leftIdx] = 1;
+                mvuRightLineStart[rightIdx+NlinesLeft] = 1;  
+                mvuRightLineEnd[leftIdx] = 1; 
+                mvuRightLineEnd[rightIdx+NlinesLeft] = 1; 
+
+                nMatches++;
+            }
+        }
+    }
+    std::cout << "Frame::ComputeStereoFishEyeLineMatches() - #triangulated line matches: " << nMatches << ", #desc matches: " << descMatches 
+              << ", perc: " << std::setprecision(2) << std::fixed << 100.0f*nMatches/descMatches << "%" << std::endl;
 }
 
 bool Frame::isInFrustumChecks(MapPointPtr pMP, float viewingCosLimit, bool bRight) 
@@ -2707,8 +3034,8 @@ bool Frame::isInFrustumChecks(MapPointPtr pMP, float viewingCosLimit, bool bRigh
     Eigen::Matrix3f mR;
     Eigen::Vector3f mt, twc;
     if(bRight){
-        Eigen::Matrix3f Rrl = mTrl.rotationMatrix();
-        Eigen::Vector3f trl = mTrl.translation();
+        const Eigen::Matrix3f Rrl = mTrl.rotationMatrix();
+        const Eigen::Vector3f trl = mTrl.translation();
         mR = Rrl * mRcw;
         mt = Rrl * mtcw + trl;
         twc = mRwc * mTlr.translation() + mOw;
@@ -2720,7 +3047,7 @@ bool Frame::isInFrustumChecks(MapPointPtr pMP, float viewingCosLimit, bool bRigh
     }
 
     // 3D in camera coordinates
-    Eigen::Vector3f Pc = mR * P + mt;
+    const Eigen::Vector3f Pc = mR * P + mt;
     const float Pc_dist = Pc.norm();
     const float &PcZ = Pc(2);
 
@@ -2729,9 +3056,7 @@ bool Frame::isInFrustumChecks(MapPointPtr pMP, float viewingCosLimit, bool bRigh
         return false;
 
     // Project in image and check it is not outside
-    Eigen::Vector2f uv;
-    if(bRight) uv = mpCamera2->project(Pc);
-    else uv = mpCamera->project(Pc);
+    const Eigen::Vector2f uv = bRight ? mpCamera2->project(Pc) : mpCamera->project(Pc);
 
     if(uv(0)<mnMinX || uv(0)>mnMaxX)
         return false;
@@ -2776,8 +3101,12 @@ bool Frame::isInFrustumChecks(MapPointPtr pMP, float viewingCosLimit, bool bRigh
     return true;
 }
 
+// used for fisheye cameras instead of Frame::isInFrustum()
 bool Frame::isInFrustumChecks(MapLinePtr pML, float viewingCosLimit, bool bRight) 
 {
+    // NOTE: here we have fisheye cameras 
+    const GeometricCamera* cam = bRight ? mpCamera2 : mpCamera;
+
     // 3D in absolute coordinates
     Eigen::Vector3f PS, PE; 
     pML->GetWorldEndPoints(PS,PE);
@@ -2785,18 +3114,11 @@ bool Frame::isInFrustumChecks(MapLinePtr pML, float viewingCosLimit, bool bRight
     // consider the middle point  
     const Eigen::Vector3f PM = 0.5*(PS+PE);    
 
-    // cv::Matx33f mRx;
-    // cv::Matx31f mtx, twcx;
-
-    // cv::Matx33f Rcw = mRcwx;
-    // cv::Matx33f Rwc = mRcwx.t();
-    // cv::Matx31f tcw = mOwx;
-
     Eigen::Matrix3f mR;
     Eigen::Vector3f mt, twc;
     if(bRight){
-        Eigen::Matrix3f Rrl = mTrl.rotationMatrix();
-        Eigen::Vector3f trl = mTrl.translation();
+        const Eigen::Matrix3f Rrl = mTrl.rotationMatrix();
+        const Eigen::Vector3f trl = mTrl.translation();
         mR = Rrl * mRcw;
         mt = Rrl * mtcw + trl;
         twc = mRwc * mTlr.translation() + mOw;
@@ -2809,22 +3131,20 @@ bool Frame::isInFrustumChecks(MapLinePtr pML, float viewingCosLimit, bool bRight
 
     // 3D in camera coordinates
 
-    Eigen::Vector3f Pc = mR * PM + mt;
-    const float Pc_dist = Pc.norm();
-    const float PcZ = Pc(2);
-
+    const Eigen::Vector3f PMc = mR * PM + mt;
+    //const float PMc_dist = PMc.norm();
+    const float& PMcZ = PMc(2);
     // Check positive depth
-    if(PcZ<0.0f)
+    if(PMcZ<0.0f)
         return false;
 
     // Project in image and check it is not outside
-    Eigen::Vector2f uv;
-    if(bRight) uv = mpCamera2->project(Pc);
-    else uv = mpCamera->project(Pc);
+    const Eigen::Vector2f uvM = cam->project(PMc); // projection with distortion model (if we enter here we have fisheye cameras)
 
-    if(uv(0)<mnMinX || uv(0)>mnMaxX)
+    // check image bounds with distortion model (with fisheye )
+    if(uvM(0)<mnMinX || uvM(0)>mnMaxX)
         return false;
-    if(uv(1)<mnMinY || uv(1)>mnMaxY)
+    if(uvM(1)<mnMinY || uvM(1)>mnMaxY)
         return false;
 
     // Check distance is in the scale invariance region of the MapPoint
@@ -2847,19 +3167,53 @@ bool Frame::isInFrustumChecks(MapLinePtr pML, float viewingCosLimit, bool bRight
     // Predict scale in the image
     const int nPredictedLevel = pML->PredictScale(dist,this);
 
+    const Eigen::Vector3f PSc = mR * PS + mt;
+    const Eigen::Vector2f uvS = cam->projectLinear(PSc); // projection without distortion model
+    const float& PScZ = PSc(2);
+    // Check positive depth
+    if(PScZ<0.0f)
+        return false;
+
+    const Eigen::Vector3f PEc = mR * PE + mt;
+    const Eigen::Vector2f uvE = cam->projectLinear(PEc); // projection without distortion model     
+    const float& PEcZ = PEc(2);
+    // Check positive depth
+    if(PEcZ<0.0f)
+        return false;
+
     if(bRight){
-        pML->mTrackProjMiddleXR = uv(0);
-        pML->mTrackProjMiddleYR = uv(1);
+        // pML->mTrackProjMiddleXR = uv(0);
+        // pML->mTrackProjMiddleYR = uv(1);
         pML->mnTrackScaleLevelR= nPredictedLevel;
         pML->mTrackViewCosR = viewCos;
-        pML->mTrackMiddleDepthR = Pc_dist;
+        //pML->mTrackMiddleDepthR = PMc_dist;
+
+        // undistorted
+        pML->mTrackProjStartXR = uvS(0); 
+        pML->mTrackProjStartYR = uvS(1);
+        pML->mTrackStartDepthR = PScZ;
+
+        // undistorted
+        pML->mTrackProjEndXR = uvE(0);
+        pML->mTrackProjEndYR = uvE(1);
+        pML->mTrackEndDepthR = PEcZ;
     }
     else{
-        pML->mTrackProjMiddleX = uv(0);
-        pML->mTrackProjMiddleY = uv(1);
+        // pML->mTrackProjMiddleX = uv(0);
+        // pML->mTrackProjMiddleY = uv(1);
         pML->mnTrackScaleLevel= nPredictedLevel;
         pML->mTrackViewCos = viewCos;
-        pML->mTrackMiddleDepth = Pc_dist;
+        //pML->mTrackMiddleDepth = PMc_dist;
+
+        // undistorted
+        pML->mTrackProjStartX = uvS(0);
+        pML->mTrackProjStartY = uvS(1);
+        pML->mTrackStartDepth = PScZ;
+
+        // undistorted
+        pML->mTrackProjEndX = uvE(0);
+        pML->mTrackProjEndY = uvE(1);
+        pML->mTrackEndDepth = PEcZ;        
     }
 
     return true;
@@ -2868,6 +3222,23 @@ bool Frame::isInFrustumChecks(MapLinePtr pML, float viewingCosLimit, bool bRight
 Eigen::Vector3f Frame::UnprojectStereoFishEye(const int &i)
 {
     return mRwc * mvStereo3Dpoints[i] + mOw;
+}
+
+bool Frame::UnprojectStereoLineFishEye(const int &i, Eigen::Vector3f& p3DStart, Eigen::Vector3f& p3DEnd)
+{
+    int idx = i; 
+    if(NlinesLeft != -1 && idx >= NlinesLeft){
+        idx = mvRightToLeftLinesMatch[idx-NlinesLeft]; // get the corresponding left line if any 
+        if(idx<0)
+            return false;
+    }
+    bool res = (mvDepthLineStart[idx]>0) && (mvDepthLineEnd[idx]>0);
+    if(res)
+    {
+        p3DStart = mRwc * mvStereo3DLineStartPoints[idx] + mOw;
+        p3DEnd = mRwc * mvStereo3DLineEndPoints[idx] + mOw;
+    }
+    return res; 
 }
 
 } // namespace PLVS2

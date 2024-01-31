@@ -59,7 +59,8 @@ public:
 
     
     void SetWorldEndPoints(const Eigen::Vector3f &PosStart, const Eigen::Vector3f &PosEnd);
-    void GetWorldEndPoints(Eigen::Vector3f &PosStart, Eigen::Vector3f &PosEnd);         
+    void GetWorldEndPoints(Eigen::Vector3f &PosStart, Eigen::Vector3f &PosEnd);  
+    void GetWorldEndPointsAndLength(Eigen::Vector3f &PosStart, Eigen::Vector3f &PosEnd, float& length);             
     
     void SetWorldPosStart(const Eigen::Vector3f &Pos);
     Eigen::Vector3f GetWorldPosStart();
@@ -128,29 +129,29 @@ public:
     long int mnFirstFrame;
     int nObs;
 
-    // Variables used by the tracking
-    float mTrackProjStartX;
-    float mTrackProjStartY;
-    float mTrackStartDepth;
-    //float mTrackStartDepthR;
-    float mTrackProjStartXR;
-    //float mTrackProjStartYR;
+    // Variables used by the tracking (these are assumed to be undistorted in order to be used to extract a line representation)
+    float mTrackProjStartX = -1;
+    float mTrackProjStartY = -1;
+    float mTrackStartDepth = -1;
+    float mTrackStartDepthR = -1;
+    float mTrackProjStartXR = -1; 
+    float mTrackProjStartYR = -1; 
     
-    float mTrackProjEndX;
-    float mTrackProjEndY;
-    float mTrackEndDepth;
-    //float mTrackEndDepthR;
-    float mTrackProjEndXR;
-    //float mTrackProjEndYR;
+    float mTrackProjEndX = -1;
+    float mTrackProjEndY = -1;
+    float mTrackEndDepth = -1;
+    float mTrackEndDepthR = -1;
+    float mTrackProjEndXR = -1;
+    float mTrackProjEndYR = -1;
     
-    float mTrackProjMiddleX;
-    float mTrackProjMiddleY;
-    float mTrackMiddleDepth;
-    float mTrackMiddleDepthR;
-    float mTrackProjMiddleXR;
-    float mTrackProjMiddleYR;
+    // float mTrackProjMiddleX = -1;  // not used now
+    // float mTrackProjMiddleY = -1;  // not used now
+    // float mTrackMiddleDepth = -1;  // not used now
+    // float mTrackMiddleDepthR = -1; // not used now
+    // float mTrackProjMiddleXR = -1; // not used now
+    // float mTrackProjMiddleYR = -1; // not used now
     
-    bool mbTrackInView, mbTrackInViewR;
+    bool mbTrackInView = false, mbTrackInViewR = false;
     int mnTrackScaleLevel, mnTrackScaleLevelR;
     float mTrackViewCos, mTrackViewCosR;
     long unsigned int mnTrackReferenceForFrame;

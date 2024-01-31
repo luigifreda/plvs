@@ -132,7 +132,7 @@ Line.lineTrackWeigth: 2
 Line.minLineLength3D: 0.01
 
 # max distance for stereo lines 
-Line.Stereo.maxDist: 20
+Line.Stereo.maxDist: 10
 
 # mu weight for endpoint-endpoint dist in line 3D dist
 Line.muWeightForLine3dDist: 0.3

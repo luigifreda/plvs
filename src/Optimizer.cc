@@ -1,6 +1,5 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -101,6 +100,7 @@
 #define USE_LINES 1                                  // set to zero to completely exclude lines from optimization
 #define USE_LINE_STEREO             (1 && USE_LINES)
 #define USE_LINE_PRIOR_BA           (0 && USE_LINES) // <- not used, it was used just for testing!
+#define USE_LINES_RIGHT_PROJECTION  (1 && USE_LINES)
 
 #define USE_LINES_POSE_OPTIMIZATION (1 && USE_LINES)
 #define USE_LINES_LOCAL_BA          (1 && USE_LINES)
@@ -145,6 +145,7 @@
 #define PRINT_COVARIANCE ( 0 && USE_G2O_NEW)
 
 #include "OptimizableTypes.h"
+#include "OptimizableLineTypes.h"
 
 
 namespace PLVS2
@@ -594,14 +595,14 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
     vector<g2o::EdgeSE3ProjectLine*> vpLineEdgesMono;
     vpLineEdgesMono.reserve(nLinesExpectedSize);
 
-    //vector<PLVS2::EdgeSE3ProjectXYZToBody*> vpEdgesBody;
-    //vpEdgesBody.reserve(nLinesExpectedSize);
+    vector<PLVS2::EdgeSE3ProjectLineToBody*> vpLineEdgesBody;
+    vpLineEdgesBody.reserve(nLinesExpectedSize);
 
     vector<KeyFramePtr> vpLineEdgeKFMono;
     vpLineEdgeKFMono.reserve(nLinesExpectedSize);
 
-    //vector<KeyFramePtr> vpLineEdgeKFBody;
-    //vpLineEdgeKFBody.reserve(nLinesExpectedSize);
+    vector<KeyFramePtr> vpLineEdgeKFBody;
+    vpLineEdgeKFBody.reserve(nLinesExpectedSize);
 
     vector<MapLinePtr> vpMapLineEdgeMono;
     vpMapLineEdgeMono.reserve(nLinesExpectedSize);
@@ -696,7 +697,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
 
             const int leftIndex = get<0>(mit->second);
 
-            if(leftIndex != -1 && pKF->mvuRight[get<0>(mit->second)]<0)
+            if(leftIndex != -1 && pKF->mvuRight[leftIndex]<0)
             {
                 const cv::KeyPoint &kpUn = pKF->mvKeysUn[leftIndex];
 
@@ -735,7 +736,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
                 Eigen::Matrix<double,3,1> obs;
 
 #if !USE_RGBD_POINT_REPROJ_ERR                    
-                const float kp_ur = pKF->mvuRight[get<0>(mit->second)];
+                const float kp_ur = pKF->mvuRight[leftIndex];
                 obs << kpUn.pt.x, kpUn.pt.y, kp_ur;
 
                 g2o::EdgeStereoSE3ProjectXYZ* e = new g2o::EdgeStereoSE3ProjectXYZ();
@@ -810,7 +811,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
                     e->setRobustKernel(rk);
                     rk->setDelta(thHuber2D);
 
-                    Sophus::SE3f Trl = pKF-> GetRelativePoseTrl();
+                    const Sophus::SE3f Trl = pKF-> GetRelativePoseTrl();
                     e->mTrl = g2o::SE3Quat(Trl.unit_quaternion().cast<double>(), Trl.translation().cast<double>());
 
                     e->pCamera = pKF->mpCamera2;
@@ -841,7 +842,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
     // Set MapLine vertices
     for(size_t i=0; i<vpMLines.size(); i++)
     {
-        MapLinePtr pML = vpMLines[i];
+        const MapLinePtr pML = vpMLines[i];
         if(pML->isBad())
             continue;
         g2o::VertexSBALine* vLine = new g2o::VertexSBALine();
@@ -863,7 +864,6 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
         //SET EDGES
         for(map<KeyFramePtr,tuple<int,int>>::const_iterator mit=observations.begin(); mit!=observations.end(); mit++)
         {
-
             KeyFramePtr pKF = mit->first;
             if(pKF->isBad() || pKF->mnId>maxKFid)
                 continue;
@@ -903,6 +903,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
                 e->setVertex(1, vertexKF);  
                 e->setMeasurement(obs);
                 
+                //e->pCamera = pKF->mpCamera; // this is enabled with the new types in OptimizableLineTypes.h                
                 e->fx = pKF->fx;
                 e->fy = pKF->fy;
                 e->cx = pKF->cx;
@@ -935,8 +936,6 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
         #endif    
                     e->setRobustKernel(rk);
                 }
-
-                //e->pCamera = pKF->mpCamera; // TODO: Luigi enable this!
 
                 optimizer.addEdge(e);
                 
@@ -976,7 +975,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
                 
                 e->init(); // here we check the match between Bp and P (Bq and Q)
                 
-#if !USE_NEW_LINE_INFORMATION_MAT                   
+    #if !USE_NEW_LINE_INFORMATION_MAT                   
                 const float invSigma2 = pKF->mvLineInvLevelSigma2[klUn.octave];
                 // N.B: we modulate all the information matrix with invSigma2 (so that all the components of the line error are weighted uniformly according to the detection uncertainty)                
                 const float invSigma2LineError3D = skInvSigma2LineError3D * invSigma2; //kInvSigma2PointLineDistance;
@@ -985,7 +984,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
                 Info(1,1)*=invSigma2;
                 Info(2,2)*=invSigma2LineError3D;//kInvSigma2PointLineDistance;
                 Info(3,3)*=invSigma2LineError3D;//kInvSigma2PointLineDistance;
-#else
+    #else
                 const float sigma2 = pKF->mvLineLevelSigma2[klUn.octave];
                 Eigen::Matrix<double,4,4> Info = Eigen::Matrix<double,4,4>::Zero();
                 Eigen::Vector2d projMapP, projMapQ;
@@ -999,33 +998,33 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
                            klUn.endPointX,klUn.endPointY, 
                            lineRepresentation.nx, lineRepresentation.ny, 
                            projMapP, projMapQ);
-#if USE_NEW_LINE_INFORMATION_MAT_STEREO                
+        #if USE_NEW_LINE_INFORMATION_MAT_STEREO                
                 Set3DLineInformationMat(Info(2,2),Info(3,3), 
                                 sigma2, klUn.octave,
                                 pKF->fx, pKF->fy, pKF->mbfInv, 
                                 projMapP, projMapQ, 
                                 mapP, mapQ,
                                 backprojP, backprojQ);    
-#else
+        #else
                 const float invSigma2 = pKF->mvLineInvLevelSigma2[klUn.octave];
                 // N.B: we modulate all the information matrix with invSigma2 (so that all the components of the line error are weighted uniformly according to the detection uncertainty)                
                 const float invSigma2LineError3D = skInvSigma2LineError3D * invSigma2; //kInvSigma2PointLineDistance;
                 Info(2,2)=invSigma2LineError3D;//kInvSigma2PointLineDistance;
                 Info(3,3)=invSigma2LineError3D;//kInvSigma2PointLineDistance;
-#endif
+        #endif
                 
-#endif
+    #endif
                 
                 e->setInformation(Info);
 
                 if(bRobust)
                 {
-        #if USE_CAUCHY_KERNEL_FOR_LINES
+    #if USE_CAUCHY_KERNEL_FOR_LINES
                     g2o::RobustKernelCauchy* rk = new g2o::RobustKernelCauchy;
-        #else 
+    #else 
                     g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
                     rk->setDelta(thHuberLineStereo);
-        #endif    
+    #endif    
                     e->setRobustKernel(rk);
                 }
 
@@ -1036,20 +1035,57 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
                 vpMapLineEdgeStereo.push_back(pML);                
             }
             
-            //TODO: Luigi add lines here!
-    #if 0            
             if(pKF->mpCamera2)
             {
                 int rightIndex = get<1>(mit->second);
 
-                if(rightIndex != -1 && rightIndex < pKF->mvKeyLinessRight.size())
+                if(rightIndex != -1 && rightIndex < pKF->mvKeyLinesRightUn.size())
                 {
                     rightIndex -= pKF->NlinesLeft;
 
+                    const cv::line_descriptor_c::KeyLine &klUn = pKF->mvKeyLinesRightUn[leftIndex];
+                    Line2DRepresentation lineRepresentation;
+                    Geom2DUtils::GetLine2dRepresentationNoTheta(klUn.startPointX,klUn.startPointY,klUn.endPointX,klUn.endPointY, lineRepresentation);
+                
+                    Eigen::Matrix<double,3,1> obs;
+                    obs << lineRepresentation.nx, lineRepresentation.ny, (-lineRepresentation.d);                    
+
+                    PLVS2::EdgeSE3ProjectLineToBody* e = new PLVS2::EdgeSE3ProjectLineToBody();
+                        
+                    //e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
+                    //e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKF->mnId)));
+                    e->setVertex(0, vertexLine);
+                    e->setVertex(1, vertexKF);  
+                    e->setMeasurement(obs);
+                    
+                    const Sophus::SE3f Trl = pKF-> GetRelativePoseTrl();
+                    e->mTrl = g2o::SE3Quat(Trl.unit_quaternion().cast<double>(), Trl.translation().cast<double>());
+
+                    e->pCamera = pKF->mpCamera2;                       
+                    
+                    const float invSigma2 = pKF->mvLineInvLevelSigma2[klUn.octave];
+                    e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);        
+
+                    if(bRobust)
+                    {
+            #if USE_CAUCHY_KERNEL_FOR_LINES
+                        g2o::RobustKernelCauchy* rk = new g2o::RobustKernelCauchy;
+            #else 
+                        g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+                        rk->setDelta(thHuberLineMono);
+            #endif    
+                        e->setRobustKernel(rk);
+                    }
+
+                    optimizer.addEdge(e);
+                    
+                    vpLineEdgesBody.push_back(e);
+                    vpLineEdgeKFBody.push_back(pKF);
+                    vpMapLineEdgeBody.push_back(pML);  
                 }
             }
-    #endif             
-#endif            
+
+#endif   // #if USE_LINE_STEREO        
         }
 
         //if(nEdges<kNumMinLineObservationsForBA)  <- in order to use this one should also remove the edges! 
@@ -1744,7 +1780,7 @@ void Optimizer::FullInertialBA(Map *pMap, int its, const bool bFixLocal, const l
                 const int leftIndex = get<0>(mit->second);
                 cv::KeyPoint kpUn;
 
-                if(leftIndex != -1 && pKFi->mvuRight[get<0>(mit->second)]<0) // Monocular observation
+                if(leftIndex != -1 && pKFi->mvuRight[leftIndex]<0) // Monocular observation
                 {
                     kpUn = pKFi->mvKeysUn[leftIndex];
                     Eigen::Matrix<double,2,1> obs;
@@ -1844,7 +1880,7 @@ void Optimizer::FullInertialBA(Map *pMap, int its, const bool bFixLocal, const l
     // Set MapLine vertices
     for(size_t i=0; i<vpMLs.size(); i++)
     {
-        MapLinePtr pML = vpMLs[i];
+        const MapLinePtr pML = vpMLs[i];
         if(pML->isBad())
             continue;
 
@@ -1905,16 +1941,16 @@ void Optimizer::FullInertialBA(Map *pMap, int its, const bool bFixLocal, const l
                 Eigen::Matrix<double,3,1> obs;
                 obs << lineRepresentation.nx, lineRepresentation.ny, (-lineRepresentation.d);                    
 
-                EdgeLineMono* e = new EdgeLineMono(0);
+                EdgeLineMono* e = new EdgeLineMono(0); // 0 = left cam index
                     
                 e->setVertex(0, vertexLine); 
                 e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnId)));
                 e->setMeasurement(obs);          
                 
-    #if !USE_NEW_LINE_INFORMATION_MAT   
+        #if !USE_NEW_LINE_INFORMATION_MAT   
                 const float invSigma2 = pKFi->mvLineInvLevelSigma2[klUn.octave];
                 e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
-    #else
+        #else
                 const float sigma2 = pKFi->mvLineLevelSigma2[klUn.octave];
 
                 Eigen::Matrix2d Info = Eigen::Matrix2d::Zero(); 
@@ -1926,7 +1962,7 @@ void Optimizer::FullInertialBA(Map *pMap, int its, const bool bFixLocal, const l
                            lineRepresentation.nx, lineRepresentation.ny, 
                            projMapP, projMapQ);
                 e->setInformation(Info);
-    #endif                 
+        #endif                 
 
         #if USE_CAUCHY_KERNEL_FOR_LINES
                 g2o::RobustKernelCauchy* rk = new g2o::RobustKernelCauchy;
@@ -1950,22 +1986,22 @@ void Optimizer::FullInertialBA(Map *pMap, int its, const bool bFixLocal, const l
                 Eigen::Matrix<double,3,1> obs;
                 obs << lineRepresentation.nx, lineRepresentation.ny, (-lineRepresentation.d);   
 
-                EdgeLineStereo* e = new EdgeLineStereo(0);
+                EdgeLineStereo* e = new EdgeLineStereo(0); // 0 = left cam index
 
                 e->setVertex(0, vertexLine);
                 e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnId)));
                 e->setMeasurement(obs);
 
                 // the following two are actually derived/indirect observations (using also depth measurements) but we keep them cached inside the edge for simplicity
-                const Eigen::Vector3f XSc_backproj = imuCamPose.pCamera[0]->unprojectEig(cv::Point2f(klUn.startPointX,klUn.startPointY),pKFi->mvDepthLineStart[leftIndex] );
-                const Eigen::Vector3f XEc_backproj = imuCamPose.pCamera[0]->unprojectEig(cv::Point2f(klUn.endPointX,klUn.endPointY),pKFi->mvDepthLineEnd[leftIndex] );
+                const Eigen::Vector3f XSc_backproj = imuCamPose.pCamera[0]->unprojectEigLinear(cv::Point2f(klUn.startPointX,klUn.startPointY),pKFi->mvDepthLineStart[leftIndex] );
+                const Eigen::Vector3f XEc_backproj = imuCamPose.pCamera[0]->unprojectEigLinear(cv::Point2f(klUn.endPointX,klUn.endPointY),pKFi->mvDepthLineEnd[leftIndex] );
                 //std::cout << "XSc_backproj: " << XSc_backproj.transpose() << ", XEc_backproj: " << XEc_backproj.transpose() << std::endl; 
                 e->setBackprojections(XSc_backproj, XEc_backproj);
                 e->muWeigth = Optimizer::skMuWeightForLine3dDist;
                 
                 e->init(); // here we check the match between Bp and P (Bq and Q)
                 
-    #if !USE_NEW_LINE_INFORMATION_MAT                   
+        #if !USE_NEW_LINE_INFORMATION_MAT                   
                 const float invSigma2 = pKFi->mvLineInvLevelSigma2[klUn.octave];
                 // N.B: we modulate all the information matrix with invSigma2 (so that all the components of the line error are weighted uniformly according to the detection uncertainty)                
                 const float invSigma2LineError3D = skInvSigma2LineError3D * invSigma2; //kInvSigma2PointLineDistance;
@@ -1974,7 +2010,7 @@ void Optimizer::FullInertialBA(Map *pMap, int its, const bool bFixLocal, const l
                 Info(1,1)*=invSigma2;
                 Info(2,2)*=invSigma2LineError3D;//kInvSigma2PointLineDistance;
                 Info(3,3)*=invSigma2LineError3D;//kInvSigma2PointLineDistance;
-    #else
+        #else
                 const float sigma2 = pKFi->mvLineLevelSigma2[klUn.octave];
                 Eigen::Matrix<double,4,4> Info = Eigen::Matrix<double,4,4>::Zero();
                 Eigen::Vector2d projMapP, projMapQ;
@@ -1988,22 +2024,22 @@ void Optimizer::FullInertialBA(Map *pMap, int its, const bool bFixLocal, const l
                            klUn.endPointX,klUn.endPointY, 
                            lineRepresentation.nx, lineRepresentation.ny, 
                            projMapP, projMapQ);
-    #if USE_NEW_LINE_INFORMATION_MAT_STEREO                
+            #if USE_NEW_LINE_INFORMATION_MAT_STEREO                
                 Set3DLineInformationMat(Info(2,2),Info(3,3), 
                                 sigma2, klUn.octave,
                                 pKFi->fx, pKFi->fy, pKFi->mbfInv, 
                                 projMapP, projMapQ, 
                                 mapP, mapQ,
                                 backprojP, backprojQ);    
-    #else
+            #else
                 const float invSigma2 = pKFi->mvLineInvLevelSigma2[klUn.octave];
                 // N.B: we modulate all the information matrix with invSigma2 (so that all the components of the line error are weighted uniformly according to the detection uncertainty)                
                 const float invSigma2LineError3D = skInvSigma2LineError3D * invSigma2; //kInvSigma2PointLineDistance;
                 Info(2,2)=invSigma2LineError3D;//kInvSigma2PointLineDistance;
                 Info(3,3)=invSigma2LineError3D;//kInvSigma2PointLineDistance;
-    #endif
+            #endif
                 
-    #endif
+        #endif
                 
                 e->setInformation(Info);
 
@@ -2019,21 +2055,48 @@ void Optimizer::FullInertialBA(Map *pMap, int its, const bool bFixLocal, const l
             } else {
                 std::cout << IoColor::Yellow() << "FullInertialBA - unexected line case" << std::endl;     
             }
+    #endif  // if USE_LINES_STEREO_INERTIAL               
             
-            //TODO: Luigi add lines here!
-    #if 0            
+    #if USE_LINES_RIGHT_PROJECTION
             if(pKFi->mpCamera2)
             {
                 int rightIndex = get<1>(mit->second);
 
-                if(rightIndex != -1 && rightIndex < pKFi->mvKeyLinessRight.size())
+                if(rightIndex != -1 && rightIndex < pKFi->mvKeyLinesRightUn.size())
                 {
                     rightIndex -= pKFi->NlinesLeft;
+
+                    nEdges++;
+
+                    const cv::line_descriptor_c::KeyLine &klUn = pKFi->mvKeyLinesRightUn[leftIndex];
+                    Line2DRepresentation lineRepresentation;
+                    Geom2DUtils::GetLine2dRepresentationNoTheta(klUn.startPointX,klUn.startPointY,klUn.endPointX,klUn.endPointY, lineRepresentation);
+                
+                    Eigen::Matrix<double,3,1> obs;
+                    obs << lineRepresentation.nx, lineRepresentation.ny, (-lineRepresentation.d);                    
+
+                    EdgeLineMono* e = new EdgeLineMono(1); // 1 = right cam index
+                        
+                    e->setVertex(0, vertexLine); 
+                    e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnId)));
+                    e->setMeasurement(obs);          
+                    
+                    const float invSigma2 = pKFi->mvLineInvLevelSigma2[klUn.octave];
+                    e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);          
+
+            #if USE_CAUCHY_KERNEL_FOR_LINES
+                    g2o::RobustKernelCauchy* rk = new g2o::RobustKernelCauchy;
+            #else 
+                    g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+                    rk->setDelta(thHuberLineMono);
+            #endif    
+                    e->setRobustKernel(rk);
+
+                    optimizer.addEdge(e);                          
                 }
             }
     #endif 
 
-    #endif  // if USE_LINES_STEREO_INERTIAL          
         }
 
         //if(nEdges<kNumMinLineObservationsForBA)  <- in order to use this one should also remove the edges! 
@@ -2413,7 +2476,11 @@ int Optimizer::PoseOptimization(Frame *pFrame)
     vpEdgesLineStereo.reserve(Nlines);
     vnIndexEdgeLineStereo.reserve(Nlines); 
 
-    
+    vector<PLVS2::EdgeSE3ProjectLineOnlyPoseToBody*> vpEdgesLineMonoRight;
+    vector<size_t> vnIndexEdgeLineMonoRight;
+    vpEdgesLineMonoRight.reserve(Nlines);
+    vnIndexEdgeLineMonoRight.reserve(Nlines);    
+
     const float deltaLineMono   = sqrt(5.991);// chi-square 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley Zisserman pg 119)
     const float deltaLineStereo = sqrt(9.49); // chi-square 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs 
         
@@ -2594,8 +2661,10 @@ int Optimizer::PoseOptimization(Frame *pFrame)
         MapLinePtr pML = pFrame->mvpMapLines[i];
         if(pML)
         {
-            //Conventional SLAM
-            if(!pFrame->mpCamera2)
+            
+            if( !pFrame->mpCamera2 ||                                  // Convential left image of pinhole cameras 
+                ( (pFrame->mpCamera2) && (i < pFrame->NlinesLeft) )    // Left image of fisheye cameras
+              )
             {
                 // Monocular observation
         #if USE_LINE_STEREO            
@@ -2705,8 +2774,6 @@ int Optimizer::PoseOptimization(Frame *pFrame)
 
                     e->init();                 
 
-
-
         #if !USE_NEW_LINE_INFORMATION_MAT                   
                     const float invSigma2 = pFrame->mvLineInvLevelSigma2[klUn.octave];
                     // N.B: we modulate all the information matrix with invSigma2 (so that all the components of the line error are weighted uniformly according to the detection uncertainty)
@@ -2767,10 +2834,53 @@ int Optimizer::PoseOptimization(Frame *pFrame)
 
             }
             else
-            { // Left-Right SLAM (SLAM with respect a rigid body)
+            { // Right image SLAM 
 
-                /// < TODO: Luigi add line management here        
+                nInitialLineCorrespondences++;
+                pFrame->mvbLineOutlier[i] = false;
+                pFrame->mvuNumLinePosOptFailures[i] = 0;
 
+                Eigen::Matrix<double,3,1> obs;
+                const cv::line_descriptor_c::KeyLine &klUn = pFrame->mvKeyLinesRightUn[i-pFrame->NlinesLeft];
+                Line2DRepresentation lineRepresentation;
+                Geom2DUtils::GetLine2dRepresentationNoTheta(klUn.startPointX,klUn.startPointY,klUn.endPointX,klUn.endPointY, lineRepresentation);
+                obs << lineRepresentation.nx, lineRepresentation.ny, (-lineRepresentation.d);
+
+                PLVS2::EdgeSE3ProjectLineOnlyPoseToBody* e = new PLVS2::EdgeSE3ProjectLineOnlyPoseToBody();
+
+                e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
+                //e->setVertex(0, vertexSE3);
+                e->setMeasurement(obs);
+
+                e->pCamera = pFrame->mpCamera2;
+                e->mTrl = g2o::SE3Quat(pFrame->GetRelativePoseTrl().unit_quaternion().cast<double>(), pFrame->GetRelativePoseTrl().translation().cast<double>());
+
+                Eigen::Vector3f XSw, XEw;
+                pML->GetWorldEndPoints(XSw, XEw);                   
+
+                e->XSw[0] = XSw(0);
+                e->XSw[1] = XSw(1);
+                e->XSw[2] = XSw(2);
+
+                e->XEw[0] = XEw(0);
+                e->XEw[1] = XEw(1);
+                e->XEw[2] = XEw(2);
+
+                const float invSigma2 = pFrame->mvLineInvLevelSigma2[klUn.octave];
+                e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
+
+    #if USE_CAUCHY_KERNEL_FOR_LINES
+                g2o::RobustKernelCauchy* rk = new g2o::RobustKernelCauchy;
+    #else 
+                g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+                rk->setDelta(deltaLineMono);
+    #endif                                         
+                e->setRobustKernel(rk);
+
+                optimizer.addEdge(e);
+
+                vpEdgesLineMonoRight.push_back(e);
+                vnIndexEdgeLineMonoRight.push_back(i);
             }
             
         } // if(pML)
@@ -2947,6 +3057,44 @@ int Optimizer::PoseOptimization(Frame *pFrame)
                 e->setRobustKernel(0);
         }
         
+        // lines mono right
+        for(size_t i=0, iend=vpEdgesLineMonoRight.size(); i<iend; i++)
+        {
+            PLVS2::EdgeSE3ProjectLineOnlyPoseToBody* e = vpEdgesLineMonoRight[i];
+
+            const size_t idx = vnIndexEdgeLineMonoRight[i];
+
+            if(pFrame->mvbLineOutlier[idx])
+            {
+                e->computeError();
+            }
+
+            const float chi2 = e->chi2();
+
+            if(chi2>chi2LineMono[it])
+            {                
+                //std::cout << "PoseOptimization() - mono line outlier error : " << chi2 << std::endl;
+                
+                pFrame->mvbLineOutlier[idx]=true;
+                //pFrame->mvuNumLinePosOptFailures[idx] +=1;
+                //pFrame->mvbLineOutlier[idx]=(pFrame->mvuNumLinePosOptFailures[idx] >= kNumMinPosOptFailuresForLineGettingOutlier);
+                
+                e->setLevel(1);
+                nBadLines++;
+            }
+            else
+            {
+                //std::cout << "PoseOptimization() - mono line *inlier* error : " << chi2 << std::endl;
+                
+                pFrame->mvuNumLinePosOptFailures[idx] = 0;
+                pFrame->mvbLineOutlier[idx]=false;
+                e->setLevel(0);
+            }
+
+            if(it==2)
+                e->setRobustKernel(0);
+        }
+
 #if USE_LINE_STEREO          
         
 #if VERBOSE_3D_POINT_LINE_ALIGNMENT_ERROR
@@ -3165,7 +3313,6 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pKF, bool* pbStopFlag, Map* pM
     }
     
 #if USE_LINES_LOCAL_BA 
-    
     // Fixed Keyframes. Keyframes that see Local MapLines but that are not Local Keyframes
     for(list<MapLinePtr>::iterator lit=lLocalMapLines.begin(), lend=lLocalMapLines.end(); lit!=lend; lit++)
     {
@@ -3185,7 +3332,6 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pKF, bool* pbStopFlag, Map* pM
 #endif
     
 #if USE_OBJECTS_LOCAL_BA
-        
     // Fixed Keyframes. Keyframes that see Local MapObjects but that are not Local Keyframes
     for(list<MapObjectPtr>::iterator lit=lLocalMapObjects.begin(), lend=lLocalMapObjects.end(); lit!=lend; lit++)
     {
@@ -3375,6 +3521,16 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pKF, bool* pbStopFlag, Map* pM
 
     vector<MapLinePtr> vpMapLineEdgeStereo; 
     vpMapLineEdgeStereo.reserve(nExpectedSizeLines);
+
+    // body lines
+    vector<PLVS2::EdgeSE3ProjectLineToBody*> vpEdgesLineBody;
+    vpEdgesLineBody.reserve(nExpectedSizeLines);
+
+    vector<KeyFramePtr> vpEdgeKFLineBody; 
+    vpEdgeKFLineBody.reserve(nExpectedSizeLines);
+
+    vector<MapLinePtr> vpMapLineEdgeBody; 
+    vpMapLineEdgeBody.reserve(nExpectedSizeLines);
     
 #endif // USE_LINES_LOCAL_BA
     
@@ -3443,7 +3599,6 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pKF, bool* pbStopFlag, Map* pM
 
             if(!pKFi->isBad() && pKFi->GetMap() == pCurrentMap)
             {
-                
                 g2o::OptimizableGraph::Vertex* vertexKFi = dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnId));
                 if(vertexKFi == NULL)
                         continue;
@@ -3451,7 +3606,7 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pKF, bool* pbStopFlag, Map* pM
                 const int leftIndex = get<0>(mit->second);
 
                 // Monocular observation
-                if(leftIndex != -1 && pKFi->mvuRight[get<0>(mit->second)]<0)
+                if(leftIndex != -1 && pKFi->mvuRight[leftIndex]<0)
                 {
                     const cv::KeyPoint &kpUn = pKFi->mvKeysUn[leftIndex];
                     Eigen::Matrix<double,2,1> obs;
@@ -3480,7 +3635,7 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pKF, bool* pbStopFlag, Map* pM
 
                     nEdges++;
                 }
-                else if(leftIndex != -1 && pKFi->mvuRight[get<0>(mit->second)]>=0)// Stereo observation
+                else if(leftIndex != -1 && pKFi->mvuRight[leftIndex]>=0)// Stereo observation
                 {
                     const cv::KeyPoint &kpUn = pKFi->mvKeysUn[leftIndex];
                     Eigen::Matrix<double,3,1> obs;
@@ -3556,7 +3711,7 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pKF, bool* pbStopFlag, Map* pM
                         e->setRobustKernel(rk);
                         rk->setDelta(thHuberMono);
 
-                        Sophus::SE3f Trl = pKFi-> GetRelativePoseTrl();
+                        const Sophus::SE3f Trl = pKFi-> GetRelativePoseTrl();
                         e->mTrl = g2o::SE3Quat(Trl.unit_quaternion().cast<double>(), Trl.translation().cast<double>());
 
                         e->pCamera = pKFi->mpCamera2;
@@ -3610,170 +3765,167 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pKF, bool* pbStopFlag, Map* pM
 
             if(!pKFi->isBad() && (pKFi->GetMap() == pCurrentMap))
             {                
-
                 g2o::OptimizableGraph::Vertex* vertexKFi = dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnId));                        
                 if(vertexKFi == NULL)
                         continue;                
                                     
                 const int leftIndex = get<0>(mit->second);
-                
-                const cv::line_descriptor_c::KeyLine &klUn = pKFi->mvKeyLinesUn[leftIndex];
-                Line2DRepresentation lineRepresentation;
-                Geom2DUtils::GetLine2dRepresentationNoTheta(klUn.startPointX,klUn.startPointY,klUn.endPointX,klUn.endPointY, lineRepresentation);
-                    
+                                    
                 // Monocular observation
                 if(leftIndex != -1)
                 {
-                    
-#if USE_LINE_STEREO                
-                if( (pKFi->mvuRightLineStart[leftIndex]<0) || (pKFi->mvuRightLineEnd[leftIndex]<0) )
-#endif
-                {
-                    Eigen::Matrix<double,3,1> obs;
-                    obs << lineRepresentation.nx, lineRepresentation.ny, (-lineRepresentation.d);                    
+                    const cv::line_descriptor_c::KeyLine &klUn = pKFi->mvKeyLinesUn[leftIndex];
+                    Line2DRepresentation lineRepresentation;
+                    Geom2DUtils::GetLine2dRepresentationNoTheta(klUn.startPointX,klUn.startPointY,klUn.endPointX,klUn.endPointY, lineRepresentation);
 
-                    g2o::EdgeSE3ProjectLine* e = new g2o::EdgeSE3ProjectLine();
-                    
-                    //e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
-                    //e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnId)));
-                    e->setVertex(0, vertexLine);
-                    e->setVertex(1, vertexKFi);                    
-                    e->setMeasurement(obs);
-                    
-                    //e->pCamera = pKFi->mpCamera; /// < TODO: Luigi add camera jac management here with mpCamera!
-                    
-                    e->fx = pKFi->fx;
-                    e->fy = pKFi->fy;
-                    e->cx = pKFi->cx;
-                    e->cy = pKFi->cy;                    
+    #if USE_LINE_STEREO                
+                    if( (pKFi->mvuRightLineStart[leftIndex]<0) || (pKFi->mvuRightLineEnd[leftIndex]<0) )
+    #endif
+                    {
+                        Eigen::Matrix<double,3,1> obs;
+                        obs << lineRepresentation.nx, lineRepresentation.ny, (-lineRepresentation.d);                    
 
-#if !USE_NEW_LINE_INFORMATION_MAT   
-                    const float invSigma2 = pKFi->mvLineInvLevelSigma2[klUn.octave];
-                    e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
-#else
-                    const float sigma2 = pKFi->mvLineLevelSigma2[klUn.octave];
-
-                    Eigen::Matrix2d Info = Eigen::Matrix2d::Zero(); 
-                    Eigen::Vector2d projMapP, projMapQ;
-                    e->getMapLineProjections(projMapP, projMapQ);
-                    Set2DLineInformationMat(Info(0,0),Info(1,1), sigma2, 
-                               klUn.startPointX,klUn.startPointY, 
-                               klUn.endPointX,klUn.endPointY, 
-                               lineRepresentation.nx, lineRepresentation.ny, 
-                               projMapP, projMapQ);
-                    e->setInformation(Info);
-#endif                    
-                    
-        #if USE_CAUCHY_KERNEL_FOR_LINES
-                    g2o::RobustKernelCauchy* rk = new g2o::RobustKernelCauchy;
-        #else 
-                    g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
-                    rk->setDelta(thHuberLineMono);
-        #endif                      
-                    e->setRobustKernel(rk);
-
-                    optimizer.addEdge(e);
-                    vpEdgesLineMono.push_back(e);
-                    vpEdgeKFLineMono.push_back(pKFi);
-                    vpMapLineEdgeMono.push_back(pML);
-                  
-                    numConsideredLineEdges++;
-               
-                    
-#if CHECK_LINE_VALID_OBSERVATIONS                        
-                    numValidObservations++;
-#endif
-                    
-                }
-#if USE_LINE_STEREO                    
-                else // Stereo observation
-                {
-                    Eigen::Matrix<double,3,1> obs;
-                    obs << lineRepresentation.nx, lineRepresentation.ny, (-lineRepresentation.d);   
-
-                    g2o::EdgeSE3ProjectStereoLine* e = new g2o::EdgeSE3ProjectStereoLine();
-
-                    //e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
-                    //e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnId)));
-                    e->setVertex(0, vertexLine);
-                    e->setVertex(1, vertexKFi); 
-                    e->setMeasurement(obs);
-                    
-                    e->fx = pKFi->fx;
-                    e->fy = pKFi->fy;
-                    e->cx = pKFi->cx;
-                    e->cy = pKFi->cy;
-                    
-                    // the following two are actually derived observations (using also depth measurements) but we keep them cached inside the edge for simplicity 
-                    e->XSbc = e->camBackProject(Eigen::Vector2d(klUn.startPointX,klUn.startPointY),pKFi->mvDepthLineStart[leftIndex]);
-                    e->XEbc = e->camBackProject(Eigen::Vector2d(klUn.endPointX,klUn.endPointY),pKFi->mvDepthLineEnd[leftIndex]);
+                        g2o::EdgeSE3ProjectLine* e = new g2o::EdgeSE3ProjectLine();
                         
-                    e->lineLenghtInv = 1.0/(e->XSbc - e->XEbc).norm(); // use the length of the 3D detected line 
-                    e->mu = Optimizer::skMuWeightForLine3dDist;
-                    
-                    e->init();
-                    
-#if !USE_NEW_LINE_INFORMATION_MAT                   
-                    const float invSigma2 = pKFi->mvLineInvLevelSigma2[klUn.octave];
-                    // N.B: we modulate all the information matrix with invSigma2 (so that all the components of the line error are weighted uniformly according to the detection uncertainty)                    
-                    const float invSigma2LineError3D = skInvSigma2LineError3D * invSigma2; //kInvSigma2PointLineDistance;                    
-                    Eigen::Matrix<double,4,4> Info = Eigen::Matrix<double,4,4>::Identity();
-                    Info(0,0)*=invSigma2;
-                    Info(1,1)*=invSigma2;
-                    Info(2,2)*=invSigma2LineError3D;//kInvSigma2PointLineDistance;
-                    Info(3,3)*=invSigma2LineError3D;//kInvSigma2PointLineDistance;            
-#else
-                    const float sigma2 = pKFi->mvLineLevelSigma2[klUn.octave];
-                    Eigen::Matrix<double,4,4> Info = Eigen::Matrix<double,4,4>::Zero();
-                    Eigen::Vector2d projMapP, projMapQ;
-                    Eigen::Vector3d mapP, mapQ;
-                    e->getMapLineAndProjections(mapP, mapQ, projMapP, projMapQ);
-                    Eigen::Vector3d &backprojP = e->XSbc;
-                    Eigen::Vector3d &backprojQ = e->XEbc; 
+                        //e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
+                        //e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnId)));
+                        e->setVertex(0, vertexLine);
+                        e->setVertex(1, vertexKFi);                    
+                        e->setMeasurement(obs);
+                        
+                        //e->pCamera = pKFi->mpCamera; /// < TODO: Luigi add camera jac management here with mpCamera!
+                        
+                        e->fx = pKFi->fx;
+                        e->fy = pKFi->fy;
+                        e->cx = pKFi->cx;
+                        e->cy = pKFi->cy;                    
 
-                    Set2DLineInformationMat(Info(0,0),Info(1,1), sigma2, 
-                               klUn.startPointX,klUn.startPointY, 
-                               klUn.endPointX,klUn.endPointY, 
-                               lineRepresentation.nx, lineRepresentation.ny, 
-                               projMapP, projMapQ);
-#if USE_NEW_LINE_INFORMATION_MAT_STEREO  
-                    Set3DLineInformationMat(Info(2,2),Info(3,3), 
-                                    sigma2, klUn.octave, 
-                                    pKFi->fx, pKFi->fy, pKF->mbfInv, 
-                                    projMapP, projMapQ, 
-                                    mapP, mapQ,
-                                    backprojP, backprojQ);   
-#else
-                    const float invSigma2 = pKFi->mvLineInvLevelSigma2[klUn.octave];
-                    // N.B: we modulate all the information matrix with invSigma2 (so that all the components of the line error are weighted uniformly according to the detection uncertainty)                      
-                    const float invSigma2LineError3D = skInvSigma2LineError3D * invSigma2; //kInvSigma2PointLineDistance;                    
-                    Info(2,2)=invSigma2LineError3D;//kInvSigma2PointLineDistance;
-                    Info(3,3)=invSigma2LineError3D;//kInvSigma2PointLineDistance;
-#endif
-                    
-#endif
-                    e->setInformation(Info);
+    #if !USE_NEW_LINE_INFORMATION_MAT   
+                        const float invSigma2 = pKFi->mvLineInvLevelSigma2[klUn.octave];
+                        e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
+    #else
+                        const float sigma2 = pKFi->mvLineLevelSigma2[klUn.octave];
 
-        #if USE_CAUCHY_KERNEL_FOR_LINES
-                    g2o::RobustKernelCauchy* rk = new g2o::RobustKernelCauchy;
-        #else 
-                    g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
-                    rk->setDelta(thHuberLineStereo);
-        #endif   
-                    e->setRobustKernel(rk);
+                        Eigen::Matrix2d Info = Eigen::Matrix2d::Zero(); 
+                        Eigen::Vector2d projMapP, projMapQ;
+                        e->getMapLineProjections(projMapP, projMapQ);
+                        Set2DLineInformationMat(Info(0,0),Info(1,1), sigma2, 
+                                klUn.startPointX,klUn.startPointY, 
+                                klUn.endPointX,klUn.endPointY, 
+                                lineRepresentation.nx, lineRepresentation.ny, 
+                                projMapP, projMapQ);
+                        e->setInformation(Info);
+    #endif                    
+                        
+            #if USE_CAUCHY_KERNEL_FOR_LINES
+                        g2o::RobustKernelCauchy* rk = new g2o::RobustKernelCauchy;
+            #else 
+                        g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+                        rk->setDelta(thHuberLineMono);
+            #endif                      
+                        e->setRobustKernel(rk);
 
-                    optimizer.addEdge(e);
-                    vpEdgesLineStereo.push_back(e);
-                    vpEdgeKFLineStereo.push_back(pKFi);
-                    vpMapLineEdgeStereo.push_back(pML);
+                        optimizer.addEdge(e);
+                        vpEdgesLineMono.push_back(e);
+                        vpEdgeKFLineMono.push_back(pKFi);
+                        vpMapLineEdgeMono.push_back(pML);
                     
-                    numConsideredLineEdges++;
-                  
-#if CHECK_LINE_VALID_OBSERVATIONS                        
-                    numValidObservations++;
-#endif
+                        numConsideredLineEdges++;
+                
+    #if CHECK_LINE_VALID_OBSERVATIONS                        
+                        numValidObservations++;
+    #endif
+                        
+                    }
+    #if USE_LINE_STEREO                    
+                    else // Stereo observation
+                    {
+                        Eigen::Matrix<double,3,1> obs;
+                        obs << lineRepresentation.nx, lineRepresentation.ny, (-lineRepresentation.d);   
+
+                        g2o::EdgeSE3ProjectStereoLine* e = new g2o::EdgeSE3ProjectStereoLine();
+
+                        //e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
+                        //e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnId)));
+                        e->setVertex(0, vertexLine);
+                        e->setVertex(1, vertexKFi); 
+                        e->setMeasurement(obs);
+                        
+                        e->fx = pKFi->fx;
+                        e->fy = pKFi->fy;
+                        e->cx = pKFi->cx;
+                        e->cy = pKFi->cy;
+                        
+                        // the following two are actually derived observations (using also depth measurements) but we keep them cached inside the edge for simplicity 
+                        e->XSbc = e->camBackProject(Eigen::Vector2d(klUn.startPointX,klUn.startPointY),pKFi->mvDepthLineStart[leftIndex]);
+                        e->XEbc = e->camBackProject(Eigen::Vector2d(klUn.endPointX,klUn.endPointY),pKFi->mvDepthLineEnd[leftIndex]);
+                            
+                        e->lineLenghtInv = 1.0/(e->XSbc - e->XEbc).norm(); // use the length of the 3D detected line 
+                        e->mu = Optimizer::skMuWeightForLine3dDist;
+                        
+                        e->init();
+                        
+    #if !USE_NEW_LINE_INFORMATION_MAT                   
+                        const float invSigma2 = pKFi->mvLineInvLevelSigma2[klUn.octave];
+                        // N.B: we modulate all the information matrix with invSigma2 (so that all the components of the line error are weighted uniformly according to the detection uncertainty)                    
+                        const float invSigma2LineError3D = skInvSigma2LineError3D * invSigma2; //kInvSigma2PointLineDistance;                    
+                        Eigen::Matrix<double,4,4> Info = Eigen::Matrix<double,4,4>::Identity();
+                        Info(0,0)*=invSigma2;
+                        Info(1,1)*=invSigma2;
+                        Info(2,2)*=invSigma2LineError3D;//kInvSigma2PointLineDistance;
+                        Info(3,3)*=invSigma2LineError3D;//kInvSigma2PointLineDistance;            
+    #else
+                        const float sigma2 = pKFi->mvLineLevelSigma2[klUn.octave];
+                        Eigen::Matrix<double,4,4> Info = Eigen::Matrix<double,4,4>::Zero();
+                        Eigen::Vector2d projMapP, projMapQ;
+                        Eigen::Vector3d mapP, mapQ;
+                        e->getMapLineAndProjections(mapP, mapQ, projMapP, projMapQ);
+                        Eigen::Vector3d &backprojP = e->XSbc;
+                        Eigen::Vector3d &backprojQ = e->XEbc; 
+
+                        Set2DLineInformationMat(Info(0,0),Info(1,1), sigma2, 
+                                klUn.startPointX,klUn.startPointY, 
+                                klUn.endPointX,klUn.endPointY, 
+                                lineRepresentation.nx, lineRepresentation.ny, 
+                                projMapP, projMapQ);
+    #if USE_NEW_LINE_INFORMATION_MAT_STEREO  
+                        Set3DLineInformationMat(Info(2,2),Info(3,3), 
+                                        sigma2, klUn.octave, 
+                                        pKFi->fx, pKFi->fy, pKF->mbfInv, 
+                                        projMapP, projMapQ, 
+                                        mapP, mapQ,
+                                        backprojP, backprojQ);   
+    #else
+                        const float invSigma2 = pKFi->mvLineInvLevelSigma2[klUn.octave];
+                        // N.B: we modulate all the information matrix with invSigma2 (so that all the components of the line error are weighted uniformly according to the detection uncertainty)                      
+                        const float invSigma2LineError3D = skInvSigma2LineError3D * invSigma2; //kInvSigma2PointLineDistance;                    
+                        Info(2,2)=invSigma2LineError3D;//kInvSigma2PointLineDistance;
+                        Info(3,3)=invSigma2LineError3D;//kInvSigma2PointLineDistance;
+    #endif
+                        
+    #endif
+                        e->setInformation(Info);
+
+            #if USE_CAUCHY_KERNEL_FOR_LINES
+                        g2o::RobustKernelCauchy* rk = new g2o::RobustKernelCauchy;
+            #else 
+                        g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+                        rk->setDelta(thHuberLineStereo);
+            #endif   
+                        e->setRobustKernel(rk);
+
+                        optimizer.addEdge(e);
+                        vpEdgesLineStereo.push_back(e);
+                        vpEdgeKFLineStereo.push_back(pKFi);
+                        vpMapLineEdgeStereo.push_back(pML);
+                        
+                        numConsideredLineEdges++;
                     
-                }
+    #if CHECK_LINE_VALID_OBSERVATIONS                        
+                        numValidObservations++;
+    #endif
+                        
+                    }
                 
                 } // end if(leftIndex != -1)
                 
@@ -3782,7 +3934,52 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pKF, bool* pbStopFlag, Map* pM
                 {
                     int rightIndex = get<1>(mit->second);
                     
-                    /// < TODO: Luigi add management of lines here!
+                    if(rightIndex != -1 )
+                    {                        
+                        rightIndex -= pKFi->NlinesLeft;
+
+                        const cv::line_descriptor_c::KeyLine &klUn = pKFi->mvKeyLinesRightUn[rightIndex];
+                        Line2DRepresentation lineRepresentation;
+                        Geom2DUtils::GetLine2dRepresentationNoTheta(klUn.startPointX,klUn.startPointY,klUn.endPointX,klUn.endPointY, lineRepresentation);
+
+                        Eigen::Matrix<double,3,1> obs;
+                        obs << lineRepresentation.nx, lineRepresentation.ny, (-lineRepresentation.d);                    
+
+                        PLVS2::EdgeSE3ProjectLineToBody* e = new PLVS2::EdgeSE3ProjectLineToBody();
+                        
+                        //e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
+                        //e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnId)));
+                        e->setVertex(0, vertexLine);
+                        e->setVertex(1, vertexKFi);                    
+                        e->setMeasurement(obs);
+                        
+                        const Sophus::SE3f Trl = pKFi-> GetRelativePoseTrl();
+                        e->mTrl = g2o::SE3Quat(Trl.unit_quaternion().cast<double>(), Trl.translation().cast<double>());
+
+                        e->pCamera = pKFi->mpCamera2;              
+
+                        const float invSigma2 = pKFi->mvLineInvLevelSigma2[klUn.octave];
+                        e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);          
+                        
+            #if USE_CAUCHY_KERNEL_FOR_LINES
+                        g2o::RobustKernelCauchy* rk = new g2o::RobustKernelCauchy;
+            #else 
+                        g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+                        rk->setDelta(thHuberLineMono);
+            #endif                      
+                        e->setRobustKernel(rk);
+
+                        optimizer.addEdge(e);
+                        vpEdgesLineBody.push_back(e);
+                        vpEdgeKFLineBody.push_back(pKFi);
+                        vpMapLineEdgeBody.push_back(pML);
+                    
+                        numConsideredLineEdges++;
+                
+    #if CHECK_LINE_VALID_OBSERVATIONS                        
+                        numValidObservations++;
+    #endif
+                    }
                     
                 }
 #endif
@@ -4042,6 +4239,35 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pKF, bool* pbStopFlag, Map* pM
         }*/
     } 
     
+    for(size_t i=0, iend=vpEdgesLineBody.size(); i<iend;i++)
+    {
+        PLVS2::EdgeSE3ProjectLineToBody* e = vpEdgesLineBody[i];
+        MapLinePtr pML = vpMapLineEdgeBody[i];
+
+        if(pML->isBad())
+            continue;
+
+        if(e->chi2()>5.991 || !e->areDepthsPositive())
+        {
+            //pML->muNumLineBAFailures++; 
+            //if(pML->muNumLineBAFailures < kNumMinBAFailuresForErasingMapLine) continue; 
+            
+            KeyFramePtr pKFi = vpEdgeKFLineBody[i];
+            vLineToErase.push_back(make_pair(pKFi,pML));
+            /*
+            std::cout << "removed obs " << pML->mnId << std::endl;
+            std::cout << "error: " << e->chi2() << std::endl;
+            std::cout << "depth start: " << e->depthStart() << std::endl;
+            std::cout << "depth end: " << e->depthEnd() << std::endl;
+             */
+            numLineEdgesOutliers++;
+        }
+        /*else
+        {
+            pML->muNumLineBAFailures = 0; 
+        }*/
+    } 
+
 #if USE_LINE_STEREO  
 
 #if VERBOSE_TOT_3DLINE_ALIGNMENT_ERROR    
@@ -5769,7 +5995,6 @@ void Optimizer::LocalInertialBA(KeyFramePtr pKF, bool *pbStopFlag, Map *pMap, in
 
     vector<MapLinePtr> vpMapLineEdgeStereo;
     vpMapLineEdgeStereo.reserve(nExpectedSizeLines);
-
 #endif 
 
 
@@ -5976,153 +6201,188 @@ void Optimizer::LocalInertialBA(KeyFramePtr pKF, bool *pbStopFlag, Map *pMap, in
                     uRightLineEnd = pKFi->mvuRightLineEnd[leftIndex];
                 }
 
-                const cv::line_descriptor_c::KeyLine &klUn = pKFi->mvKeyLinesUn[leftIndex];
-                Line2DRepresentation lineRepresentation;
-                Geom2DUtils::GetLine2dRepresentationNoTheta(klUn.startPointX,klUn.startPointY,klUn.endPointX,klUn.endPointY, lineRepresentation);
-                
-                Eigen::Matrix<double,3,1> obs;
-                obs << lineRepresentation.nx, lineRepresentation.ny, (-lineRepresentation.d);  
-
-                // Monocular observation
-    #if USE_LINES_STEREO_INERTIAL                
-                if( leftIndex != -1 && ( uRightLineStart<0 || uRightLineEnd<0 ) )
-    #endif                     
+                if( leftIndex != -1)
                 {
-                    mVisEdges[pKFi->mnId] += Tracking::sknLineTrackWeigth;
-
-                    EdgeLineMono* e = new EdgeLineMono(0);
-
-                    e->setVertex(0, vertexLine);
-                    e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnId)));
-                    e->setMeasurement(obs);
+                    const cv::line_descriptor_c::KeyLine &klUn = pKFi->mvKeyLinesUn[leftIndex];
+                    Line2DRepresentation lineRepresentation;
+                    Geom2DUtils::GetLine2dRepresentationNoTheta(klUn.startPointX,klUn.startPointY,klUn.endPointX,klUn.endPointY, lineRepresentation);
                     
-                    // Add here uncertainty
-                    const float unc2 = 1.0;// pKFi->mpCamera->uncertainty2(obs);
+                    Eigen::Matrix<double,3,1> obs;
+                    obs << lineRepresentation.nx, lineRepresentation.ny, (-lineRepresentation.d);  
 
-    #if !USE_NEW_LINE_INFORMATION_MAT   
-                    const float invSigma2 = pKFi->mvLineInvLevelSigma2[klUn.octave]/unc2;
-                    e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
-    #else
-                    const float sigma2 = pKFi->mvLineLevelSigma2[klUn.octave]*unc2;
+                    // Monocular observation
+        #if USE_LINES_STEREO_INERTIAL                
+                    if( uRightLineStart<0 || uRightLineEnd<0 )
+        #endif                     
+                    {
+                        mVisEdges[pKFi->mnId] += Tracking::sknLineTrackWeigth;
 
-                    Eigen::Matrix2d Info = Eigen::Matrix2d::Zero(); 
-                    Eigen::Vector2d projMapP, projMapQ;
-                    e->getMapLineProjections(projMapP, projMapQ);
-                    Set2DLineInformationMat(Info(0,0),Info(1,1), sigma2, 
-                            klUn.startPointX,klUn.startPointY, 
-                            klUn.endPointX,klUn.endPointY, 
-                            lineRepresentation.nx, lineRepresentation.ny, 
-                            projMapP, projMapQ);
-                    e->setInformation(Info);
-    #endif       
+                        EdgeLineMono* e = new EdgeLineMono(0);
 
-        #if USE_CAUCHY_KERNEL_FOR_LINES
-                    g2o::RobustKernelCauchy* rk = new g2o::RobustKernelCauchy;
-        #else 
-                    g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
-                    rk->setDelta(thHuberLineMono);
-        #endif    
-                    e->setRobustKernel(rk);
-                    
-                    optimizer.addEdge(e);
-                    
-                    vpEdgesMonoLines.push_back(e);
-                    vpEdgeKFMonoLines.push_back(pKFi);
-                    vpMapLineEdgeMono.push_back(pML);
-                }
-                // Stereo-observation
-                else if(leftIndex != -1) 
-                {
-                    mVisEdges[pKFi->mnId] += Tracking::sknLineTrackWeigth;
+                        e->setVertex(0, vertexLine);
+                        e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnId)));
+                        e->setMeasurement(obs);
+                        
+                        // Add here uncertainty
+                        const float unc2 = 1.0;// pKFi->mpCamera->uncertainty2(obs);
 
-                    EdgeLineStereo* e = new EdgeLineStereo(0);
+        #if !USE_NEW_LINE_INFORMATION_MAT   
+                        const float invSigma2 = pKFi->mvLineInvLevelSigma2[klUn.octave]/unc2;
+                        e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
+        #else
+                        const float sigma2 = pKFi->mvLineLevelSigma2[klUn.octave]*unc2;
 
-                    e->setVertex(0, vertexLine);
-                    e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnId)));
-                    e->setMeasurement(obs);
-
-                    // the following two are actually derived/indirect observations (using also depth measurements) but we keep them cached inside the edge for simplicity
-                    const Eigen::Vector3f XSc_backproj = imuCamPose.pCamera[0]->unprojectEig(cv::Point2f(klUn.startPointX,klUn.startPointY),pKFi->mvDepthLineStart[leftIndex] );
-                    const Eigen::Vector3f XEc_backproj = imuCamPose.pCamera[0]->unprojectEig(cv::Point2f(klUn.endPointX,klUn.endPointY),pKFi->mvDepthLineEnd[leftIndex] );
-                    //std::cout << "XSc_backproj: " << XSc_backproj.transpose() << ", XEc_backproj: " << XEc_backproj.transpose() << std::endl; 
-                    e->setBackprojections(XSc_backproj, XEc_backproj);
-                    e->muWeigth = Optimizer::skMuWeightForLine3dDist;
-                    
-                    e->init(); // here we check the match between Bp and P (Bq and Q)
-
-                    // Add here uncertainty
-                    const float unc2 = 1.0; //pKFi->mpCamera->uncertainty2(obs.head(2));
-
-    #if !USE_NEW_LINE_INFORMATION_MAT                   
-                    const float invSigma2 = pKFi->mvLineInvLevelSigma2[klUn.octave]/unc2;
-                    // N.B: we modulate all the information matrix with invSigma2 (so that all the components of the line error are weighted uniformly according to the detection uncertainty)                
-                    const float invSigma2LineError3D = skInvSigma2LineError3D * invSigma2; //kInvSigma2PointLineDistance;
-                    Eigen::Matrix<double,4,4> Info = Eigen::Matrix<double,4,4>::Identity();
-                    Info(0,0)*=invSigma2;
-                    Info(1,1)*=invSigma2;
-                    Info(2,2)*=invSigma2LineError3D;//kInvSigma2PointLineDistance;
-                    Info(3,3)*=invSigma2LineError3D;//kInvSigma2PointLineDistance;
-    #else
-                    const float sigma2 = pKFi->mvLineLevelSigma2[klUn.octave]*unc2;
-                    Eigen::Matrix<double,4,4> Info = Eigen::Matrix<double,4,4>::Zero();
-                    Eigen::Vector2d projMapP, projMapQ;
-                    Eigen::Vector3d mapP, mapQ;
-                    e->getMapLineAndProjections(mapP, mapQ, projMapP, projMapQ);
-                    Eigen::Vector3d &backprojP = e->XSbc;
-                    Eigen::Vector3d &backprojQ = e->XEbc; 
-
-                    Set2DLineInformationMat(Info(0,0),Info(1,1), sigma2, 
-                            klUn.startPointX,klUn.startPointY, 
-                            klUn.endPointX,klUn.endPointY, 
-                            lineRepresentation.nx, lineRepresentation.ny, 
-                            projMapP, projMapQ);
-    #if USE_NEW_LINE_INFORMATION_MAT_STEREO                
-                    Set3DLineInformationMat(Info(2,2),Info(3,3), 
-                                    sigma2, klUn.octave,
-                                    pKFi->fx, pKFi->fy, pKFi->mbfInv, 
-                                    projMapP, projMapQ, 
-                                    mapP, mapQ,
-                                    backprojP, backprojQ);    
-    #else
-                    const float invSigma2 = pKFi->mvLineInvLevelSigma2[klUn.octave];
-                    // N.B: we modulate all the information matrix with invSigma2 (so that all the components of the line error are weighted uniformly according to the detection uncertainty)                
-                    const float invSigma2LineError3D = skInvSigma2LineError3D * invSigma2; //kInvSigma2PointLineDistance;
-                    Info(2,2)=invSigma2LineError3D;//kInvSigma2PointLineDistance;
-                    Info(3,3)=invSigma2LineError3D;//kInvSigma2PointLineDistance;
-    #endif
-                    
-    #endif
-                    
-                    e->setInformation(Info);                    
+                        Eigen::Matrix2d Info = Eigen::Matrix2d::Zero(); 
+                        Eigen::Vector2d projMapP, projMapQ;
+                        e->getMapLineProjections(projMapP, projMapQ);
+                        Set2DLineInformationMat(Info(0,0),Info(1,1), sigma2, 
+                                klUn.startPointX,klUn.startPointY, 
+                                klUn.endPointX,klUn.endPointY, 
+                                lineRepresentation.nx, lineRepresentation.ny, 
+                                projMapP, projMapQ);
+                        e->setInformation(Info);
+        #endif       
 
             #if USE_CAUCHY_KERNEL_FOR_LINES
-                    g2o::RobustKernelCauchy* rk = new g2o::RobustKernelCauchy;
+                        g2o::RobustKernelCauchy* rk = new g2o::RobustKernelCauchy;
             #else 
-                    g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
-                    rk->setDelta(thHuberLineStereo);
+                        g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+                        rk->setDelta(thHuberLineMono);
             #endif    
-                    e->setRobustKernel(rk);
+                        e->setRobustKernel(rk);
+                        
+                        optimizer.addEdge(e);
+                        
+                        vpEdgesMonoLines.push_back(e);
+                        vpEdgeKFMonoLines.push_back(pKFi);
+                        vpMapLineEdgeMono.push_back(pML);
+                    }
+                    // Stereo-observation
+                    else 
+                    {
+                        mVisEdges[pKFi->mnId] += Tracking::sknLineTrackWeigth;
 
-                    optimizer.addEdge(e);
-                    
-                    vpEdgesStereoLines.push_back(e);
-                    vpEdgeKFStereoLines.push_back(pKFi);
-                    vpMapLineEdgeStereo.push_back(pML);
-                }
+                        EdgeLineStereo* e = new EdgeLineStereo(0);
 
-            #if 0
-                // Add line support here 
+                        e->setVertex(0, vertexLine);
+                        e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnId)));
+                        e->setMeasurement(obs);
 
+                        // the following two are actually derived/indirect observations (using also depth measurements) but we keep them cached inside the edge for simplicity
+                        const Eigen::Vector3f XSc_backproj = imuCamPose.pCamera[0]->unprojectEigLinear(cv::Point2f(klUn.startPointX,klUn.startPointY),pKFi->mvDepthLineStart[leftIndex] );
+                        const Eigen::Vector3f XEc_backproj = imuCamPose.pCamera[0]->unprojectEigLinear(cv::Point2f(klUn.endPointX,klUn.endPointY),pKFi->mvDepthLineEnd[leftIndex] );
+                        //std::cout << "XSc_backproj: " << XSc_backproj.transpose() << ", XEc_backproj: " << XEc_backproj.transpose() << std::endl; 
+                        e->setBackprojections(XSc_backproj, XEc_backproj);
+                        e->muWeigth = Optimizer::skMuWeightForLine3dDist;
+                        
+                        e->init(); // here we check the match between Bp and P (Bq and Q)
+
+                        // Add here uncertainty
+                        const float unc2 = 1.0; //pKFi->mpCamera->uncertainty2(obs.head(2));
+
+        #if !USE_NEW_LINE_INFORMATION_MAT                   
+                        const float invSigma2 = pKFi->mvLineInvLevelSigma2[klUn.octave]/unc2;
+                        // N.B: we modulate all the information matrix with invSigma2 (so that all the components of the line error are weighted uniformly according to the detection uncertainty)                
+                        const float invSigma2LineError3D = skInvSigma2LineError3D * invSigma2; //kInvSigma2PointLineDistance;
+                        Eigen::Matrix<double,4,4> Info = Eigen::Matrix<double,4,4>::Identity();
+                        Info(0,0)*=invSigma2;
+                        Info(1,1)*=invSigma2;
+                        Info(2,2)*=invSigma2LineError3D;//kInvSigma2PointLineDistance;
+                        Info(3,3)*=invSigma2LineError3D;//kInvSigma2PointLineDistance;
+        #else
+                        const float sigma2 = pKFi->mvLineLevelSigma2[klUn.octave]*unc2;
+                        Eigen::Matrix<double,4,4> Info = Eigen::Matrix<double,4,4>::Zero();
+                        Eigen::Vector2d projMapP, projMapQ;
+                        Eigen::Vector3d mapP, mapQ;
+                        e->getMapLineAndProjections(mapP, mapQ, projMapP, projMapQ);
+                        Eigen::Vector3d &backprojP = e->XSbc;
+                        Eigen::Vector3d &backprojQ = e->XEbc; 
+
+                        Set2DLineInformationMat(Info(0,0),Info(1,1), sigma2, 
+                                klUn.startPointX,klUn.startPointY, 
+                                klUn.endPointX,klUn.endPointY, 
+                                lineRepresentation.nx, lineRepresentation.ny, 
+                                projMapP, projMapQ);
+            #if USE_NEW_LINE_INFORMATION_MAT_STEREO                
+                        Set3DLineInformationMat(Info(2,2),Info(3,3), 
+                                        sigma2, klUn.octave,
+                                        pKFi->fx, pKFi->fy, pKFi->mbfInv, 
+                                        projMapP, projMapQ, 
+                                        mapP, mapQ,
+                                        backprojP, backprojQ);    
+            #else
+                        const float invSigma2 = pKFi->mvLineInvLevelSigma2[klUn.octave];
+                        // N.B: we modulate all the information matrix with invSigma2 (so that all the components of the line error are weighted uniformly according to the detection uncertainty)                
+                        const float invSigma2LineError3D = skInvSigma2LineError3D * invSigma2; //kInvSigma2PointLineDistance;
+                        Info(2,2)=invSigma2LineError3D;//kInvSigma2PointLineDistance;
+                        Info(3,3)=invSigma2LineError3D;//kInvSigma2PointLineDistance;
+            #endif
+                        
+        #endif
+                        
+                        e->setInformation(Info);                    
+
+                #if USE_CAUCHY_KERNEL_FOR_LINES
+                        g2o::RobustKernelCauchy* rk = new g2o::RobustKernelCauchy;
+                #else 
+                        g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+                        rk->setDelta(thHuberLineStereo);
+                #endif    
+                        e->setRobustKernel(rk);
+
+                        optimizer.addEdge(e);
+                        
+                        vpEdgesStereoLines.push_back(e);
+                        vpEdgeKFStereoLines.push_back(pKFi);
+                        vpMapLineEdgeStereo.push_back(pML);
+                    }
+                } // if( leftIndex != -1)
+
+    #if USE_LINES_RIGHT_PROJECTION
                 // Monocular right observation
                 if(pKFi->mpCamera2){
                     int rightIndex = get<1>(mit->second);
 
-                    if(rightIndex != -1 ){
-                    ...
+                    if(rightIndex != -1 )
+                    {
+                        rightIndex -= pKFi->NlinesLeft;                    
+                        mVisEdges[pKFi->mnId] += Tracking::sknLineTrackWeigth;
+
+                        const cv::line_descriptor_c::KeyLine &klUn = pKFi->mvKeyLinesRightUn[rightIndex];
+                        Line2DRepresentation lineRepresentation;
+                        Geom2DUtils::GetLine2dRepresentationNoTheta(klUn.startPointX,klUn.startPointY,klUn.endPointX,klUn.endPointY, lineRepresentation);
+                        
+                        Eigen::Matrix<double,3,1> obs;
+                        obs << lineRepresentation.nx, lineRepresentation.ny, (-lineRepresentation.d);  
+
+                        EdgeLineMono* e = new EdgeLineMono(1); // 1 = right camera index 
+
+                        e->setVertex(0, vertexLine);
+                        e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnId)));
+                        e->setMeasurement(obs);
+                        
+                        // Add here uncertainty
+                        const float unc2 = 1.0;// pKFi->mpCamera->uncertainty2(obs);
+  
+                        const float invSigma2 = pKFi->mvLineInvLevelSigma2[klUn.octave]/unc2;
+                        e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);   
+
+            #if USE_CAUCHY_KERNEL_FOR_LINES
+                        g2o::RobustKernelCauchy* rk = new g2o::RobustKernelCauchy;
+            #else 
+                        g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+                        rk->setDelta(thHuberLineMono);
+            #endif    
+                        e->setRobustKernel(rk);
+                        
+                        optimizer.addEdge(e);
+                        
+                        vpEdgesMonoLines.push_back(e);
+                        vpEdgeKFMonoLines.push_back(pKFi);
+                        vpMapLineEdgeMono.push_back(pML);                        
                     }
                 } 
-            #endif 
-
+    #endif // USE_LINES_RIGHT_PROJECTION
             }
         }
     }
@@ -7239,7 +7499,8 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pMainKF, vector<KeyFramePtr> v
         for(map<KeyFramePtr,tuple<int,int>>::const_iterator mit=observations.begin(); mit!=observations.end(); mit++)
         {
             KeyFramePtr pKF = mit->first;
-            if(pKF->isBad() || pKF->mnId>maxKFid || pKF->mnBALocalForMerge != pMainKF->mnId || !pKF->GetMapPoint(get<0>(mit->second)))
+            const int leftIndex = get<0>(mit->second);
+            if(pKF->isBad() || leftIndex == -1 || pKF->mnId>maxKFid || pKF->mnBALocalForMerge != pMainKF->mnId || !pKF->GetMapPoint(leftIndex))
                 continue;
 
             g2o::OptimizableGraph::Vertex* vertexKFi = dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKF->mnId));
@@ -7248,9 +7509,9 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pMainKF, vector<KeyFramePtr> v
                             
             nEdges++;
 
-            const cv::KeyPoint &kpUn = pKF->mvKeysUn[get<0>(mit->second)];
+            const cv::KeyPoint &kpUn = pKF->mvKeysUn[leftIndex];
 
-            if(pKF->mvuRight[get<0>(mit->second)]<0) //Monocular
+            if(pKF->mvuRight[leftIndex]<0) //Monocular
             {
                 mpObsMPs[pMPi]++;
                 Eigen::Matrix<double,2,1> obs;
@@ -7285,12 +7546,12 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pMainKF, vector<KeyFramePtr> v
                 mpObsMPs[pMPi]+=2;
                 Eigen::Matrix<double,3,1> obs;
 #if !USE_RGBD_POINT_REPROJ_ERR                 
-                const float kp_ur = pKF->mvuRight[get<0>(mit->second)];
+                const float kp_ur = pKF->mvuRight[leftIndex];
                 obs << kpUn.pt.x, kpUn.pt.y, kp_ur;
 
                 g2o::EdgeStereoSE3ProjectXYZ* e = new g2o::EdgeStereoSE3ProjectXYZ();
 #else
-                const float kpDelta = pKFi->mvDepth[get<0>(mit->second)];
+                const float kpDelta = pKFi->mvDepth[leftIndex];
                 obs << kpUn.pt.x, kpUn.pt.y, kpDelta;
 
                 g2o::EdgeRgbdSE3ProjectXYZ* e = new g2o::EdgeRgbdSE3ProjectXYZ();                    
@@ -7371,7 +7632,8 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pMainKF, vector<KeyFramePtr> v
         for(map<KeyFramePtr,tuple<int,int>>::const_iterator mit=observations.begin(); mit!=observations.end(); mit++)
         {
             KeyFramePtr pKF = mit->first;
-            if(pKF->isBad() || pKF->mnId>maxKFid || pKF->mnBALocalForMerge != pMainKF->mnId || !pKF->GetMapLine(get<0>(mit->second)))
+            const int leftIndex = get<0>(mit->second);
+            if(pKF->isBad() || leftIndex == -1 || pKF->mnId>maxKFid || pKF->mnBALocalForMerge != pMainKF->mnId || !pKF->GetMapLine(leftIndex))
                 continue;
 
             g2o::OptimizableGraph::Vertex* vertexKFi = dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKF->mnId));
@@ -7379,8 +7641,6 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pMainKF, vector<KeyFramePtr> v
                     continue;
                             
             nEdges++;
-            
-            const int leftIndex = get<0>(mit->second);
 
             const cv::line_descriptor_c::KeyLine &klUn = pKF->mvKeyLinesUn[leftIndex];
             Line2DRepresentation lineRepresentation;
@@ -7953,10 +8213,11 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pMainKF, vector<KeyFramePtr> v
         for(map<KeyFramePtr,tuple<int,int>>::const_iterator mit=observations.begin(); mit!=observations.end(); mit++)
         {
             KeyFramePtr pKF = mit->first;
-            if(pKF->isBad() || pKF->mnId>maxKFid || pKF->mnBALocalForKF != pMainKF->mnId || !pKF->GetMapPoint(get<0>(mit->second)))
+            const int leftIndex = get<0>(mit->second);
+            if(pKF->isBad() || leftIndex == -1 || pKF->mnId>maxKFid || pKF->mnBALocalForKF != pMainKF->mnId || !pKF->GetMapPoint(leftIndex))
                 continue;
 
-            if(pKF->mvuRight[get<0>(mit->second)]<0) //Monocular
+            if(pKF->mvuRight[leftIndex]<0) //Monocular
             {
                 mpObsFinalKFs[pKF]++;
             }
@@ -8018,10 +8279,10 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pMainKF, vector<KeyFramePtr> v
         for(map<KeyFramePtr,tuple<int,int>>::const_iterator mit=observations.begin(); mit!=observations.end(); mit++)
         {
             KeyFramePtr pKF = mit->first;
-            if(pKF->isBad() || pKF->mnId>maxKFid || pKF->mnBALocalForKF != pMainKF->mnId || !pKF->GetMapLine(get<0>(mit->second)))
+            const int leftIndex = get<0>(mit->second);
+            if(pKF->isBad() || leftIndex == -1 || pKF->mnId>maxKFid || pKF->mnBALocalForKF != pMainKF->mnId || !pKF->GetMapLine(leftIndex))
                 continue;
 
-            const int leftIndex = get<0>(mit->second);
             const cv::line_descriptor_c::KeyLine &klUn = pKF->mvKeyLinesUn[leftIndex];
 
             if( (pKF->mvuRightLineStart[leftIndex]<0) || (pKF->mvuRightLineEnd[leftIndex]<0) ) //Monocular    
@@ -8062,6 +8323,8 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pMainKF, vector<KeyFramePtr> v
         g2o::SE3Quat SE3quat = vSE3->estimate();
         Sophus::SE3f Tiw(SE3quat.rotation().cast<float>(), SE3quat.translation().cast<float>());
 
+#if 1
+        // collect some statistics for debugging 
         int numMonoBadPoints = 0, numMonoOptPoints = 0;
         int numStereoBadPoints = 0, numStereoOptPoints = 0;
         vector<MapPointPtr> vpMonoMPsOpt, vpStereoMPsOpt;
@@ -8121,12 +8384,14 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pMainKF, vector<KeyFramePtr> v
             }
         }
 
+        // TODO Luigi: add lines here for stats 
 
         if(numMonoOptPoints + numStereoOptPoints < 50)
         {
             Verbose::PrintMess("LBA ERROR: KF " + to_string(pKFi->mnId) + " has only " + to_string(numMonoOptPoints) + " monocular and " + to_string(numStereoOptPoints) + " stereo points", Verbose::VERBOSITY_DEBUG);
         }
-        
+#endif 
+
         pKFi->SetPose(Tiw);
         pKFi->mnLBACount++;
     }
@@ -8153,8 +8418,6 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pMainKF, vector<KeyFramePtr> v
         g2o::VertexSBALine* vLine = static_cast<g2o::VertexSBALine*>(optimizer.vertex(pMLi->mnId+maxPointId+1));
         //if(vLine==NULL) continue; // check if we actually inserted the line in the graph 
         const Eigen::Matrix<double,6,1> line(vLine->estimate());
-        // const cv::Mat pStartNew = Converter::toCvMat(static_cast<const Eigen::Matrix<double,3,1> >(line.head(3)));
-        // const cv::Mat pEndNew   = Converter::toCvMat(static_cast<const Eigen::Matrix<double,3,1> >(line.tail(3)));
         Eigen::Vector3f pStartNew = (static_cast<const Eigen::Matrix<double,3,1> >(line.head(3))).cast<float>();
         Eigen::Vector3f pEndNew   = (static_cast<const Eigen::Matrix<double,3,1> >(line.tail(3))).cast<float>();         
 
@@ -8187,7 +8450,6 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pMainKF, vector<KeyFramePtr> v
 }
 
 
-/// < TODO: Luigi add lines here!
 void Optimizer::MergeInertialBA(KeyFramePtr pCurrKF, KeyFramePtr pMergeKF, bool *pbStopFlag, Map *pMap, LoopClosing::KeyFrameAndPose &corrPoses)
 {
 #if 1 //VERBOSE_BA
@@ -8663,11 +8925,16 @@ void Optimizer::MergeInertialBA(KeyFramePtr pCurrKF, KeyFramePtr pMergeKF, bool 
             if(optimizer.vertex(id)==NULL || optimizer.vertex(pKFi->mnId)==NULL)
                 continue;
 
+            const int leftIndex = get<0>(mit->second);
+            if(leftIndex == -1) {
+                continue; 
+            }
+
             if(!pKFi->isBad())
             {
-                const cv::KeyPoint &kpUn = pKFi->mvKeysUn[get<0>(mit->second)];
+                const cv::KeyPoint &kpUn = pKFi->mvKeysUn[leftIndex];
 
-                if(pKFi->mvuRight[get<0>(mit->second)]<0) // Monocular observation
+                if(pKFi->mvuRight[leftIndex]<0) // Monocular observation
                 {
                     Eigen::Matrix<double,2,1> obs;
                     obs << kpUn.pt.x, kpUn.pt.y;
@@ -8691,7 +8958,7 @@ void Optimizer::MergeInertialBA(KeyFramePtr pCurrKF, KeyFramePtr pMergeKF, bool 
                 }
                 else // stereo observation
                 {
-                    const float kp_ur = pKFi->mvuRight[get<0>(mit->second)];
+                    const float kp_ur = pKFi->mvuRight[leftIndex];
                     Eigen::Matrix<double,3,1> obs;
                     obs << kpUn.pt.x, kpUn.pt.y, kp_ur;
 
@@ -8761,6 +9028,10 @@ void Optimizer::MergeInertialBA(KeyFramePtr pCurrKF, KeyFramePtr pMergeKF, bool 
             if(optimizer.vertex(id)==NULL || optimizer.vertex(pKFi->mnId)==NULL)
                 continue;
 
+            const int leftIndex = get<0>(mit->second);
+            if(leftIndex == -1)
+                continue; 
+
             if(!pKFi->isBad())
             {
                 VertexPose* VP = dynamic_cast<VertexPose*>(optimizer.vertex(pKFi->mnId));
@@ -8768,14 +9039,8 @@ void Optimizer::MergeInertialBA(KeyFramePtr pCurrKF, KeyFramePtr pMergeKF, bool 
                     continue;    
                 const ImuCamPose& imuCamPose = VP->estimate();
 
-                const int leftIndex = get<0>(mit->second);
-                float uRightLineStart = -1;
-                float uRightLineEnd = -1;
-                if(leftIndex != -1) 
-                {
-                    uRightLineStart = pKFi->mvuRightLineStart[leftIndex];
-                    uRightLineEnd = pKFi->mvuRightLineEnd[leftIndex];
-                }
+                const float uRightLineStart = pKFi->mvuRightLineStart[leftIndex];
+                const float uRightLineEnd = pKFi->mvuRightLineEnd[leftIndex];
 
                 const cv::line_descriptor_c::KeyLine &klUn = pKFi->mvKeyLinesUn[leftIndex];
                 Line2DRepresentation lineRepresentation;
@@ -8835,8 +9100,8 @@ void Optimizer::MergeInertialBA(KeyFramePtr pCurrKF, KeyFramePtr pMergeKF, bool 
                     e->setMeasurement(obs);
 
                     // the following two are actually derived/indirect observations (using also depth measurements) but we keep them cached inside the edge for simplicity
-                    const Eigen::Vector3f XSc_backproj = imuCamPose.pCamera[0]->unprojectEig(cv::Point2f(klUn.startPointX,klUn.startPointY),pKFi->mvDepthLineStart[leftIndex] );
-                    const Eigen::Vector3f XEc_backproj = imuCamPose.pCamera[0]->unprojectEig(cv::Point2f(klUn.endPointX,klUn.endPointY),pKFi->mvDepthLineEnd[leftIndex] );
+                    const Eigen::Vector3f XSc_backproj = imuCamPose.pCamera[0]->unprojectEigLinear(cv::Point2f(klUn.startPointX,klUn.startPointY),pKFi->mvDepthLineStart[leftIndex] );
+                    const Eigen::Vector3f XEc_backproj = imuCamPose.pCamera[0]->unprojectEigLinear(cv::Point2f(klUn.endPointX,klUn.endPointY),pKFi->mvDepthLineEnd[leftIndex] );
                     //std::cout << "XSc_backproj: " << XSc_backproj.transpose() << ", XEc_backproj: " << XEc_backproj.transpose() << std::endl; 
                     e->setBackprojections(XSc_backproj, XEc_backproj);
                     e->muWeigth = Optimizer::skMuWeightForLine3dDist;
@@ -9162,7 +9427,7 @@ int Optimizer::PoseInertialOptimizationLastKeyFrame(Frame *pFrame, bool bRecInit
     // Set MapLine vertices
     const int Nlines = pFrame->Nlines;
     const int NlinesLeft = pFrame->NlinesLeft;
-    const bool bLinesRight = (NlinesLeft!=-1);    
+    //const bool bLinesRight = (NlinesLeft!=-1);    
     
     vector<EdgeLineMonoOnlyPose*> vpEdgesLineMono;
     vector<EdgeLineStereoOnlyPose*> vpEdgesLineStereo;    
@@ -9296,8 +9561,9 @@ int Optimizer::PoseInertialOptimizationLastKeyFrame(Frame *pFrame, bool bRecInit
             MapLinePtr pML = pFrame->mvpMapLines[i];
             if(pML)
             {
-                //Conventional SLAM
-                if(!pFrame->mpCamera2)
+                if( !pFrame->mpCamera2 ||                                  // Convential left image of pinhole cameras 
+                    ( (pFrame->mpCamera2) && (i < pFrame->NlinesLeft) )    // Left image of fisheye cameras
+                )
                 {
                     // Monocular observation
             #if USE_LINE_STEREO            
@@ -9316,13 +9582,13 @@ int Optimizer::PoseInertialOptimizationLastKeyFrame(Frame *pFrame, bool bRecInit
 
                         Eigen::Vector3f XSw, XEw;
                         pML->GetWorldEndPoints(XSw, XEw); 
-                        EdgeLineMonoOnlyPose* e = new EdgeLineMonoOnlyPose(XSw,XEw,0);
+                        EdgeLineMonoOnlyPose* e = new EdgeLineMonoOnlyPose(XSw,XEw,0); // 0 = left camera index 
 
                         e->setVertex(0,VP);
                         e->setMeasurement(obs);
 
                         // Add here uncertainty
-                        const float unc2 = 1; //pFrame->mpCamera->uncertainty2(obs);
+                        const float unc2 = 1.0f; //pFrame->mpCamera->uncertainty2(obs);
 
             #if !USE_NEW_LINE_INFORMATION_MAT   
                         const float invSigma2 = pFrame->mvLineInvLevelSigma2[klUn.octave]/unc2;
@@ -9371,19 +9637,19 @@ int Optimizer::PoseInertialOptimizationLastKeyFrame(Frame *pFrame, bool bRecInit
 
                         Eigen::Vector3f XSw, XEw;
                         pML->GetWorldEndPoints(XSw, XEw);  
-                        EdgeLineStereoOnlyPose* e = new EdgeLineStereoOnlyPose(XSw, XEw);
+                        EdgeLineStereoOnlyPose* e = new EdgeLineStereoOnlyPose(XSw, XEw, 0); // 0 = left camera index 
 
                         e->setVertex(0, VP);
                         e->setMeasurement(obs);
 
                         // the following two are actually derived/indirect observations (using also depth measurements) but we keep them cached inside the edge for simplicity
-                        const Eigen::Vector3f XSc_backproj = imuCamPose.pCamera[0]->unprojectEig(cv::Point2f(klUn.startPointX,klUn.startPointY),pFrame->mvDepthLineStart[i] );
-                        const Eigen::Vector3f XEc_backproj = imuCamPose.pCamera[0]->unprojectEig(cv::Point2f(klUn.endPointX,klUn.endPointY),pFrame->mvDepthLineEnd[i] );
+                        const Eigen::Vector3f XSc_backproj = imuCamPose.pCamera[0]->unprojectEigLinear(cv::Point2f(klUn.startPointX,klUn.startPointY),pFrame->mvDepthLineStart[i] );
+                        const Eigen::Vector3f XEc_backproj = imuCamPose.pCamera[0]->unprojectEigLinear(cv::Point2f(klUn.endPointX,klUn.endPointY),pFrame->mvDepthLineEnd[i] );
                         e->setBackprojections(XSc_backproj, XEc_backproj);
                         e->init();  
 
                         // Add here uncertainty
-                        const float unc2 = 1.0; //pFrame->mpCamera->uncertainty2(obs.head(2));
+                        const float unc2 = 1.0f; //pFrame->mpCamera->uncertainty2(obs.head(2));
 
             #if !USE_NEW_LINE_INFORMATION_MAT                   
                         const float invSigma2 = pFrame->mvLineInvLevelSigma2[klUn.octave]/unc2;
@@ -9441,12 +9707,47 @@ int Optimizer::PoseInertialOptimizationLastKeyFrame(Frame *pFrame, bool bRecInit
                     }
         #endif // #if USE_LINE_STEREO 
                 }
+    #if USE_LINES_RIGHT_PROJECTION                
                 else         
-                { // Left-Right SLAM 
+                { // Right image SLAM 
+                    nInitialLineCorrespondences++;
+                    pFrame->mvbLineOutlier[i] = false;
+                    pFrame->mvuNumLinePosOptFailures[i] = 0;
 
-                    /// < TODO: Luigi add line management here        
+                    Eigen::Matrix<double,3,1> obs;
+                    const cv::line_descriptor_c::KeyLine &klUn = pFrame->mvKeyLinesRightUn[i-pFrame->NlinesLeft];
+                    Line2DRepresentation lineRepresentation;
+                    Geom2DUtils::GetLine2dRepresentationNoTheta(klUn.startPointX,klUn.startPointY,klUn.endPointX,klUn.endPointY, lineRepresentation);
+                    obs << lineRepresentation.nx, lineRepresentation.ny, (-lineRepresentation.d);
+
+                    Eigen::Vector3f XSw, XEw;
+                    pML->GetWorldEndPoints(XSw, XEw); 
+                    EdgeLineMonoOnlyPose* e = new EdgeLineMonoOnlyPose(XSw,XEw,1); // 1 = right camera index 
+
+                    e->setVertex(0,VP);
+                    e->setMeasurement(obs);
+
+                    // Add here uncertainty
+                    const float unc2 = 1.0f; //pFrame->mpCamera2->uncertainty2(obs);
+
+                    const float invSigma2 = pFrame->mvLineInvLevelSigma2[klUn.octave]/unc2;
+                    e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
+
+        #if USE_CAUCHY_KERNEL_FOR_LINES
+                    g2o::RobustKernelCauchy* rk = new g2o::RobustKernelCauchy;
+        #else 
+                    g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+                    rk->setDelta(deltaLineMono);
+        #endif      
+                    e->setRobustKernel(rk);
+
+                    optimizer.addEdge(e);
+
+                    vpEdgesLineMono.push_back(e);
+                    vnIndexEdgeLineMono.push_back(i);                    
 
                 }
+    #endif 
 
             } // if(pML)
 
@@ -9885,7 +10186,7 @@ int Optimizer::PoseInertialOptimizationLastFrame(Frame *pFrame, bool bRecInit)
     // Set MapLine vertices
     const int Nlines = pFrame->Nlines;
     const int NlinesLeft = pFrame->NlinesLeft;
-    const bool bLinesRight = (NlinesLeft!=-1);    
+    //const bool bLinesRight = (NlinesLeft!=-1);    
     
     vector<EdgeLineMonoOnlyPose*> vpEdgesLineMono;
     vector<EdgeLineStereoOnlyPose*> vpEdgesLineStereo;    
@@ -10019,8 +10320,9 @@ int Optimizer::PoseInertialOptimizationLastFrame(Frame *pFrame, bool bRecInit)
             MapLinePtr pML = pFrame->mvpMapLines[i];
             if(pML)
             {
-                //Conventional SLAM
-                if(!pFrame->mpCamera2)
+                if( !pFrame->mpCamera2 ||                                  // Convential left image of pinhole cameras 
+                    ( (pFrame->mpCamera2) && (i < pFrame->NlinesLeft) )    // Left image of fisheye cameras
+                )
                 {
                     // Monocular observation
             #if USE_LINE_STEREO            
@@ -10039,7 +10341,7 @@ int Optimizer::PoseInertialOptimizationLastFrame(Frame *pFrame, bool bRecInit)
 
                         Eigen::Vector3f XSw, XEw;
                         pML->GetWorldEndPoints(XSw, XEw); 
-                        EdgeLineMonoOnlyPose* e = new EdgeLineMonoOnlyPose(XSw,XEw,0);
+                        EdgeLineMonoOnlyPose* e = new EdgeLineMonoOnlyPose(XSw,XEw,0); // 0 = left camera index 
 
                         e->setVertex(0,VP);
                         e->setMeasurement(obs);
@@ -10094,14 +10396,14 @@ int Optimizer::PoseInertialOptimizationLastFrame(Frame *pFrame, bool bRecInit)
 
                         Eigen::Vector3f XSw, XEw;
                         pML->GetWorldEndPoints(XSw, XEw);  
-                        EdgeLineStereoOnlyPose* e = new EdgeLineStereoOnlyPose(XSw, XEw);
+                        EdgeLineStereoOnlyPose* e = new EdgeLineStereoOnlyPose(XSw, XEw, 0); // 0 = left camera index 
 
                         e->setVertex(0, VP);
                         e->setMeasurement(obs);
 
                         // the following two are actually derived/indirect observations (using also depth measurements) but we keep them cached inside the edge for simplicity
-                        const Eigen::Vector3f XSc_backproj = imuCamPose.pCamera[0]->unprojectEig(cv::Point2f(klUn.startPointX,klUn.startPointY),pFrame->mvDepthLineStart[i] );
-                        const Eigen::Vector3f XEc_backproj = imuCamPose.pCamera[0]->unprojectEig(cv::Point2f(klUn.endPointX,klUn.endPointY),pFrame->mvDepthLineEnd[i] );
+                        const Eigen::Vector3f XSc_backproj = imuCamPose.pCamera[0]->unprojectEigLinear(cv::Point2f(klUn.startPointX,klUn.startPointY),pFrame->mvDepthLineStart[i] );
+                        const Eigen::Vector3f XEc_backproj = imuCamPose.pCamera[0]->unprojectEigLinear(cv::Point2f(klUn.endPointX,klUn.endPointY),pFrame->mvDepthLineEnd[i] );
                         e->setBackprojections(XSc_backproj, XEc_backproj);
                         e->init();  
 
@@ -10164,12 +10466,48 @@ int Optimizer::PoseInertialOptimizationLastFrame(Frame *pFrame, bool bRecInit)
                     }
         #endif // #if USE_LINE_STEREO 
                 }
+    #if USE_LINES_RIGHT_PROJECTION
                 else         
-                { // Left-Right SLAM 
+                { // Right image SLAM 
+                
+                    nInitialLineCorrespondences++;
+                    pFrame->mvbLineOutlier[i] = false;
+                    pFrame->mvuNumLinePosOptFailures[i] = 0;
 
-                    /// < TODO: Luigi add line management here        
+                    Eigen::Matrix<double,3,1> obs;
+                    const cv::line_descriptor_c::KeyLine &klUn = pFrame->mvKeyLinesRightUn[i-pFrame->NlinesLeft];
+                    Line2DRepresentation lineRepresentation;
+                    Geom2DUtils::GetLine2dRepresentationNoTheta(klUn.startPointX,klUn.startPointY,klUn.endPointX,klUn.endPointY, lineRepresentation);
+                    obs << lineRepresentation.nx, lineRepresentation.ny, (-lineRepresentation.d);
+
+                    Eigen::Vector3f XSw, XEw;
+                    pML->GetWorldEndPoints(XSw, XEw); 
+                    EdgeLineMonoOnlyPose* e = new EdgeLineMonoOnlyPose(XSw,XEw,1); // 1 = right camera index 
+
+                    e->setVertex(0,VP);
+                    e->setMeasurement(obs);
+
+                    // Add here uncertainty
+                    const float unc2 = 1.0f; //pFrame->mpCamera2->uncertainty2(obs);
+
+                    const float invSigma2 = pFrame->mvLineInvLevelSigma2[klUn.octave]/unc2;
+                    e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
+
+        #if USE_CAUCHY_KERNEL_FOR_LINES
+                    g2o::RobustKernelCauchy* rk = new g2o::RobustKernelCauchy;
+        #else 
+                    g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+                    rk->setDelta(deltaLineMono);
+         #endif      
+                    e->setRobustKernel(rk);
+
+                    optimizer.addEdge(e);
+
+                    vpEdgesLineMono.push_back(e);
+                    vnIndexEdgeLineMono.push_back(i);      
 
                 }
+    #endif
 
             } // if(pML)
 

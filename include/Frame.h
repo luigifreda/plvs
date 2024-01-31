@@ -1,6 +1,5 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -175,11 +174,11 @@ public:
 
     
     std::vector<size_t> GetLineFeaturesInArea(const float &xs, const float  &ys, const float &xe, const float  &ye, 
-                                              const float& dtheta = kDeltaTheta, const float& dd = kDeltaD, const int minLevel=-1, const int maxLevel=kMaxInt) const;
+                                              const float& dtheta = kDeltaTheta, const float& dd = kDeltaD, const int minLevel=-1, const int maxLevel=kMaxInt, const bool bRight = false) const;
     std::vector<size_t> GetLineFeaturesInArea(const Line2DRepresentation& lineRepresentation, 
-                                              const float& dtheta = kDeltaTheta, const float& dd = kDeltaD, const int minLevel=-1, const int maxLevel=kMaxInt) const;
+                                              const float& dtheta = kDeltaTheta, const float& dd = kDeltaD, const int minLevel=-1, const int maxLevel=kMaxInt, const bool bRight = false) const;
     
-    void GetLineFeaturesInArea(const float thetaMin, const float thetaMax, const float dMin, const float dMax, const bool bCheckLevels, const int minLevel, const int maxLevel, vector<size_t>& vIndices) const;
+    void GetLineFeaturesInArea(const float thetaMin, const float thetaMax, const float dMin, const float dMax, const bool bCheckLevels, const int minLevel, const int maxLevel, vector<size_t>& vIndices, const bool bRight = false) const;
     
     // Search a match for each keypoint in the left image to a keypoint in the right image.
     // If there is a match, depth is computed and the right coordinate associated to the left keypoint is stored.
@@ -331,7 +330,8 @@ public:
     DBoW2::BowVector mBowVec;
     DBoW2::FeatureVector mFeatVec;
 
-    // ORB descriptor, each row associated to a keypoint.
+    // ORB descriptor, each row associated to a keypoint. 
+    // With fisheye cameras, mDescriptors contains both left and rigth descriptors, vertically concatenated.
     cv::Mat mDescriptors, mDescriptorsRight;
 
     // MapPoints associated to keypoints, NULL pointer if no association.
@@ -353,9 +353,10 @@ public:
     // In the stereo case, mvKeysUn is redundant as images must be rectified.
     // In the RGB-D case, RGB images can be distorted.
     std::vector<cv::line_descriptor_c::KeyLine> mvKeyLines, mvKeyLinesRight;
-    std::vector<cv::line_descriptor_c::KeyLine> mvKeyLinesUn;
+    std::vector<cv::line_descriptor_c::KeyLine> mvKeyLinesUn, mvKeyLinesRightUn; // mvKeyLinesRightUn to be used only with fisheye cameras (i.e. pCamera2 != nullptr)
     
-    // LSD descriptor, each row associated to a keypoint.
+    // Line descriptor, each row associated to a keyline. 
+    // With fisheye cameras, mLineDescriptors contains both left and rigth descriptors, vertically concatenated.
     cv::Mat mLineDescriptors, mLineDescriptorsRight;
     
     // MapLines associated to keylines, NULL pointer if no association.
@@ -365,15 +366,15 @@ public:
     
     // Flag to identify outlier associations.
     std::vector<bool> mvbLineOutlier;
-    int mnCloseMLs;
+    //int mnCloseMLs;
     std::vector<unsigned int> mvuNumLinePosOptFailures; // number of time the line is detected as outlier in pose optimization
     
     // Corresponding stereo coordinate and depth for each keyline.
     // "Monocular" keylines have a negative value.
-    std::vector<float> mvuRightLineStart;
-    std::vector<float> mvDepthLineStart;
-    std::vector<float> mvuRightLineEnd;
-    std::vector<float> mvDepthLineEnd;
+    std::vector<float> mvuRightLineStart; 
+    std::vector<float> mvDepthLineStart;  
+    std::vector<float> mvuRightLineEnd;   
+    std::vector<float> mvDepthLineEnd;    
     
     
     // Keylines are assigned to cells in a grid to reduce matching complexity when projecting MapPoints.
@@ -435,12 +436,12 @@ public:
     
     float mMedianDepth;   
 
-    std::map<long unsigned int, cv::Point2f> mmProjectPoints;
-    std::map<long unsigned int, cv::Point2f> mmMatchedInImage;
+    //std::map<long unsigned int, cv::Point2f> mmProjectPoints;  // not used now
+    //std::map<long unsigned int, cv::Point2f> mmMatchedInImage; // not used now
     
     typedef std::pair<cv::Point2f,cv::Point2f> LineEndPoints; 
-    std::map<long unsigned int, LineEndPoints > mmProjectLines;
-    std::map<long unsigned int, LineEndPoints> mmMatchedLinesInImage;
+    //std::map<long unsigned int, LineEndPoints > mmProjectLines;       // not used now
+    //std::map<long unsigned int, LineEndPoints> mmMatchedLinesInImage; // not used now
 
     string mNameFile;
 
@@ -475,12 +476,12 @@ private:
     std::mutex *mpMutexImu;
 
 public:
-    GeometricCamera* mpCamera, *mpCamera2;
+    GeometricCamera *mpCamera=nullptr, *mpCamera2=nullptr;
 
     /// < Stereo fisheye keypoints information 
     //Number of KeyPoints extracted in the left and right images
-    int Nleft, Nright;   
-    // NOTE: we have     
+    int Nleft = -1, Nright = -1;   
+    // NOTE: with stereo fisheye cameras we have     
     //      Nleft = mvKeys.size();
     //      Nright = mvKeysRight.size();
     //      N = Nleft + Nright;
@@ -493,13 +494,13 @@ public:
     // < Stereo fisheye keylines information 
     // Number of KeyPoints extracted in the left and right images
     int NlinesLeft = -1, NlinesRight = -1;   
-    // NOTE: we have     
+    // NOTE: with stereo fisheye cameras we have     
     //      NlinesLeft = mvLineKeys.size();
     //      NlinesRight = mvLineKeysRight.size();
     //      Nlines = NlinesLeft + NlinesRight;
     // Number of Non Lapping Keylines in mvLineKeys and mvLineKeysRight respectively (the first blocks mvLineKeys[0:monoLinesLeft-1] and mvLineKeysRight[0:monoLinesRight-1] are mono keylines) 
     // TODO: not yet implemented
-    int monoLinesLeft = -1, monoLinesRight = -1;
+    int monoLinesLeft = 0, monoLinesRight = 0;
 
     //For stereo matching
     std::vector<int> mvLeftToRightLinesMatch, mvRightToLeftLinesMatch;
@@ -512,8 +513,15 @@ public:
     //computed during ComputeStereoFishEyeMatches
     std::vector<Eigen::Vector3f> mvStereo3Dpoints;
 
-    //Grid for the right image
+    //Triangulated line stereo observations using as reference the left camera. These are
+    //computed during ComputeStereoFishEyeLineMatches
+    std::vector<Eigen::Vector3f> mvStereo3DLineStartPoints;
+    std::vector<Eigen::Vector3f> mvStereo3DLineEndPoints;    
+
+    //Grid of keypoints for the right image
     std::vector<std::size_t> mGridRight[FRAME_GRID_COLS][FRAME_GRID_ROWS];
+    //Grid of keylines for the right image
+    std::vector<std::size_t> mLineGridRight[LINE_D_GRID_COLS][LINE_THETA_GRID_ROWS];
 
     Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeStamp, 
           std::shared_ptr<LineExtractor>& lineExtractorLeft, std::shared_ptr<LineExtractor>& lineExtractorRight, 
@@ -522,11 +530,13 @@ public:
 
     //Stereo fisheye
     void ComputeStereoFishEyeMatches();
+    void ComputeStereoFishEyeLineMatches();    
 
     bool isInFrustumChecks(MapPointPtr pMP, float viewingCosLimit, bool bRight = false);
     bool isInFrustumChecks(MapLinePtr pML, float viewingCosLimit, bool bRight = false);    
 
     Eigen::Vector3f UnprojectStereoFishEye(const int &i);
+    bool UnprojectStereoLineFishEye(const int &i, Eigen::Vector3f& p3DStart, Eigen::Vector3f& p3DEnd);    
 
     cv::Mat imgLeft, imgRight;
 

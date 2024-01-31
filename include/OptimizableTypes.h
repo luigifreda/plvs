@@ -1,6 +1,6 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
+
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -68,7 +68,7 @@ public:
     void computeError()  {
         const g2o::VertexSE3Expmap* v1 = static_cast<const g2o::VertexSE3Expmap*>(_vertices[0]);
         Eigen::Vector2d obs(_measurement);
-        _error = obs-pCamera->project(v1->estimate().map(Xw));
+        _error = obs-pCamera->project(v1->estimate().map(Xw)); // [u,v]^T - cam.proj(exp(csi)*Tcw*Xw)  \in IR^2
     }
 
     bool isDepthPositive() {
@@ -80,7 +80,7 @@ public:
     virtual void linearizeOplus();
 
     Eigen::Vector3d Xw;
-    GeometricCamera* pCamera;
+    GeometricCamera* pCamera=nullptr;
 };
 
 class  EdgeSE3ProjectXYZOnlyPoseToBody: public  g2o::BaseUnaryEdge<2, Eigen::Vector2d, g2o::VertexSE3Expmap>{
@@ -96,7 +96,7 @@ public:
     void computeError()  {
         const g2o::VertexSE3Expmap* v1 = static_cast<const g2o::VertexSE3Expmap*>(_vertices[0]);
         Eigen::Vector2d obs(_measurement);
-        _error = obs-pCamera->project((mTrl * v1->estimate()).map(Xw));
+        _error = obs-pCamera->project((mTrl * v1->estimate()).map(Xw)); // [u,v]^T - cam.proj(Trl * exp(csi)*Tcw*Xw)  \in IR^2
     }
 
     bool isDepthPositive() {
@@ -108,7 +108,7 @@ public:
     virtual void linearizeOplus();
 
     Eigen::Vector3d Xw;
-    GeometricCamera* pCamera;
+    GeometricCamera* pCamera=nullptr;
 
     g2o::SE3Quat mTrl;
 };
@@ -138,7 +138,7 @@ public:
 
     virtual void linearizeOplus();
 
-    GeometricCamera* pCamera;
+    GeometricCamera* pCamera=nullptr;
 };
 
 class  EdgeSE3ProjectXYZToBody: public  g2o::BaseBinaryEdge<2, Eigen::Vector2d, g2o::VertexSBAPointXYZ, g2o::VertexSE3Expmap>{
@@ -155,7 +155,7 @@ public:
         const g2o::VertexSE3Expmap* v1 = static_cast<const g2o::VertexSE3Expmap*>(_vertices[1]);
         const g2o::VertexSBAPointXYZ* v2 = static_cast<const g2o::VertexSBAPointXYZ*>(_vertices[0]);
         Eigen::Vector2d obs(_measurement);
-        _error = obs-pCamera->project((mTrl * v1->estimate()).map(v2->estimate()));
+        _error = obs-pCamera->project((mTrl * v1->estimate()).map(v2->estimate())); // [u,v]^T - cam.proj(Trl*exp(csi)*Tlw*Pw)
     }
 
     bool isDepthPositive() {
@@ -166,7 +166,7 @@ public:
 
     virtual void linearizeOplus();
 
-    GeometricCamera* pCamera;
+    GeometricCamera* pCamera=nullptr;
     g2o::SE3Quat mTrl;
 };
 
@@ -193,7 +193,7 @@ public:
         setEstimate(s*estimate());
     }
 
-    GeometricCamera* pCamera1, *pCamera2;
+    GeometricCamera* pCamera1=nullptr, *pCamera2=nullptr;
 
     bool _fix_scale;
 };

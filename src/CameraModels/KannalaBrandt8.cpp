@@ -35,6 +35,7 @@
 */
 
 #include "KannalaBrandt8.h"
+#include "Frame.h"
 
 #include <boost/serialization/export.hpp>
 
@@ -43,7 +44,7 @@
 namespace PLVS2 {
 //BOOST_CLASS_EXPORT_GUID(KannalaBrandt8, "KannalaBrandt8")
 
-    cv::Point2f KannalaBrandt8::project(const cv::Point3f &p3D) {
+    cv::Point2f KannalaBrandt8::project(const cv::Point3f &p3D) const {
         const float x2_plus_y2 = p3D.x * p3D.x + p3D.y * p3D.y;
         const float theta = atan2f(sqrtf(x2_plus_y2), p3D.z);
         const float psi = atan2f(p3D.y, p3D.x);
@@ -61,7 +62,7 @@ namespace PLVS2 {
 
     }
 
-    Eigen::Vector2d KannalaBrandt8::project(const Eigen::Vector3d &v3D) {
+    Eigen::Vector2d KannalaBrandt8::project(const Eigen::Vector3d &v3D) const {
         const double x2_plus_y2 = v3D[0] * v3D[0] + v3D[1] * v3D[1];
         const double theta = atan2f(sqrtf(x2_plus_y2), v3D[2]);
         const double psi = atan2f(v3D[1], v3D[0]);
@@ -82,7 +83,7 @@ namespace PLVS2 {
 
     }
 
-    Eigen::Vector2f KannalaBrandt8::project(const Eigen::Vector3f &v3D) {
+    Eigen::Vector2f KannalaBrandt8::project(const Eigen::Vector3f &v3D) const {
         const float x2_plus_y2 = v3D[0] * v3D[0] + v3D[1] * v3D[1];
         const float theta = atan2f(sqrtf(x2_plus_y2), v3D[2]);
         const float psi = atan2f(v3D[1], v3D[0]);
@@ -110,12 +111,12 @@ namespace PLVS2 {
         return res;*/
     }
 
-    Eigen::Vector2f KannalaBrandt8::projectMat(const cv::Point3f &p3D) {
+    Eigen::Vector2f KannalaBrandt8::projectMat(const cv::Point3f &p3D) const {
         cv::Point2f point = this->project(p3D);
         return Eigen::Vector2f(point.x, point.y);
     }
 
-    float KannalaBrandt8::uncertainty2(const Eigen::Matrix<double,2,1> &p2D)
+    float KannalaBrandt8::uncertainty2(const Eigen::Matrix<double,2,1> &p2D) const 
     {
         /*Eigen::Matrix<double,2,1> c;
         c << mvParameters[2], mvParameters[3];
@@ -126,12 +127,12 @@ namespace PLVS2 {
         return 1.f;
     }
 
-    Eigen::Vector3f KannalaBrandt8::unprojectEig(const cv::Point2f &p2D) {
+    Eigen::Vector3f KannalaBrandt8::unprojectEig(const cv::Point2f &p2D) const {
         cv::Point3f ray = this->unproject(p2D);
         return Eigen::Vector3f(ray.x, ray.y, ray.z);
     }
 
-    cv::Point3f KannalaBrandt8::unproject(const cv::Point2f &p2D) {
+    cv::Point3f KannalaBrandt8::unproject(const cv::Point2f &p2D) const {
         //Use Newthon method to solve for theta with good precision (err ~ e-6)
         cv::Point2f pw((p2D.x - mvParameters[2]) / mvParameters[0], (p2D.y - mvParameters[3]) / mvParameters[1]);
         float scale = 1.f;
@@ -160,7 +161,7 @@ namespace PLVS2 {
         return cv::Point3f(pw.x * scale, pw.y * scale, 1.f);
     }
 
-    Eigen::Matrix<double, 2, 3> KannalaBrandt8::projectJac(const Eigen::Vector3d &v3D) {
+    Eigen::Matrix<double, 2, 3> KannalaBrandt8::projectJac(const Eigen::Vector3d &v3D) const {
         double x2 = v3D[0] * v3D[0], y2 = v3D[1] * v3D[1], z2 = v3D[2] * v3D[2];
         double r2 = x2 + y2;
         double r = sqrt(r2);
@@ -219,12 +220,12 @@ namespace PLVS2 {
     }
 
 
-    cv::Mat KannalaBrandt8::toK() {
+    cv::Mat KannalaBrandt8::toK() const {
         cv::Mat K = (cv::Mat_<float>(3, 3)
                 << mvParameters[0], 0.f, mvParameters[2], 0.f, mvParameters[1], mvParameters[3], 0.f, 0.f, 1.f);
         return K;
     }
-    Eigen::Matrix3f KannalaBrandt8::toK_() {
+    Eigen::Matrix3f KannalaBrandt8::toK_() const {
         Eigen::Matrix3f K;
         K << mvParameters[0], 0.f, mvParameters[2], 0.f, mvParameters[1], mvParameters[3], 0.f, 0.f, 1.f;
         return K;
@@ -391,6 +392,111 @@ namespace PLVS2 {
 
         return z1;
     }
+
+    // we assume the keylines are undistorted
+    bool KannalaBrandt8::TriangulateLineMatches(GeometricCamera* pCamera2, const cv::line_descriptor_c::KeyLine& kl1, const cv::line_descriptor_c::KeyLine& kl2,  const float sigma1, const float sigma2, const CameraPairTriangulationInput& camPairdata, LineTriangulationOutput& outData)
+    {
+        outData.isValid = false; 
+
+        const auto& K1 = camPairdata.K1; 
+        const auto& K2 = camPairdata.K2;
+        const auto& minZ = camPairdata.minZ;
+        const auto& maxZ = camPairdata.maxZ;
+
+        const float invfx1 = 1.0f/mvParameters[0];
+        const float invfy1 = 1.0f/mvParameters[1];
+        const float& cx1 = mvParameters[2];
+        const float& cy1 = mvParameters[3];
+        // res[0] = mvParameters[0] * v3D[0] / v3D[2] + mvParameters[2];
+        // res[1] = mvParameters[1] * v3D[1] / v3D[2] + mvParameters[3];        
+
+#define KEYLINES_ARE_DISTORTED 0
+
+#if KEYLINES_ARE_DISTORTED
+        // unproject on the plane Z=1 
+        const Eigen::Vector3f Bp1 = this->unprojectEig(cv::Point2f(kl1.startPointX,kl1.startPointY));
+        const Eigen::Vector3f Bq1 = this->unprojectEig(cv::Point2f(kl1.endPointX,kl1.endPointY));
+
+        // undistort the left keyline endpoints
+        const Eigen::Vector3f p1 = K1*Bp1;
+        const Eigen::Vector3f q1 = K1*Bq1;
+#else 
+        // assume the keylines are already undistorted
+        const Eigen::Vector3f p1(kl1.startPointX , kl1.startPointY, 1.0);
+        const Eigen::Vector3f q1(kl1.endPointX ,   kl1.endPointY, 1.0);         
+#endif 
+        Eigen::Vector3f l1 = p1.cross(q1);
+        const float l1Norm = sqrt( Utils::Pow2(l1[0]) + Utils::Pow2(l1[1]) );
+        l1 = l1/l1Norm; // in this way we have l1 = (nx, ny, -d) with (nx^2 + ny^2) = 1
+                           
+#if KEYLINES_ARE_DISTORTED
+        // undistort the right keyline endpoints
+        const Eigen::Vector3f p2 = K2*pCamera2->unprojectEig(cv::Point2f(kl2.startPointX,kl2.startPointY));
+        const Eigen::Vector3f q2 = K2*pCamera2->unprojectEig(cv::Point2f(kl2.endPointX,kl2.endPointY));    
+#else 
+        const Eigen::Vector3f p2(kl2.startPointX, kl2.startPointY, 1.0);
+        const Eigen::Vector3f q2(kl2.endPointX, kl2.endPointY, 1.0);        
+#endif 
+        Eigen::Vector3f l2 = p2.cross(q2);
+        const float l2Norm = sqrt( Utils::Pow2(l2[0]) + Utils::Pow2(l2[1]) );
+        l2 = l2/l2Norm; // in this way we have l2 = (nx, ny, -d) with (nx^2 + ny^2) = 1             
+
+        // Check if we can triangulate, i.e. check if the normals of the two planes corresponding to lines are not parallel
+        bool bCanTriangulateLines = true;
+        Eigen::Vector3f n1 = K1.transpose()*l1; n1 /= n1.norm();
+        Eigen::Vector3f n2 = K2.transpose()*l2; n2 /= n2.norm();
+
+        Eigen::Vector3f n2_1 = camPairdata.R12*n2; // n2 in camera 1 coordinates
+        const float normalsDotProduct= fabs( n1.dot(n2_1) );
+        const float sigma = std::max( sigma1, sigma2 );
+        const float dotProductThreshold = 1e-4 * sigma; //Frame::kLineNormalsDotProdThreshold * sigma; // this is a percentage over unitary modulus ( we modulate threshold by sigma)
+        //const float dotProductThreshold = Frame::kLineNormalsDotProdThreshold * sigma; // this is a percentage over unitary modulus ( we modulate threshold by sigma)
+        if( fabs( normalsDotProduct - 1.f ) < dotProductThreshold) 
+        {
+            bCanTriangulateLines = false; // normals are almost parallel => cannot triangulate lines
+            //std::cout << "  -cannot triangulate n1: " << n1.transpose() << ", n2: " << n2.transpose() << std::endl;                     
+        }
+        
+        if(bCanTriangulateLines)
+        {
+            // compute the intersections of rays backprojected from camera 1 with the 3D plane corresponding to l2  
+            // (check PLVS report)                                        
+            const float num = -l2.dot(camPairdata.e2);       
+            const float denP = (l2.dot(camPairdata.H21*p1)); // distance point-line in pixels 
+            const float denQ = (l2.dot(camPairdata.H21*q1)); // distance point-line in pixels
+            
+            constexpr float denTh = 10;            
+            if( ( fabs(denP) < denTh ) || (fabs(denQ) < denTh) ) return false; 
+                
+            outData.depthS = num/denP; // depthP1
+            outData.depthE = num/denQ; // depthQ1
+
+            if( (outData.depthS >= minZ ) && (outData.depthE >= minZ) && (outData.depthS <= maxZ) && (outData.depthE <= maxZ) )
+            {
+    #if KEYLINES_ARE_DISTORTED
+                outData.p3DS = outData.depthS * Bp1; 
+                outData.p3DE = outData.depthE * Bq1;
+    #else   
+                outData.p3DS = Eigen::Vector3f( (p1[0]-cx1)*invfx1*outData.depthS, (p1[1]-cy1)*invfy1*outData.depthS, outData.depthS ); // depthP1 * K1.inv()*p1;   
+                outData.p3DE = Eigen::Vector3f( (q1[0]-cx1)*invfx1*outData.depthE, (q1[1]-cy1)*invfy1*outData.depthE, outData.depthE ); // depthQ1 * K1.inv()*q1;              
+    #endif 
+                const Eigen::Vector3f camRay = outData.p3DS.normalized();
+                Eigen::Vector3f lineES = outData.p3DS-outData.p3DE;  
+                const double lineLength = lineES.norm();
+                if(lineLength >= Frame::skMinLineLength3D)
+                {        
+                    lineES /= lineLength;
+                    const float cosViewAngle = fabs((float)camRay.dot(lineES));
+                    if(cosViewAngle<=Frame::kCosViewZAngleMax)
+                    {
+                        outData.isValid = true;
+                    }
+                }
+            }
+        }
+        return outData.isValid;
+    }
+
 
     std::ostream & operator<<(std::ostream &os, const KannalaBrandt8 &kb) {
         os << kb.mvParameters[0] << " " << kb.mvParameters[1] << " " << kb.mvParameters[2] << " " << kb.mvParameters[3] << " "

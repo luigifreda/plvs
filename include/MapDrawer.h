@@ -1,6 +1,6 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
+
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -45,6 +45,7 @@
 //#include "KeyFrame.h"
 #include "Pointers.h"
 #include "Settings.h"
+#include "ShaderKannalaBrandtRawFeatures.h"
 #include<pangolin/pangolin.h>
 
 #include<mutex>
@@ -70,9 +71,14 @@ public:
     void DrawMapObjects();    
     void DrawKeyFrames(const bool bDrawKF, const bool bDrawGraph, const bool bDrawInertialGraph, const bool bDrawOptLba);
     void DrawCurrentCamera(pangolin::OpenGlMatrix &Twc);
-    void setUseAR(bool value) { mbUseAR = value; }
+
+    void SetUseAR(bool value) { mbUseAR = value; }
+    void SetUseKbFeatures(bool value) { mbUseKbRawFeatures = value; }
+    
     void SetCurrentCameraPose(const Sophus::SE3f &Tcw);
     void SetReferenceKeyFrame(KeyFramePtr pKF);
+    void SetKbFeaturesProgram(std::shared_ptr<ShaderKannalaBrandtRawFeatures>& kbFeaturesProgram) { kbFeaturesProgram_ = kbFeaturesProgram; }
+
     void GetCurrentOpenGLCameraMatrix(pangolin::OpenGlMatrix &M, pangolin::OpenGlMatrix &MOw);
     void GetCurrentOpenGLCameraMatrix(pangolin::OpenGlMatrix &M, pangolin::OpenGlMatrix &MOw, pangolin::OpenGlMatrix &MTwwp);
 
@@ -101,7 +107,10 @@ private:
                                 {0.0f, 1.0f, 1.0f}};
 protected:
 
-    bool mbUseAR; //use AR visualization
+    bool mbUseAR=false; //use AR visualization
+    bool mbUseKbRawFeatures=false; // use KB raw features
+
+    std::shared_ptr<ShaderKannalaBrandtRawFeatures> kbFeaturesProgram_;    
 };
 
 } // namespace PLVS2

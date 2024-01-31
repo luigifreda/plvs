@@ -75,6 +75,8 @@ Camera.RGB: 1
 # Close/Far threshold. Baseline times.
 Stereo.ThDepth: 40.0
 
+System.thFarPoints: 20.0  # In TUM outdoors, we ignore points too far away
+
 #--------------------------------------------------------------------------------------------
 # ORB Parameters
 #--------------------------------------------------------------------------------------------
@@ -117,7 +119,7 @@ SparseMapping.forceRelocalization: 1
 #--------------------------------------------------------------------------------------------
 
 # Line.on: 1 is ON, 0 is OFF
-Line.on: 1
+Line.on: 0
 
 # set to 0 if keeping all lines   
 Line.nfeatures: 100

@@ -1,6 +1,5 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -67,17 +66,32 @@ namespace PLVS2 {
 
 
     void EdgeSE3ProjectXYZOnlyPose::linearizeOplus() {
-        g2o::VertexSE3Expmap * vi = static_cast<g2o::VertexSE3Expmap *>(_vertices[0]);
-        Eigen::Vector3d xyz_trans = vi->estimate().map(Xw);
+        g2o::VertexSE3Expmap * vi = static_cast<g2o::VertexSE3Expmap *>(_vertices[0]); // Tcw
+        Eigen::Vector3d xyz_trans = vi->estimate().map(Xw); // Xc = Tcw * Xw 
 
         double x = xyz_trans[0];
         double y = xyz_trans[1];
         double z = xyz_trans[2];
 
-        Eigen::Matrix<double,3,6> SE3deriv;
-        SE3deriv << 0.f, z,   -y, 1.f, 0.f, 0.f,
-                     -z , 0.f, x, 0.f, 1.f, 0.f,
-                     y ,  -x , 0.f, 0.f, 0.f, 1.f;
+        // NOTE: [Luigi] below some notes about the derivation 
+        // derivatives with left perturbation model
+        // Tcw' = exp(csi)*Tcw  (new perturbed value of Tcw)
+        // Xc' = Tcw' * Xw = exp(csi) * Tcw * Xw
+        // SE3deriv = dXc'/d(csi) = d(exp(csi)*Tcw*Xw)/d(csi) = d(exp(csi)*Xc)/d(csi)=[-[Xc]^, I]  (computed at csi=0)
+        // where Tcw' <-- exp(csi)*Tcw, csi=(phi,rho) and exp(csi)=[exp(phi), J(phi)*rho] see Barfoot's book
+        //                                                        [     O^T,          1]
+        // J(phi) is the left jacobian of SO(3) which can be approx to I if phi is small 
+
+        // e = [u,v]^T - cam.proj(exp(csi)*Tcw*Xw) = [u,v]^T - cam.proj(exp(csi)*Xc)
+        // _jacobianOplusXi = de/d(csi) = de/dXc' * d(exp(csi)*Xc)/d(csi)   (computed at csi=0 => de/dXc' = de/dXc )
+        // de/dXc = - d(cam.proj(Xc)/dXc) = - projectJac(Xc)
+        // dXc'/d(csi) = [-[Xc]^, I] = SE3deriv
+        // => _jacobianOplusXi = - projectJac(Xc) * SE3deriv 
+
+        Eigen::Matrix<double,3,6> SE3deriv;  
+        SE3deriv <<  0.f,   z,   -y, 1.f, 0.f, 0.f,  // = d(exp(csi)*Xc)/d(csi)=[-[Xc]^, I]
+                      -z, 0.f,    x, 0.f, 1.f, 0.f,
+                       y,  -x , 0.f, 0.f, 0.f, 1.f;
 
         _jacobianOplusXi = -pCamera->projectJac(xyz_trans) * SE3deriv;
     }
@@ -111,17 +125,35 @@ namespace PLVS2 {
     void EdgeSE3ProjectXYZOnlyPoseToBody::linearizeOplus() {
         g2o::VertexSE3Expmap * vi = static_cast<g2o::VertexSE3Expmap *>(_vertices[0]);
         g2o::SE3Quat T_lw(vi->estimate());
-        Eigen::Vector3d X_l = T_lw.map(Xw);
-        Eigen::Vector3d X_r = mTrl.map(T_lw.map(Xw));
-
+        const Eigen::Vector3d X_l = T_lw.map(Xw); // Xl = Tlw * Xw 
+        //Eigen::Vector3d X_r = mTrl.map(T_lw.map(Xw));
+        const Eigen::Vector3d X_r = mTrl.map(X_l); // Xr = Trl * Xl 
+ 
         double x_w = X_l[0];
         double y_w = X_l[1];
         double z_w = X_l[2];
 
+        // NOTE: [Luigi] below some notes about the derivation 
+        // derivatives with left perturbation model
+        // Tlw' = exp(csi)*Tlw  (new perturbed value of Tlw)
+        // Xl' = Tlw' * Xw = exp(csi) * Tlw * Xw
+        // Xr' = Trl * Xl' = Trl * exp(csi) * Tlw * Xw
+        // SE3deriv = dXl'/d(csi) = d(exp(csi)*Tlw*Xw)/d(csi) = d(exp(csi)*Xl)/d(csi)=[-[Xl]^, I]  (computed at csi=0)
+        // where Tlw' <-- exp(csi)*Tlw, csi=(phi,rho) and exp(csi)=[exp(phi), J(phi)*rho] see Barfoot's book
+        //                                                        [     O^T,          1]
+        // J(phi) is the left jacobian of SO(3) which can be approx to I if phi is small 
+
+        // e = [u,v]^T - cam.proj(Trl*exp(csi)*Tlw*Xw) = [u,v]^T - cam.proj(Trl*exp(csi)*Xl)
+        // _jacobianOplusXi = de/d(csi) = de/dXr' * dXr'/dXl' * dXl'/d(csi)   (computed at csi=0 => de/dXr' = de/dXr )
+        // de/dXr = - d(cam.proj(Xr)/dXr) = - projectJac(Xr)
+        // dXr'/dXl' = d(Rrl*Xl'+trl)/dXl'=Rrl
+        // dXl'/d(csi) = [-[Xl]^, I] = SE3deriv
+        // => _jacobianOplusXi = - projectJac(Xr) * Rrl * SE3deriv 
+
         Eigen::Matrix<double,3,6> SE3deriv;
-        SE3deriv << 0.f, z_w,   -y_w, 1.f, 0.f, 0.f,
-                -z_w , 0.f, x_w, 0.f, 1.f, 0.f,
-                y_w ,  -x_w , 0.f, 0.f, 0.f, 1.f;
+        SE3deriv << 0.f,    z_w,   -y_w, 1.f, 0.f, 0.f,    // = d(exp(csi)*Xl)/d(csi)=[-[Xl]^, I]
+                  -z_w ,    0.f,    x_w, 0.f, 1.f, 0.f,
+                   y_w ,  -x_w ,    0.f, 0.f, 0.f, 1.f;
 
         _jacobianOplusXi = -pCamera->projectJac(X_r) * mTrl.rotation().toRotationMatrix() * SE3deriv;
     }
@@ -158,18 +190,40 @@ namespace PLVS2 {
 
     void EdgeSE3ProjectXYZ::linearizeOplus() {
         g2o::VertexSE3Expmap * vj = static_cast<g2o::VertexSE3Expmap *>(_vertices[1]);
-        g2o::SE3Quat T(vj->estimate());
+        g2o::SE3Quat T(vj->estimate()); // Tcw 
         g2o::VertexSBAPointXYZ* vi = static_cast<g2o::VertexSBAPointXYZ*>(_vertices[0]);
-        Eigen::Vector3d xyz = vi->estimate();
-        Eigen::Vector3d xyz_trans = T.map(xyz);
+        Eigen::Vector3d xyz = vi->estimate();    // Xw
+        Eigen::Vector3d xyz_trans = T.map(xyz);  // Xc = Tcw * Xw
 
         double x = xyz_trans[0];
         double y = xyz_trans[1];
         double z = xyz_trans[2];
 
+        // NOTE: [Luigi] below some notes about the derivation 
+        // derivatives with left perturbation model
+        // Tcw' = exp(csi)*Tcw  (new perturbed value of Tcw)
+        // Xc' = Tcw' * Xw = exp(csi) * Tcw * Xw
+        // SE3deriv = dXc'/d(csi) = d(exp(csi)*Tcw*Xw)/d(csi) = d(exp(csi)*Xc)/d(csi)=[-[Xc]^, I]  (computed at csi=0)
+        // where Tcw' <-- exp(csi)*Tcw, csi=(phi,rho) and exp(csi)=[exp(phi), J(phi)*rho] see Barfoot's book
+        //                                                        [     O^T,          1]
+        // J(phi) is the left jacobian of SO(3) which can be approx to I if phi is small 
+
+        // e = [u,v]^T - cam.proj(exp(csi)*Tcw*Xw) = [u,v]^T - cam.proj(exp(csi)*Xc)
+
+
         auto projectJac = -pCamera->projectJac(xyz_trans);
 
+        // _jacobianOplusXi = de/Xw = de/Xc * dXc/dXw 
+        // de/dXc = - d(cam.proj(Xc)/dXc) = - projectJac(Xc)
+        // dXc/dXw = d(Rcw*Xw+tcw)/dXw = Rcw 
+        // => _jacobianOplusXi = - projectJac(Xc) * Rcw 
         _jacobianOplusXi =  projectJac * T.rotation().toRotationMatrix();
+
+
+        // _jacobianOplusXj = de/d(csi) = de/dXc' * d(exp(csi)*Xc)/d(csi)   (computed at csi=0 => de/dXc' = de/dXc )
+        // de/dXc = - d(cam.proj(Xc)/dXc) = - projectJac(Xc)
+        // dXc'/d(csi) = [-[Xc]^, I] = SE3deriv
+        // => _jacobianOplusXj = - projectJac(Xc) * SE3deriv 
 
         Eigen::Matrix<double,3,6> SE3deriv;
         SE3deriv << 0.f, z,   -y, 1.f, 0.f, 0.f,
@@ -211,18 +265,42 @@ namespace PLVS2 {
 
     void EdgeSE3ProjectXYZToBody::linearizeOplus() {
         g2o::VertexSE3Expmap * vj = static_cast<g2o::VertexSE3Expmap *>(_vertices[1]);
-        g2o::SE3Quat T_lw(vj->estimate());
-        g2o::SE3Quat T_rw = mTrl * T_lw;
+        g2o::SE3Quat T_lw(vj->estimate());  // Tlw 
+        g2o::SE3Quat T_rw = mTrl * T_lw;    // Trw = Trl * Tlw 
         g2o::VertexSBAPointXYZ* vi = static_cast<g2o::VertexSBAPointXYZ*>(_vertices[0]);
-        Eigen::Vector3d X_w = vi->estimate();
-        Eigen::Vector3d X_l = T_lw.map(X_w);
-        Eigen::Vector3d X_r = mTrl.map(T_lw.map(X_w));
+        const Eigen::Vector3d X_w = vi->estimate();  // Xw
+        const Eigen::Vector3d X_l = T_lw.map(X_w);   // Xl = Tlw 
+        //Eigen::Vector3d X_r = mTrl.map(T_lw.map(X_w));
+        Eigen::Vector3d X_r = mTrl.map(X_l);         // Xr = Trl * Xl 
 
+        // NOTE: [Luigi] below some notes about the derivation 
+        // derivatives with left perturbation model
+        // Tlw' = exp(csi)*Tlw  (new perturbed value of Tlw)
+        // Xl' = Tlw' * Xw = exp(csi) * Tlw * Xw
+        // Xr' = Trl * Xl' = Trl * exp(csi) * Tlw * Xw
+        // SE3deriv = dXl'/d(csi) = d(exp(csi)*Tlw*Xw)/d(csi) = d(exp(csi)*Xl)/d(csi)=[-[Xl]^, I]  (computed at csi=0)
+        // where Tlw' <-- exp(csi)*Tlw, csi=(phi,rho) and exp(csi)=[exp(phi), J(phi)*rho] see Barfoot's book
+        //                                                        [     O^T,          1]
+        // J(phi) is the left jacobian of SO(3) which can be approx to I if phi is small 
+
+        // e = [u,v]^T - cam.proj(Trl*exp(csi)*Tlw*Xw) = [u,v]^T - cam.proj(Trl*exp(csi)*Xl)
+
+
+        // _jacobianOplusXi = de/Xw = de/Xr * dXr/dXw 
+        // de/dXc = - d(cam.proj(Xr)/dXr) = - projectJac(Xr)
+        // dXr/dXw = d(Rrw*Xw+trw)/dXw = Rrw 
+        // => _jacobianOplusXi = - projectJac(Xr) * Rrw 
         _jacobianOplusXi =  -pCamera->projectJac(X_r) * T_rw.rotation().toRotationMatrix();
 
         double x = X_l[0];
         double y = X_l[1];
         double z = X_l[2];
+
+        // _jacobianOplusXj = de/d(csi) = de/dXr' * dXr'/dXl' * dXl'/d(csi)   (computed at csi=0 => de/dXr' = de/dXr )
+        // de/dXr = - d(cam.proj(Xr)/dXr) = - projectJac(Xr)
+        // dXr'/dXl' = d(Rrl*Xl'+trl)/dXl'=Rrl
+        // dXl'/d(csi) = [-[Xl]^, I] = SE3deriv
+        // => _jacobianOplusXj = - projectJac(Xr) * Rrl * SE3deriv 
 
         Eigen::Matrix<double,3,6> SE3deriv;
         SE3deriv << 0.f, z,   -y, 1.f, 0.f, 0.f,

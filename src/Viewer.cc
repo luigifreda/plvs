@@ -1,6 +1,5 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -61,6 +60,7 @@
 #include "Tracking.h"
 #include "System.h"
 #include "Shaders.h"
+#include "ShaderKannalaBrandtRawFeatures.h"
 #include "MapObject.h"
 #include "Utils.h"
 
@@ -77,6 +77,7 @@ const std::string Viewer::kFrameWindowName = "PLVS2: Current Frame";
 
 const float Viewer::kViewpointXtopDefault  = 4.0; // [m] side shift from which the eye sees the map from the top
 const float Viewer::kViewpointYtopDefault = -4.0; // [m] height from which the eye sees the map from the top
+
 
 Viewer::Viewer(System* pSystem, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Tracking *pTracking, const std::string &strSettingPath, Settings* settings):
     both(false), 
@@ -138,6 +139,7 @@ void Viewer::newParameterLoader(Settings *settings) {
     mViewpointF = settings->viewPointF();
 
     GeometricCamera* camera1 = settings->camera1();
+    mpCamera1 = camera1;
     if(camera1->GetType() != GeometricCamera::CAM_PINHOLE)
     {
         MSG_WARN_STREAM("!AR will not work with a fisheye camera! (WIP)");
@@ -313,25 +315,34 @@ void Viewer::Run()
     mUiWidth = 20* pangolin::default_font().MaxWidth();
 
 #if COMPUTE_NORMALS
-    std::shared_ptr<Shader> normalsProgram;
-    normalsProgram = std::shared_ptr<Shader>(loadProgramFromFile("normals.vert", "normals.frag", "normals.geom"));
+    std::shared_ptr<Shader> normalsProgram = std::shared_ptr<Shader>(loadProgramFromFile("normals.vert", "normals.frag", "normals.geom"));
     if (mpPointCloudDrawer)
     {
         mpPointCloudDrawer->SetNormalsProgram(normalsProgram);
     }
 
-#if COMPUTE_SEGMENTS
+ #if COMPUTE_SEGMENTS
     std::vector<Image4Viewer>* pVecImages = 0;
     if (mpPointCloudDrawer)
     {
         pVecImages = &(mpPointCloudDrawer->GetPointCloudMapping()->GetVecImages());
     }
 
-    std::shared_ptr<Shader> segmentsProgram;
-    segmentsProgram = std::shared_ptr<Shader>(loadProgramFromFile("segments.vert", "segments.frag", "segments.geom"));
+    std::shared_ptr<Shader> segmentsProgram = std::shared_ptr<Shader>(loadProgramFromFile("segments.vert", "segments.frag", "segments.geom"));
     if (mpPointCloudDrawer)
     {
         mpPointCloudDrawer->SetSegmentsProgram(segmentsProgram);
+    }
+
+    bool isKbCamera = mpCamera1 ? (mpCamera1->GetType() == GeometricCamera::CAM_FISHEYE) : false;
+    std::shared_ptr<ShaderKannalaBrandtRawFeatures> kbFeaturesProgram; 
+    if(isKbCamera)
+    {
+        kbFeaturesProgram = std::make_shared<ShaderKannalaBrandtRawFeatures>();
+        kbFeaturesProgram->Load("raw_kb_features.vert", "raw_kb_features.frag");
+        kbFeaturesProgram->SetCamera(mpCamera1);
+        mpMapDrawer->SetKbFeaturesProgram(kbFeaturesProgram);
+        mpMapDrawer->SetUseKbFeatures(true);
     }
 
 //    std::shared_ptr<Shader> debugTextProgram;
@@ -344,7 +355,7 @@ void Viewer::Run()
 //        mpPointCloudDrawer->SetDebugFontTextureId(glTexture.GetTextureId());
 //    }
 
-#endif // end if COMPUTE_SEGMENTS
+ #endif // end if COMPUTE_SEGMENTS
 
 #endif // end if COMPUTE_NORMALS
 
@@ -653,14 +664,14 @@ void Viewer::Run()
             {
                 mpFrameDrawer->setUseColorImg(true);
                 //s_cam.SetModelViewMatrix(pangolin::ModelViewLookAt(mViewpointX, mViewpointY, mViewpointZ, 0, 0, 0, 0.0, -1.0, 0.0));                
-                mpMapDrawer->setUseAR(true);
-                if(mpPointCloudDrawer) mpPointCloudDrawer->setUseAR(true);                
+                mpMapDrawer->SetUseAR(true);
+                if(mpPointCloudDrawer) mpPointCloudDrawer->SetUseAR(true);                
             }
             else
             {
                 mpFrameDrawer->setUseColorImg(false);
-                mpMapDrawer->setUseAR(false);
-                if(mpPointCloudDrawer) mpPointCloudDrawer->setUseAR(false);                
+                mpMapDrawer->SetUseAR(false);
+                if(mpPointCloudDrawer) mpPointCloudDrawer->SetUseAR(false);                
 
             }
             bAR = menuARCamera;
@@ -708,7 +719,14 @@ void Viewer::Run()
             Tcw.Load();
         }
 
-
+        if(bAR && isKbCamera)
+        {
+            kbFeaturesProgram->SetProjectionMatrix(mCamP);
+            kbFeaturesProgram->SetModelViewMatrix(Tcw);
+            kbFeaturesProgram->SetCamera(mpCamera1);
+            //kbFeaturesProgram->SetUniforms();//projection, modelView, *mpCamera1);
+        }
+        
 #if COMPUTE_NORMALS
         if(bDisplayNormals || bDisplaySegments)
         {
@@ -728,13 +746,12 @@ void Viewer::Run()
                 normalsProgram->SetProjectionModelViewMatrix(mvp);
             }
 
-#if COMPUTE_SEGMENTS
+    #if COMPUTE_SEGMENTS
             if (bDisplaySegments)
             {
                 segmentsProgram->SetProjectionModelViewMatrix(mvp);
             }
-#endif
-
+    #endif
         }
 #endif  // end if   COMPUTE_NORMALS
 
@@ -778,7 +795,8 @@ void Viewer::Run()
         //d_cam.Activate(s_cam);
         //glClearColor(1.0f,1.0f,1.0f,1.0f);
 
-        mpMapDrawer->DrawCurrentCamera(Twc);
+        if(!bAR) mpMapDrawer->DrawCurrentCamera(Twc); // with AR we avoid to draw the current frame 
+
         if( (!bAR) && (menuShowKeyFrames || menuShowGraph || menuShowInertialGraph || menuShowOptLba) )
             mpMapDrawer->DrawKeyFrames(menuShowKeyFrames,menuShowGraph, menuShowInertialGraph, menuShowOptLba);
 
@@ -787,7 +805,7 @@ void Viewer::Run()
 
         if (menuShowLines && bLinesActive)
             mpMapDrawer->DrawMapLines();
-        
+
         if(bObjectTracking)
             mpMapDrawer->DrawMapObjects();
         

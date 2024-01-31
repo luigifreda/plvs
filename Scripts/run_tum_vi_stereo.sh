@@ -7,10 +7,10 @@
 DATASET_BASE_FOLDER="$HOME/Work/datasets/tum_vi_dataset" #Example, it is necesary to change it by the dataset path
 
 #DATASET_NAME="dataset-magistrale1_512_16"
-#DATASET_NAME="dataset-corridor1_512_16"
-DATASET_NAME="dataset-room1_512_16"
-#DATASET_NAME="dataset-outdoors8_512_16"
-
+DATASET_NAME="dataset-corridor1_512_16"
+#DATASET_NAME="dataset-room1_512_16"
+#DATASET_NAME="dataset-outdoors8_512_16"  # <-- use the "far" YAML settings 
+#DATASET_NAME="dataset-slides3_512_16"
 
 # NOTE: the "rectified" settings allows to use lines and volumetric mapping
 TUM_YAML="TUM-VI.yaml"

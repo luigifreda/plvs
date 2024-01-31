@@ -1,6 +1,6 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
+
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -123,8 +123,8 @@ protected:
     int mnObjectsTotNumInliers;
     bool mbObjectsDetected;
 
-    std::vector<float> mvCurrentDepth;
-    float mThDepth;
+    //std::vector<float> mvCurrentDepth;
+    //float mThDepth;
 
     Atlas* mpAtlas;
 
@@ -145,12 +145,12 @@ protected:
     std::vector<cv::line_descriptor_c::KeyLine>  mvOutlierKeyLines;
     std::vector<MapLinePtr> mvpOutlierMLs;
 
-    std::map<long unsigned int, cv::Point2f> mmProjectPoints;
-    std::map<long unsigned int, cv::Point2f> mmMatchedPointsInImage;
+    // std::map<long unsigned int, cv::Point2f> mmProjectPoints;
+    // std::map<long unsigned int, cv::Point2f> mmMatchedPointsInImage;
     
-    typedef Frame::LineEndPoints LineEndPoints;  
-    std::map<long unsigned int, LineEndPoints> mmProjectLines;
-    std::map<long unsigned int, LineEndPoints> mmMatchedLinesInImage;
+    // typedef Frame::LineEndPoints LineEndPoints;  
+    // std::map<long unsigned int, LineEndPoints> mmProjectLines;
+    // std::map<long unsigned int, LineEndPoints> mmMatchedLinesInImage;
 
 };
 

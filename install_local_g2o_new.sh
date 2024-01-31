@@ -20,7 +20,7 @@ print_blue "Configuring and building Thirdparty/g2o_new ..."
 cd Thirdparty
 if [ ! -d g2o_new ]; then
     sudo apt install -y libqglviewer-dev-qt5  # to build g2o_viewer 
-	  git clone https://github.com/RainerKuemmerle/g2o.git g2o_new
+    git clone https://github.com/RainerKuemmerle/g2o.git g2o_new
     #git fetch --all --tags # to fetch tags 
     cd g2o_new
     git checkout tags/20230223_git   

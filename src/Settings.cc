@@ -1,6 +1,5 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -288,9 +287,9 @@ namespace PLVS2 {
                 //Rectified images are assumed to be ideal PinHole images (no distortion)      
                 vCalibration = {fx, fy, cx, cy};                    
                 calibration1_ = new Pinhole(vCalibration);
-                originalCalib1_ = new Pinhole(vCalibration);      
+                originalCalib1_ = new KannalaBrandt8(vCalibration);      
 
-                vPinHoleDistorsion1_ = {k0,k1,k2,k3}; // Luigi: TODO improperly used as pin-hole distortion       
+                vFisheyeDistorsion1_ = {k0,k1,k2,k3}; // Luigi: TODO improperly used as pin-hole distortion       
             } else {
 
                 vCalibration = {fx,fy,cx,cy,k0,k1,k2,k3};
@@ -366,9 +365,9 @@ namespace PLVS2 {
                 vCalibration = {fx, fy, cx, cy};  
 
                 calibration2_ = new Pinhole(vCalibration);
-                originalCalib2_ = new Pinhole(vCalibration);      
+                originalCalib2_ = new KannalaBrandt8(vCalibration);      
 
-                vPinHoleDistorsion2_ = {k0,k1,k2,k3};  // Luigi: TODO improperly used as pin-hole distortion          
+                vFisheyeDistorsion2_ = {k0,k1,k2,k3};  // Luigi: TODO improperly used as pin-hole distortion          
             } else {
 
                 vCalibration = {fx,fy,cx,cy,k0,k1,k2,k3};
@@ -562,12 +561,12 @@ namespace PLVS2 {
             float cameraFovScale = readParameter<float>(fSettings,"Camera.fovScale",found);
             if(!found) cameraFovScale = 1.0;       
             std::cout << "Unistorting and rectifying stereo fish-eye camera" << std::endl; 
-            cv::fisheye::stereoRectify(K1,camera1DistortionCoef(),K2,camera2DistortionCoef(),newImSize_,
+            cv::fisheye::stereoRectify(K1,camera1FisheyeDistortionCoef(),K2,camera2FisheyeDistortionCoef(),newImSize_,
                                     R12, t12,
                                     R_r1_u1,R_r2_u2,P1,P2,Q,
                                     cv::CALIB_ZERO_DISPARITY,newImSize_,balance,cameraFovScale);        
-            cv::fisheye::initUndistortRectifyMap(K1, camera1DistortionCoef(), R_r1_u1, P1, newImSize_, CV_32F, M1l_, M2l_);
-            cv::fisheye::initUndistortRectifyMap(K2, camera2DistortionCoef(), R_r2_u2, P2, newImSize_, CV_32F, M1r_, M2r_);        
+            cv::fisheye::initUndistortRectifyMap(K1, camera1FisheyeDistortionCoef(), R_r1_u1, P1, newImSize_, CV_32F, M1l_, M2l_);
+            cv::fisheye::initUndistortRectifyMap(K2, camera2FisheyeDistortionCoef(), R_r2_u2, P2, newImSize_, CV_32F, M1r_, M2r_);        
 
             // NOTE: at this point we can safely set that the camera type is Rectified, that is, the camera models are simple pin-hole
             cameraType_ = PinHole;
@@ -582,6 +581,8 @@ namespace PLVS2 {
                                         newImSize_, CV_32F, M1l_, M2l_);
             cv::initUndistortRectifyMap(K2, camera2DistortionCoef(), R_r2_u2, P2.rowRange(0, 3).colRange(0, 3),
                                         newImSize_, CV_32F, M1r_, M2r_);
+
+            MSG_ASSERT(cameraType_ == PinHole,"We should not have to rectify here!");
         }
         
         //Update calibration
@@ -589,6 +590,13 @@ namespace PLVS2 {
         calibration1_->setParameter(P1.at<double>(1,1), 1);
         calibration1_->setParameter(P1.at<double>(0,2), 2);
         calibration1_->setParameter(P1.at<double>(1,2), 3);
+
+        calibration2_->setParameter(P2.at<double>(0,0), 0);
+        calibration2_->setParameter(P2.at<double>(1,1), 1);
+        calibration2_->setParameter(P2.at<double>(0,2), 2);
+        calibration2_->setParameter(P2.at<double>(1,2), 3);        
+
+        MSG_ASSERT(bNeedToUndistort_==false,"We should not have to undistort here!"); // in Tracking this guides to consider the vector of dist coefficient as zeros
 
         //Update bf
         bf_ = b_ * P1.at<double>(0,0);
@@ -619,7 +627,7 @@ namespace PLVS2 {
         
         LineExtractor::skSigma0 = Utils::GetParam(fSettings, "Line.sigma", LineExtractor::skSigma0);    
             
-        // LSD options  http://docs.opencv.org/3.0-beta/modules/imgproc/doc/feature_detection.html
+        // LSD options  https://docs.opencv.org/3.0-beta/modules/imgproc/doc/feature_detection.html#linesegmentdetector
         LineExtractor::skUseLsdExtractor = static_cast<int> (Utils::GetParam(fSettings, "Line.LSD.on", (int)LineExtractor::skUseLsdExtractor)) != 0;    
         lines_.lsdOptions.refine = Utils::GetParam(fSettings, "Line.LSD.refine", 1);   
         lines_.lsdOptions.sigma_scale = Utils::GetParam(fSettings, "Line.LSD.sigmaScale", 0.6);
@@ -656,8 +664,9 @@ namespace PLVS2 {
     ostream &operator<<(std::ostream& output, const Settings& settings){
         output << "SLAM settings: " << endl;
 
-        output << "\t-Camera 1 parameters (";
-        if(settings.cameraType_ == Settings::PinHole || settings.cameraType_ ==  Settings::Rectified){
+        output << "\t-Camera 1 original parameters (";
+        const auto originalCameraType = settings.originalCalib1_->GetType();
+        if(originalCameraType == GeometricCamera::CAM_PINHOLE){
             output << "Pinhole";
         }
         else{
@@ -669,36 +678,114 @@ namespace PLVS2 {
         }
         output << " ]" << endl;
 
-        if(!settings.vPinHoleDistorsion1_.empty()){
-            output << "\t-Camera 1 distortion parameters: [ ";
-            for(float d : settings.vPinHoleDistorsion1_){
-                output << " " << d;
+        if(!settings.vPinHoleDistorsion1_.empty() || !settings.vFisheyeDistorsion1_.empty()){
+            output << "\t-Camera 1 original distortion parameters: [ ";
+            if(originalCameraType == GeometricCamera::CAM_PINHOLE){
+                for(float d : settings.vPinHoleDistorsion1_){
+                    output << " " << d;
+                }
+            }
+            else{
+                for(float d : settings.vFisheyeDistorsion1_){
+                    output << " " << d;
+                }
             }
             output << " ]" << endl;
         }
 
+        output << "\t-Camera 1 actual parameters (";
+        const auto actualCameraType = settings.cameraType();
+        if(actualCameraType == Settings::PinHole || actualCameraType==  Settings::Rectified){
+            output << "Pinhole";
+        }
+        else{
+            output << "Kannala-Brandt";
+        }
+        output << ")" << ": [";
+        for(size_t i = 0; i < settings.calibration1_->size(); i++){
+            output << " " << settings.calibration1_->getParameter(i);
+        }
+        output << " ]" << endl;
+
+        if(!settings.vPinHoleDistorsion1_.empty() || !settings.vFisheyeDistorsion2_.empty()){
+            output << "\t-Camera 1 actual distortion parameters: [ ";
+            if(settings.needToUndistort()){ // same logic used in Tracking::newParameterLoader()
+                if(actualCameraType == GeometricCamera::CAM_PINHOLE){
+                    for(float d : settings.vPinHoleDistorsion1_){
+                        output << " " << d;
+                    }
+                }
+                else{
+                    for(float d : settings.vFisheyeDistorsion1_){
+                        output << " " << d;
+                    }
+                }
+            }
+            output << " ]" << endl;
+        }
+        output << " " << endl; 
+
         if(settings.sensor_ == System::STEREO || settings.sensor_ == System::IMU_STEREO){
-            output << "\t-Camera 2 parameters (";
-            if(settings.cameraType_ == Settings::PinHole || settings.cameraType_ ==  Settings::Rectified){
+            output << "\t-Camera 2 original parameters (";
+            const auto originalCamera2Type = settings.originalCalib2_->GetType();
+            if(originalCamera2Type == GeometricCamera::CAM_PINHOLE){
                 output << "Pinhole";
             }
             else{
                 output << "Kannala-Brandt";
             }
-            output << "" << ": [";
+            output << ")" << ": [";
             for(size_t i = 0; i < settings.originalCalib2_->size(); i++){
                 output << " " << settings.originalCalib2_->getParameter(i);
             }
             output << " ]" << endl;
 
-            if(!settings.vPinHoleDistorsion2_.empty()){
-                output << "\t-Camera 2 distortion parameters: [ ";
-                for(float d : settings.vPinHoleDistorsion2_){
-                    output << " " << d;
+            if(!settings.vPinHoleDistorsion2_.empty() || !settings.vFisheyeDistorsion2_.empty()){
+                output << "\t-Camera 2 original distortion parameters: [ ";
+                if(originalCamera2Type == GeometricCamera::CAM_PINHOLE){
+                    for(float d : settings.vPinHoleDistorsion2_){
+                        output << " " << d;
+                    }
+                } else {
+                    for(float d : settings.vFisheyeDistorsion2_){
+                        output << " " << d;
+                    }
                 }
                 output << " ]" << endl;
             }
-        }
+
+            output << "\t-Camera 2 actual parameters (";
+            const auto actualCamera2Type = settings.cameraType();
+            if(actualCamera2Type == Settings::PinHole || actualCamera2Type==  Settings::Rectified){
+                output << "Pinhole";
+            }
+            else{
+                output << "Kannala-Brandt";
+            }
+            output << ")" << ": [";
+            for(size_t i = 0; i < settings.calibration2_->size(); i++){
+                output << " " << settings.calibration2_->getParameter(i);
+            }
+            output << " ]" << endl;
+
+            if(!settings.vPinHoleDistorsion2_.empty() || !settings.vFisheyeDistorsion2_.empty()){
+                output << "\t-Camera 2 actual distortion parameters: [ ";
+                if(settings.needToUndistort()){ // same logic used in Tracking::newParameterLoader()
+                    if(actualCamera2Type == GeometricCamera::CAM_PINHOLE){
+                        for(float d : settings.vPinHoleDistorsion2_){
+                            output << " " << d;
+                        }
+                    }
+                    else{
+                        for(float d : settings.vFisheyeDistorsion2_){
+                            output << " " << d;
+                        }
+                    }
+                }
+                output << " ]" << endl;
+            }
+            output << " " << endl; 
+        }        
 
         output << "\t-Original image size: [ " << settings.originalImSize_.width << " , " << settings.originalImSize_.height << " ]" << endl;
         output << "\t-Current image size: [ " << settings.newImSize_.width << " , " << settings.newImSize_.height << " ]" << endl;

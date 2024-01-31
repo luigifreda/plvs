@@ -100,15 +100,15 @@ MapLine::MapLine(const Eigen::Vector3f& PosStart, const Eigen::Vector3f& PosEnd,
 
 //    cv::Mat PC = mWorldPosMiddle - Ow;
 //    const float dist = cv::norm(PC);
-//    const int level = (pFrame -> NlinesLeft == -1) ? pFrame->mvKeysUn[idxF].octave
-//                                              : (idxF < pFrame -> NlinesLeft) ? pFrame->mvKeys[idxF].octave
-//                                                                         : pFrame -> mvKeysRight[idxF].octave;
+    const int level = (pFrame -> NlinesLeft == -1) ? pFrame->mvKeyLinesUn[idxF].octave
+                                                   : (idxF < pFrame -> NlinesLeft) ? pFrame->mvKeyLinesUn[idxF].octave
+                                                                                   : pFrame -> mvKeyLinesRightUn[idxF].octave;
 //    const float levelScaleFactor =  pFrame->mvScaleFactors[level];
 //    const int nLevels = pFrame->mnScaleLevels;
 //    mfMaxDistance = dist*levelScaleFactor;
 //    mfMinDistance = mfMaxDistance/pFrame->mvScaleFactors[nLevels-1];
     
-    const int level = pFrame->mvKeyLinesUn[idxF].octave;
+    //const int level = pFrame->mvKeyLinesUn[idxF].octave;
     const float levelScaleFactor =  pFrame->mvLineScaleFactors[level];
     const int nLevels = pFrame->mnLineScaleLevels;
 
@@ -176,6 +176,14 @@ void MapLine::GetWorldEndPoints(Eigen::Vector3f &PosStart, Eigen::Vector3f &PosE
     PosEnd = mWorldPosEnd;        
 }
 
+void MapLine::GetWorldEndPointsAndLength(Eigen::Vector3f &PosStart, Eigen::Vector3f &PosEnd, float& length)
+{
+    unique_lock<mutex> lock(mMutexPos);
+    PosStart = mWorldPosStart;    
+    PosEnd = mWorldPosEnd;        
+    length = mfLength;
+}
+
 void MapLine::SetWorldPosStart(const Eigen::Vector3f &Pos)
 {
     unique_lock<mutex> lock2(mGlobalMutex);
@@ -241,10 +249,15 @@ void MapLine::AddObservation(const KeyFramePtr& pKF, int idx)
 
     mObservations[pKF]=indexes;
 
-    if( !pKF->mpCamera2 && ((pKF->mvuRightLineStart[idx]>=0) && (pKF->mvuRightLineEnd[idx]>=0)) )
+    //if( !pKF->mpCamera2 && ((pKF->mvuRightLineStart[idx]>=0) && (pKF->mvuRightLineEnd[idx]>=0)) )
+    if((pKF->mvuRightLineStart[idx]>=0) && (pKF->mvuRightLineEnd[idx]>=0)) // NOTE: With fisheye cameras, mvuRightLineStart and mvuRightLineEnd values cannot be directly used, however if >0 they signal the availability of the depths.  
+    {
         nObs+=2;
+    }
     else
+    {
         nObs++;
+    }
 }
 
 void MapLine::EraseObservation(const KeyFramePtr& pKF)
@@ -260,7 +273,9 @@ void MapLine::EraseObservation(const KeyFramePtr& pKF)
             int leftIndex = get<0>(indexes), rightIndex = get<1>(indexes);
 
             if(leftIndex != -1){
-                if(!pKF->mpCamera2 && ((pKF->mvuRightLineStart[leftIndex]>=0) && (pKF->mvuRightLineEnd[leftIndex]>=0)) )
+                //if(!pKF->mpCamera2 && ((pKF->mvuRightLineStart[leftIndex]>=0) && (pKF->mvuRightLineEnd[leftIndex]>=0)) )
+                // NOTE: With fisheye cameras, mvuRightLineStart and mvuRightLineEnd values cannot be directly used, however if >0 they signal the availability of the depths.  
+                if((pKF->mvuRightLineStart[leftIndex]>=0) && (pKF->mvuRightLineEnd[leftIndex]>=0))
                     nObs-=2;
                 else
                     nObs--;
@@ -278,7 +293,9 @@ void MapLine::EraseObservation(const KeyFramePtr& pKF)
             int leftIndex = get<0>(indexes), rightIndex = get<1>(indexes);
 
             if(leftIndex != -1){
-                if(!pKF->mpCamera2 && ((pKF->mvuRightLineStart[leftIndex]>=0) && (pKF->mvuRightLineEnd[leftIndex]>=0)) )
+                //if(!pKF->mpCamera2 && ((pKF->mvuRightLineStart[leftIndex]>=0) && (pKF->mvuRightLineEnd[leftIndex]>=0)) )
+                // NOTE: With fisheye cameras, mvuRightLineStart and mvuRightLineEnd values cannot be directly used, however if >0 they signal the availability of the depths.  
+                if((pKF->mvuRightLineStart[leftIndex]>=0) && (pKF->mvuRightLineEnd[leftIndex]>=0))
                     nObs-=2;
                 else
                     nObs--;
@@ -650,10 +667,10 @@ void MapLine::UpdateNormalAndDepth()
         level = pRefKF->mvKeyLinesUn[leftIndex].octave;
     }
     else if(leftIndex != -1){
-        level = pRefKF -> mvKeyLines[leftIndex].octave;
+        level = pRefKF -> mvKeyLinesUn[leftIndex].octave;
     }
     else{
-        level = pRefKF -> mvKeyLinesRight[rightIndex - pRefKF -> NlinesLeft].octave;
+        level = pRefKF -> mvKeyLinesRightUn[rightIndex - pRefKF -> NlinesLeft].octave;
     }
 
     //const int level = pRefKF->mvKeyLinesUn[observations[pRefKF]].octave;
@@ -676,7 +693,6 @@ void MapLine::UpdateNormalAndDepth()
 
 void MapLine::UdateLength()
 {
-    //mfLength = cv::norm(mWorldPosStart - mWorldPosEnd);
     mfLength = (mWorldPosStart - mWorldPosEnd).norm();
 }
 
@@ -794,6 +810,7 @@ void MapLine::PreSave(set<KeyFramePtr>& spKF,set<MapLinePtr>& spML)
     }
 }
 
+#if 0
 void MapLine::PostLoad(map<long unsigned int, KeyFramePtr>& mpKFid, map<long unsigned int, MapLinePtr>& mpMLid)
 {
     mpRefKF = mpKFid[mBackupRefKFId];
@@ -825,6 +842,7 @@ void MapLine::PostLoad(map<long unsigned int, KeyFramePtr>& mpKFid, map<long uns
     mBackupObservationsId1.clear();
     mBackupObservationsId2.clear();
 }
+#endif 
 
 template<class Archive>
 void MapLine::serialize(Archive & ar, const unsigned int version)

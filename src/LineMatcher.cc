@@ -27,7 +27,9 @@
 #include "MapLine.h"
 #include "Geom2DUtils.h"
 #include "Logger.h"
+#include "Utils.h"
 
+#include <unordered_set>
 
 #define VERBOSE 0
 
@@ -51,6 +53,8 @@ static Logger logger(logFileName);
 namespace PLVS2
 {
 
+
+static constexpr float M_2PI = (float)(2.0 * M_PI); 
 
 struct compare_descriptor_by_NN_dist
 {
@@ -77,18 +81,18 @@ struct sort_descriptor_by_queryIdx
 
 
 
-const float LineMatcher::kDescTh = 0.1;    // parameter to avoid outliers in line matching
+const float LineMatcher::kDescTh = 0.1;    // parameter to avoid outliers in line matching with MAD checking
 
 // N.B.: if the thresholds are too low lines will be not properly matched and multiple instances of a same line can be generated 
 const int LineMatcher::TH_HIGH = 110;//100;//150; 
 const int LineMatcher::TH_LOW = 60;//50;//80;
 const int LineMatcher::TH_LOW_STEREO = 50;
-const int LineMatcher::HISTO_LENGTH = 30;
+const int LineMatcher::HISTO_LENGTH = 12; //30;
 
 const float kChiSquareSegSeg = 3.84;        // value of the inverse cumulative chi-square with 1 DOF for alpha=0.95 (Hartley-Zisserman pag 567) 
 const float kChiSquareSegSegLarger = 5.024; // value of the inverse cumulative chi-square with 1 DOF for alpha=0.975  
 
-const float kChiSquareLineMonoProj = 5.991;        // chi-square 2 2D-perpendicular-line-distances = 2 DOFs for alpha=0.95  (Hartley pg 119)
+const float kChiSquareLineMonoProj = 5.991;        // chi-square 2 2D-perpendicular-line-distances = 2 DOFs for alpha=0.95  (Hartley-Zisserman pg 119)
 const float kChiSquareLineMonoProjLarger = 7.378;  // chi-square 2 2D-perpendicular-line-distances = 2 DOFs for alpha=0.975  
     
 template <typename T>    // T can be a std container: list<int> or vector<int> 
@@ -152,13 +156,14 @@ int LineMatcher::SearchByKnn(KeyFramePtr& pKF, const Frame &F, std::vector<MapLi
     
     const vector<MapLinePtr> vpMapLinesKF = pKF->GetMapLineMatches();
         
+    // NOTE: recall that with fisheye cameras mLineDescriptors concatenates the left and right descriptors
     const cv::Mat& ldesc_q = pKF->mLineDescriptors; // query
     const cv::Mat& ldesc_t = F.mLineDescriptors;    // train
     
     //assert(ldesc_q.rows == vpMapLinesKF.size());
     
     list<int> rotHist[HISTO_LENGTH]; // use list since we need to keep track of elem iterators and possibly erase them (in vectors, each erase op would invalidate iterators and indexes)
-    const float factor = 1.0f/HISTO_LENGTH;
+    constexpr float factor = HISTO_LENGTH/M_2PI;
 
     cv::Mat queryMask = cv::Mat::zeros((int) vpMapLinesKF.size(), 1, CV_8UC1); 
     int numValidLinesInKF = 0; 
@@ -173,6 +178,7 @@ int LineMatcher::SearchByKnn(KeyFramePtr& pKF, const Frame &F, std::vector<MapLi
     }
     if(numValidLinesInKF == 0) return 0; 
     
+    // TODO Luigi: we could distinguish left and right matches in order to allow matching a KF line with a left F line and right F line at the same time
     std::vector<std::vector<cv::DMatch> > lmatches;
     std::vector<bool> vValidMatch;
     std::vector<bool> vbMatched(F.Nlines,false); // a "train" line can be matched to many "query" lines
@@ -198,9 +204,19 @@ int LineMatcher::SearchByKnn(KeyFramePtr& pKF, const Frame &F, std::vector<MapLi
 
                 if(mbCheckOrientation)
                 {
-                    float rot = pKF->mvKeyLinesUn[match.queryIdx].angle-F.mvKeyLinesUn[match.trainIdx].angle;
-                    if(rot<0.0)
-                        rot+=360.0f;
+                    const auto &klKF = (!pKF->mpCamera2) ? pKF->mvKeyLinesUn[match.queryIdx] :
+                                                           (match.queryIdx >= pKF->NlinesLeft) ? 
+                                                                pKF->mvKeyLinesRightUn[match.queryIdx - pKF->NlinesLeft] : 
+                                                                pKF->mvKeyLinesUn[match.queryIdx];
+
+                    const auto &klF = (!F.mpCamera2) ? F.mvKeyLinesUn[match.trainIdx] :
+                                                       (match.trainIdx >= F.NlinesLeft) ? 
+                                                            F.mvKeyLinesRightUn[match.trainIdx - F.NlinesLeft] :
+                                                            F.mvKeyLinesUn[match.trainIdx];
+
+                    //float rot = pKF->mvKeyLinesUn[match.queryIdx].angle-F.mvKeyLinesUn[match.trainIdx].angle;
+                    float rot = klKF.angle-klF.angle;
+                    if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI;};
                     int bin = round(rot*factor);
                     if(bin==HISTO_LENGTH)
                         bin=0;
@@ -225,9 +241,19 @@ int LineMatcher::SearchByKnn(KeyFramePtr& pKF, const Frame &F, std::vector<MapLi
                         auto [binIdx, it] = vRotHistPairsBinIdxMatchIter[match.trainIdx]; 
                         rotHist[binIdx].erase(it);
 
-                        float rot = pKF->mvKeyLinesUn[match.queryIdx].angle-F.mvKeyLinesUn[match.trainIdx].angle;
-                        if(rot<0.0)
-                            rot+=360.0f;
+                        const auto &klKF = (!pKF->mpCamera2) ? pKF->mvKeyLinesUn[match.queryIdx] :
+                                                              (match.queryIdx >= pKF->NlinesLeft) ? 
+                                                                pKF->mvKeyLinesRightUn[match.queryIdx - pKF->NlinesLeft] : 
+                                                                pKF->mvKeyLinesUn[match.queryIdx];
+
+                        const auto &klF = (!F.mpCamera2) ? F.mvKeyLinesUn[match.trainIdx] :
+                                                           (match.trainIdx >= F.NlinesLeft) ? 
+                                                                F.mvKeyLinesRightUn[match.trainIdx - F.NlinesLeft] :
+                                                                F.mvKeyLinesUn[match.trainIdx];
+
+                        //float rot = pKF->mvKeyLinesUn[match.queryIdx].angle-F.mvKeyLinesUn[match.trainIdx].angle;
+                        float rot = klKF.angle-klF.angle;
+                        if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; }
                         int bin = round(rot*factor);
                         if(bin==HISTO_LENGTH)
                             bin=0;
@@ -281,7 +307,7 @@ int LineMatcher::SearchByKnn(Frame &CurrentFrame, const Frame &LastFrame)
     const cv::Mat& ldesc_t = CurrentFrame.mLineDescriptors; // train
 
     list<int> rotHist[HISTO_LENGTH]; // use list since we need to keep track of elem iterators and possibly erase them (in vectors, each erase op would invalidate iterators and indexes)
-    const float factor = 1.0f/HISTO_LENGTH;
+    constexpr float factor = HISTO_LENGTH/M_2PI;
 
     cv::Mat queryMask = cv::Mat::zeros(ldesc_q.rows, 1, CV_8UC1); 
     int numValidLinesInLastFrame = 0; 
@@ -325,9 +351,19 @@ int LineMatcher::SearchByKnn(Frame &CurrentFrame, const Frame &LastFrame)
 
                 if(mbCheckOrientation)
                 {
-                    float rot = LastFrame.mvKeyLinesUn[match.queryIdx].angle-CurrentFrame.mvKeyLinesUn[match.trainIdx].angle;
-                    if(rot<0.0)
-                        rot+=360.0f;
+                    const auto &klCF = (!CurrentFrame.mpCamera2) ? CurrentFrame.mvKeyLinesUn[match.trainIdx] :
+                                                                   (match.trainIdx >= CurrentFrame.NlinesLeft) ? 
+                                                                        CurrentFrame.mvKeyLinesRightUn[match.trainIdx - CurrentFrame.NlinesLeft] :
+                                                                        CurrentFrame.mvKeyLinesUn[match.trainIdx];
+                    
+                    const auto &klLF = (!LastFrame.mpCamera2) ? LastFrame.mvKeyLinesUn[match.queryIdx] :
+                                                                (match.queryIdx >= LastFrame.NlinesLeft) ? 
+                                                                    LastFrame.mvKeyLinesRightUn[match.queryIdx - LastFrame.NlinesLeft] :
+                                                                    LastFrame.mvKeyLinesUn[match.queryIdx];
+
+                    //float rot = LastFrame.mvKeyLinesUn[match.queryIdx].angle-CurrentFrame.mvKeyLinesUn[match.trainIdx].angle;
+                    float rot = klLF.angle-klCF.angle;
+                    if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; }
                     int bin = round(rot*factor);
                     if(bin==HISTO_LENGTH)
                         bin=0;
@@ -352,9 +388,19 @@ int LineMatcher::SearchByKnn(Frame &CurrentFrame, const Frame &LastFrame)
                         auto [binIdx, it] = vRotHistPairsBinIdxMatchIter[match.trainIdx]; 
                         rotHist[binIdx].erase(it);
 
-                        float rot = LastFrame.mvKeyLinesUn[match.queryIdx].angle-CurrentFrame.mvKeyLinesUn[match.trainIdx].angle;
-                        if(rot<0.0)
-                            rot+=360.0f;
+                        const auto &klCF = (!CurrentFrame.mpCamera2) ? CurrentFrame.mvKeyLinesUn[match.trainIdx] :
+                                                                       (match.trainIdx >= CurrentFrame.NlinesLeft) ? 
+                                                                            CurrentFrame.mvKeyLinesRightUn[match.trainIdx - CurrentFrame.NlinesLeft] :
+                                                                            CurrentFrame.mvKeyLinesUn[match.trainIdx];
+                        
+                        const auto &klLF = (!LastFrame.mpCamera2) ? LastFrame.mvKeyLinesUn[match.queryIdx] :
+                                                                    (match.queryIdx >= LastFrame.NlinesLeft) ? 
+                                                                        LastFrame.mvKeyLinesRightUn[match.queryIdx - LastFrame.NlinesLeft] :
+                                                                        LastFrame.mvKeyLinesUn[match.queryIdx];
+
+                        //float rot = LastFrame.mvKeyLinesUn[match.queryIdx].angle-CurrentFrame.mvKeyLinesUn[match.trainIdx].angle;
+                        float rot = klLF.angle-klCF.angle;
+                        if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; }
                         int bin = round(rot*factor);
                         if(bin==HISTO_LENGTH)
                             bin=0;
@@ -398,13 +444,16 @@ int LineMatcher::SearchByKnn(Frame &CurrentFrame, const Frame &LastFrame)
 
 
 
-// Used to match stereo.
-// In the stereo case, images are assumed to be rectified.
-// Return: a vector of matches between the left and right images. 
-//         a vector (of flags) vValidMatches that is used to check if the returned match is valid or not. 
+// Used for stereo matching.
+// NOTE: In the case of fisheye cameras, it is assumed to be used before frame.mLineDescriptorsRight are vconcatenated into frame.mLineDescriptors (see Frame() constructor for fisheye cameras)
+// Return: A vector of matches between the left and right images. 
+//         A vector (of flags) vValidMatches that is used to check if the returned match is valid or not. 
 int LineMatcher::SearchStereoMatchesByKnn(Frame &frame, std::vector<cv::DMatch>& vMatches, std::vector<bool>& vValidMatches, const int& descriptorDist)
 {
-    const cv::Mat& ldesc_q = frame.mLineDescriptors;    // query  (left)
+    MSG_ASSERT( (frame.mvKeyLinesUn.size()==frame.mvKeyLines.size()) && 
+                (frame.mvKeyLinesRightUn.size()==frame.mvKeyLinesRight.size()),"Undistorted keylines should have the same size of raw ones");
+
+    const cv::Mat& ldesc_q = frame.mLineDescriptors;      // query  (left)
     const cv::Mat& ldesc_t = frame.mLineDescriptorsRight; // train (right)
     
     cv::Mat queryMask = cv::Mat::ones(ldesc_q.rows, 1, CV_8UC1); 
@@ -415,7 +464,7 @@ int LineMatcher::SearchStereoMatchesByKnn(Frame &frame, std::vector<cv::DMatch>&
     const size_t NLinesRight = frame.mvKeyLinesRight.size();
     
     list<int> rotHist[HISTO_LENGTH]; // use list since we need to keep track of elem iterators and possibly erase them (in vectors, each erase op would invalidate iterators and indexes)
-    const float factor = 1.0f/HISTO_LENGTH;
+    constexpr float factor = HISTO_LENGTH/M_2PI;
 
 #if USE_REPLACE_WITH_BETTER_IN_STEREO_MATCHING
     std::vector<bool> vbMatched(NLinesRight,false);  // a "train" line can be matched to many "query" lines  
@@ -423,7 +472,7 @@ int LineMatcher::SearchStereoMatchesByKnn(Frame &frame, std::vector<cv::DMatch>&
     std::vector<std::pair<int,list<int>::iterator>> vRotHistPairsBinIdxMatchIter(NLinesRight,std::make_pair(-1,list<int>::iterator(0)));         
 #endif        
 
-    int numValidMatches = ComputeDescriptorMatches(ldesc_q, ldesc_t, queryMask, lmatches , vValidDescriptorMatches);
+    int numValidMatches = ComputeDescriptorMatches(ldesc_q, ldesc_t, queryMask, lmatches, vValidDescriptorMatches);
 
     numValidMatches = 0;
     for(size_t jj=0,jjEnd=lmatches.size(); jj<jjEnd; jj++)
@@ -445,9 +494,8 @@ int LineMatcher::SearchStereoMatchesByKnn(Frame &frame, std::vector<cv::DMatch>&
 
                 if(mbCheckOrientation)
                 {
-                    float rot = frame.mvKeyLines[match.queryIdx].angle-frame.mvKeyLinesRight[match.trainIdx].angle;
-                    if(rot<0.0)
-                        rot+=360.0f;
+                    float rot = frame.mvKeyLinesUn[match.queryIdx].angle-frame.mvKeyLinesRightUn[match.trainIdx].angle;
+                    if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; }
                     int bin = round(rot*factor);
                     if(bin==HISTO_LENGTH)
                         bin=0;
@@ -473,9 +521,8 @@ int LineMatcher::SearchStereoMatchesByKnn(Frame &frame, std::vector<cv::DMatch>&
                         auto [binIdx, it] = vRotHistPairsBinIdxMatchIter[match.trainIdx]; 
                         rotHist[binIdx].erase(it);
 
-                        float rot = frame.mvKeyLines[match.queryIdx].angle-frame.mvKeyLinesRight[match.trainIdx].angle;
-                        if(rot<0.0)
-                            rot+=360.0f;
+                        float rot = frame.mvKeyLinesUn[match.queryIdx].angle-frame.mvKeyLinesRightUn[match.trainIdx].angle;
+                        if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; }
                         int bin = round(rot*factor);
                         if(bin==HISTO_LENGTH)
                             bin=0;
@@ -492,9 +539,8 @@ int LineMatcher::SearchStereoMatchesByKnn(Frame &frame, std::vector<cv::DMatch>&
             numValidMatches++;  
             if(mbCheckOrientation)
             {
-                float rot = frame.mvKeyLines[match.queryIdx].angle-frame.mvKeyLinesRight[match.trainIdx].angle;
-                if(rot<0.0)
-                    rot+=360.0f;
+                float rot = frame.mvKeyLinesUn[match.queryIdx].angle-frame.mvKeyLinesRightUn[match.trainIdx].angle;
+                if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; }
                 int bin = round(rot*factor);
                 if(bin==HISTO_LENGTH)
                     bin=0;
@@ -542,14 +588,42 @@ int LineMatcher::SearchForTriangulation(KeyFramePtr& pKF1, KeyFramePtr& pKF2, ve
     Eigen::Matrix3f R2w = pKF2->GetRotation();
     Eigen::Vector3f t2w = pKF2->GetTranslation();
     Eigen::Vector3f C12  = R2w*C1w+t2w;
+
+    // undistorted projection of epipole in second image (used with pinhole cameras and mono observations)
     const float invz = 1.0f/C12(2);
     const float ex = pKF2->fx*C12(0)*invz+pKF2->cx;
     const float ey = pKF2->fy*C12(1)*invz+pKF2->cy;  
     
+    GeometricCamera *pCamera1 = pKF1->mpCamera, *pCamera2 = pKF2->mpCamera;
+
+#if 0
+    Sophus::SE3f T12;
+    Sophus::SE3f Tll, Tlr, Trl, Trr;
+    Eigen::Matrix3f R12; // for fastest computation
+    Eigen::Vector3f t12; // for fastest computation
+
+    if(!pKF1->mpCamera2 && !pKF2->mpCamera2){
+        T12 = T1w * Tw2;
+        R12 = T12.rotationMatrix();
+        t12 = T12.translation();
+    }
+    else{
+        const Sophus::SE3f Tr1w = pKF1->GetRightPose();
+        const Sophus::SE3f Twr2 = pKF2->GetRightPoseInverse();
+        Tll = T1w * Tw2;
+        Tlr = T1w * Twr2;
+        Trl = Tr1w * Tw2;
+        Trr = Tr1w * Twr2;
+    }
+
+    const Eigen::Matrix3f Rll = Tll.rotationMatrix(), Rlr  = Tlr.rotationMatrix(), Rrl  = Trl.rotationMatrix(), Rrr  = Trr.rotationMatrix();
+    const Eigen::Vector3f tll = Tll.translation(), tlr = Tlr.translation(), trl = Trl.translation(), trr = Trr.translation();
+#endif 
+
     int nmatches=0;
 
     const vector<MapLinePtr> vpMapLinesKF1 = pKF1->GetMapLineMatches();
-    const vector<MapLinePtr> vpMapLinesKF2 = pKF2->GetMapLineMatches();    
+    const vector<MapLinePtr> vpMapLinesKF2 = pKF2->GetMapLineMatches();
         
     const cv::Mat& ldesc_q = pKF1->mLineDescriptors; // query
     const cv::Mat& ldesc_t = pKF2->mLineDescriptors; // train
@@ -563,7 +637,7 @@ int LineMatcher::SearchForTriangulation(KeyFramePtr& pKF1, KeyFramePtr& pKF2, ve
     //assert(ldesc_q.rows == vpMapLinesKF.size());
     
     list<int> rotHist[HISTO_LENGTH]; // use list since we need to keep track of elem iterators and possibly erase them (in vectors, each erase op would invalidate iterators and indexes)
-    const float factor = 1.0f/HISTO_LENGTH;
+    constexpr float factor = HISTO_LENGTH/M_2PI;
 
     cv::Mat queryMask = cv::Mat::zeros((int) vpMapLinesKF1.size(), 1, CV_8UC1); 
     int numLinesToMatchInKF = 0; 
@@ -575,6 +649,7 @@ int LineMatcher::SearchForTriangulation(KeyFramePtr& pKF1, KeyFramePtr& pKF2, ve
         if(pML1) 
             continue;
         
+        // NOTE: With fisheye cameras, mvuRightLineStart and mvuRightLineEnd values cannot be directly used, however if >0 they signal the availability of the depths.  
         const bool bStereo1 = (pKF1->mvuRightLineStart[idx1]>=0) && (pKF1->mvuRightLineEnd[idx1]>=0);
         vbStereo1[idx1] = bStereo1; 
 
@@ -593,7 +668,7 @@ int LineMatcher::SearchForTriangulation(KeyFramePtr& pKF1, KeyFramePtr& pKF2, ve
 
     std::vector<std::pair<int,list<int>::iterator>> vRotHistPairsBinIdxMatchIter(pKF2->Nlines,std::make_pair(-1,list<int>::iterator(0)));             
             
-    int numValidMatches = ComputeDescriptorMatches(ldesc_q, ldesc_t, queryMask, lmatches , vValidMatch);
+    int numValidMatches = ComputeDescriptorMatches(ldesc_q, ldesc_t, queryMask, lmatches, vValidMatch);
     //std::cout << "num valid matches: " << numValidMatches << std::endl; 
     
     nmatches = 0; 
@@ -613,6 +688,7 @@ int LineMatcher::SearchForTriangulation(KeyFramePtr& pKF1, KeyFramePtr& pKF2, ve
         if(pML2)
             continue;
 
+        // NOTE: With fisheye cameras, mvuRightLineStart and mvuRightLineEnd values cannot be directly used, however if >0 they signal the availability of the depths.  
         const bool bStereo2 = (pKF2->mvuRightLineStart[idx2]>=0) && (pKF2->mvuRightLineEnd[idx2]>=0);
 
         if(bOnlyStereo)
@@ -620,12 +696,26 @@ int LineMatcher::SearchForTriangulation(KeyFramePtr& pKF1, KeyFramePtr& pKF2, ve
                 continue;
         
         const bool bStereo1 = vbStereo1[idx1];
-        
-        if(!bStereo1 && !bStereo2)
+
+
+        const auto &kl1 = (!pKF1->mpCamera2) ? pKF1->mvKeyLinesUn[idx1] :
+                                              (idx1 >= pKF1->NlinesLeft) ? 
+                                                pKF1->mvKeyLinesRightUn[idx1 - pKF1->NlinesLeft] : 
+                                                pKF1->mvKeyLinesUn[idx1];
+
+        const auto &kl2 = (!pKF2->mpCamera2) ? pKF2->mvKeyLinesUn[idx2] :
+                                              (idx2 >= pKF2->NlinesLeft) ? 
+                                                pKF2->mvKeyLinesRightUn[idx2 - pKF2->NlinesLeft] : 
+                                                pKF2->mvKeyLinesUn[idx2];
+
+        //const bool bRight1 = (pKF1->NlinesLeft == -1 || idx1 < pKF1->NlinesLeft) ? false : true;
+        //const bool bRight2 = (pKF2->NlinesLeft == -1 || idx2 < pKF1->NlinesLeft) ? false : true;
+
+        if(!bStereo1 && !bStereo2 && !pKF1->mpCamera2)
         {
             // if monocular observation check if we are too close to epipole 
 
-            const cv::line_descriptor_c::KeyLine& kl2 = pKF2->mvKeyLinesUn[idx2];      
+            //const cv::line_descriptor_c::KeyLine& kl2 = pKF2->mvKeyLinesUn[idx2];      
                                        
             const float xm = 0.5*(kl2.startPointX + kl2.endPointX);
             const float ym = 0.5*(kl2.startPointY + kl2.endPointY);
@@ -647,9 +737,9 @@ int LineMatcher::SearchForTriangulation(KeyFramePtr& pKF1, KeyFramePtr& pKF2, ve
             if(mbCheckOrientation)
             {
                 //                             query                          train
-                float rot = pKF1->mvKeyLinesUn[idx1].angle-pKF2->mvKeyLinesUn[idx2].angle;
-                if(rot<0.0)
-                    rot+=360.0f;
+                //float rot = pKF1->mvKeyLinesUn[idx1].angle-pKF2->mvKeyLinesUn[idx2].angle;
+                float rot = kl1.angle-kl2.angle;
+                if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; }
                 int bin = round(rot*factor);
                 if(bin==HISTO_LENGTH)
                     bin=0;
@@ -676,9 +766,9 @@ int LineMatcher::SearchForTriangulation(KeyFramePtr& pKF1, KeyFramePtr& pKF2, ve
                     rotHist[binIdx].erase(it);
 
                     //                             query                          train
-                    float rot = pKF1->mvKeyLinesUn[idx1].angle-pKF2->mvKeyLinesUn[idx2].angle;
-                    if(rot<0.0)
-                        rot+=360.0f;
+                    //float rot = pKF1->mvKeyLinesUn[idx1].angle-pKF2->mvKeyLinesUn[idx2].angle;
+                    float rot = kl1.angle-kl2.angle;
+                    if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; }
                     int bin = round(rot*factor);
                     if(bin==HISTO_LENGTH)
                         bin=0;
@@ -743,22 +833,16 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
     const float thChiSquareSegSeg = bLargerSearch ? kChiSquareSegSegLarger : kChiSquareSegSeg;
 
     // Rotation Histogram (to check rotation consistency)
-   vector<int> rotHist[HISTO_LENGTH];
-   for(int i=0;i<HISTO_LENGTH;i++)
-       rotHist[i].reserve(100);
-   const float factor = 1.0f/HISTO_LENGTH;
+    vector<int> rotHist[HISTO_LENGTH];
+    for(int i=0;i<HISTO_LENGTH;i++)
+        rotHist[i].reserve(100);
+    constexpr float factor = HISTO_LENGTH/M_2PI;
 
-    //const cv::Mat Rcw = CurrentFrame.mTcw.rowRange(0,3).colRange(0,3);
-    //const cv::Mat tcw = CurrentFrame.mTcw.rowRange(0,3).col(3);
-    //const cv::Mat twc = -Rcw.t()*tcw;
     const Sophus::SE3f Tcw = CurrentFrame.GetPose();
     const Eigen::Matrix3f Rcw = CurrentFrame.GetRcw();
     const Eigen::Vector3f tcw = Tcw.translation();
     const Eigen::Vector3f twc = Tcw.inverse().translation();
 
-    // const cv::Mat Rlw = LastFrame.mTcw.rowRange(0,3).colRange(0,3);
-    // const cv::Mat tlw = LastFrame.mTcw.rowRange(0,3).col(3);
-    // const cv::Mat tlc = Rlw*twc+tlw;
     const Sophus::SE3f Tlw = LastFrame.GetPose();
     const Eigen::Vector3f tlc = Tlw * twc;
 
@@ -766,6 +850,7 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
     const bool bBackward = -tlc(2)>CurrentFrame.mb && !bMono;
 
     LineProjection proj;
+    const FrameTransformsForLineProjection currFrameTransforms(CurrentFrame);
     Line2DRepresentation projLineRepresentation;
     Line2DRepresentation projRightLineRepresentation;
 
@@ -802,10 +887,16 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
             //        continue;
                 
                 // project line to current frame 
-                if(!proj.ProjectLineWithCheck(Rcw, tcw, pML, CurrentFrame))
+                //if(!proj.ProjectLineWithCheck(Rcw, tcw, pML, CurrentFrame))
+		        if(!proj.ProjectLineWithCheck(pML, CurrentFrame, currFrameTransforms))
                     continue;
-
-                int nLastOctave = LastFrame.mvKeyLinesUn[i].octave;
+                            
+                // this can be a left or right line                            
+                const auto &klLF = (!LastFrame.mpCamera2) ? LastFrame.mvKeyLinesUn[i] :
+                                                            (i >= LastFrame.NlinesLeft) ? 
+                                                                LastFrame.mvKeyLinesRightUn[i - LastFrame.NlinesLeft] :
+                                                                LastFrame.mvKeyLinesUn[i];                                                        
+                int nLastOctave = klLF.octave;
 
             //    // Search in a window. Size depends on scale
             //    float radius = th*CurrentFrame.mvScaleFactors[nLastOctave];
@@ -819,9 +910,7 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
             //        vIndices2 = CurrentFrame.GetFeaturesInArea(u,v, radius, 0, nLastOctave);
             //    else
             //        vIndices2 = CurrentFrame.GetFeaturesInArea(u,v, radius, nLastOctave-1, nLastOctave+1);
-#if 0                
-                vIndices2 = CurrentFrame.GetLineFeaturesInArea(projLineRepresentation);                 
-#else
+
                 const float scale = CurrentFrame.mvLineScaleFactors[nLastOctave];
                 const float deltaTheta = Frame::kDeltaTheta*scale;
                 const float deltaD = Frame::kDeltaD*scale;
@@ -830,19 +919,23 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
                 else if(bBackward)
                     vIndices2 = CurrentFrame.GetLineFeaturesInArea(projLineRepresentation, deltaTheta, deltaD, 0, nLastOctave);                   
                 else
-                    vIndices2 = CurrentFrame.GetLineFeaturesInArea(projLineRepresentation, deltaTheta, deltaD, nLastOctave-1, nLastOctave+1);                  
-#endif   
+                    vIndices2 = CurrentFrame.GetLineFeaturesInArea(projLineRepresentation, deltaTheta, deltaD, nLastOctave-1, nLastOctave+1);     
               
                 
 #if LOG_SEARCHES
+                                   
                 logger << "line "<< i <<" - theta: " << projLineRepresentation.theta*180/M_PI << ", d: " << projLineRepresentation.d << std::endl;
                 logger << "found:" << std::endl;
                 for(size_t jj=0; jj<vIndices2.size(); jj++)
                 {
-                    const cv::line_descriptor_c::KeyLine& currentFrameLine = CurrentFrame.mvKeyLinesUn[vIndices2[jj]];
+                    //const cv::line_descriptor_c::KeyLine& currentFrameLine = CurrentFrame.mvKeyLinesUn[vIndices2[jj]];
+                    const auto &klCF = (!CurrentFrame.mpCamera2) ? CurrentFrame.mvKeyLinesUn[vIndices2[jj]] :
+                                                                (vIndices2[jj] >= CurrentFrame.NlinesLeft) ? 
+                                                                        CurrentFrame.mvKeyLinesRightUn[vIndices2[jj] - CurrentFrame.NlinesLeft] :
+                                                                        CurrentFrame.mvKeyLinesUn[vIndices2[jj]];                     
                     Line2DRepresentation lineRepresentation;
-                    Geom2DUtils::GetLine2dRepresentation(currentFrameLine.startPointX, currentFrameLine.startPointY, 
-                                                  currentFrameLine.endPointX, currentFrameLine.endPointY, lineRepresentation);
+                    Geom2DUtils::GetLine2dRepresentation(klCF.startPointX, klCF.startPointY, 
+                                                         klCF.endPointX, klCF.endPointY, lineRepresentation);
                     logger << "line " << vIndices2[jj] <<", "<< lineRepresentation.theta*180/M_PI << ", " << lineRepresentation.d << std::endl;
                 }
                 logger << "-------------------------------------------------" << std::endl;
@@ -859,7 +952,7 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
 
                 for(vector<size_t>::const_iterator vit=vIndices2.begin(), vend=vIndices2.end(); vit!=vend; vit++)
                 {
-                    const size_t i2 = *vit;
+                    const size_t i2 = *vit; // this is a left line index 
                     if(CurrentFrame.mvpMapLines[i2])
                         if(CurrentFrame.mvpMapLines[i2]->Observations()>0)
                             continue;
@@ -871,9 +964,9 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
                 //        if(er>radius)
                 //            continue;
                 //    }
-                    
-                    const cv::line_descriptor_c::KeyLine& currentFrameLine = CurrentFrame.mvKeyLinesUn[i2];
-                    const int &klLevel= currentFrameLine.octave;
+
+                    const cv::line_descriptor_c::KeyLine& currentFrameLine = CurrentFrame.mvKeyLinesUn[i2]; // i2 belongs to vIndices2 that contains left line indices 
+                    //MSG_ASSERT(i2<CurrentFrame.NlinesLeft,"This must be a left line");
                                 
 #if USE_DISTSEGMENT2SEGMENT_FOR_MATCHING                                
                     // dist segment-segment 
@@ -900,7 +993,8 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
 #endif                     
 
 #if USE_STEREO_PROJECTION_CHECK
-                    if(CurrentFrame.mvuRightLineStart[i2]>=0 && CurrentFrame.mvuRightLineEnd[i2]>=0)
+                    // fast stereo projection check with rectified images 
+                    if(!CurrentFrame.mpCamera2 && CurrentFrame.mvuRightLineStart[i2]>=0 && CurrentFrame.mvuRightLineEnd[i2]>=0)
                     {
                         // we assume left and right images are rectified 
 
@@ -964,14 +1058,119 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
 
                     if(mbCheckOrientation)
                     {
-                        float rot = LastFrame.mvKeyLinesUn[i].angle-CurrentFrame.mvKeyLinesUn[bestIdx].angle;
-                        if(rot<0.0)
-                            rot+=360.0f;
+                        const auto &klCF = CurrentFrame.mvKeyLinesUn[bestIdx]; // bestIdx belongs to vIndices2 that contains left line indices 
+                        //MSG_ASSERT(bestIdx<CurrentFrame.NlinesLeft,"This must be a left line");
+
+                        //float rot = LastFrame.mvKeyLinesUn[i].angle-CurrentFrame.mvKeyLinesUn[bestIdx].angle;
+                        float rot = klLF.angle-klCF.angle;
+                        if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; }
                         int bin = round(rot*factor);
                         if(bin==HISTO_LENGTH)
                             bin=0;
                         assert(bin>=0 && bin<HISTO_LENGTH);
                         rotHist[bin].push_back(bestIdx);
+                    }
+                }
+
+                if(CurrentFrame.NlinesLeft != -1)
+                {
+                    // match on right image 
+
+                    if(!proj.ProjectLineWithCheck(pML, CurrentFrame, currFrameTransforms, true/*bRight*/))
+                        continue;
+
+                    vector<size_t> vIndices2;
+                    Geom2DUtils::GetLine2dRepresentation(proj.uS, proj.vS, proj.uE, proj.vE, projLineRepresentation);
+
+                    if(bForward) 
+                        vIndices2 = CurrentFrame.GetLineFeaturesInArea(projLineRepresentation, deltaTheta, deltaD, nLastOctave, Frame::kMaxInt, true /*bRight*/);                
+                    else if(bBackward)
+                        vIndices2 = CurrentFrame.GetLineFeaturesInArea(projLineRepresentation, deltaTheta, deltaD, 0, nLastOctave, true /*bRight*/);                   
+                    else
+                        vIndices2 = CurrentFrame.GetLineFeaturesInArea(projLineRepresentation, deltaTheta, deltaD, nLastOctave-1, nLastOctave+1, true /*bRight*/);                           
+                
+                    if(vIndices2.empty())
+                        continue;
+
+                    int bestDist  = 256;
+                    int bestIdx  = -1;
+                    int bestDist2 = 256;
+
+                    for(vector<size_t>::const_iterator vit=vIndices2.begin(), vend=vIndices2.end(); vit!=vend; vit++)
+                    {
+                        const size_t i2 = *vit; // this is a right line index is in [0,...,NlinesRight-1]
+                        if(CurrentFrame.mvpMapLines[i2+CurrentFrame.NlinesLeft])
+                            if(CurrentFrame.mvpMapLines[i2+CurrentFrame.NlinesLeft]->Observations()>0)
+                                continue;
+
+                        const auto &currentFrameLine = CurrentFrame.mvKeyLinesRightUn[i2]; // NOTE: here we don't need +CurrentFrame.NlinesLeft !
+                        //const int &klLevel= currentFrameLine.octave;
+                                    
+    #if USE_DISTSEGMENT2SEGMENT_FOR_MATCHING                                
+                        // dist segment-segment 
+                        const float distSegSeg = Geom2DUtils::distSegment2Segment(Eigen::Vector2f(proj.uS,proj.vS), Eigen::Vector2f(proj.uE,proj.vE), 
+                                                                                Eigen::Vector2f(currentFrameLine.startPointX, currentFrameLine.startPointY),  
+                                                                                Eigen::Vector2f(currentFrameLine.endPointX, currentFrameLine.endPointY) );
+
+                        if(distSegSeg*distSegSeg*(CurrentFrame.mvLineInvLevelSigma2[nLastOctave])>thChiSquareSegSeg)  
+                        {
+                            continue;
+                        }
+    #else 
+                        // distance point-line + point-line
+                        // line representation [l1,l2,l3]=[nx,ny,-d] with [nx,ny] defining a unit normal
+                        // constraint: 0 = l1*u1 + l2*v1 + l3  
+                        const float distS = projLineRepresentation.nx*currentFrameLine.startPointX + projLineRepresentation.ny*currentFrameLine.startPointY - projLineRepresentation.d;
+                        const float distE = projLineRepresentation.nx*currentFrameLine.endPointX + projLineRepresentation.ny*currentFrameLine.endPointY - projLineRepresentation.d;
+                        const float err2 = distS*distS + distE*distE; 
+
+                        if(err2*(CurrentFrame.mvLineInvLevelSigma2[nLastOctave])>thChiSquareLineMonoProj)  
+                        {
+                            continue;
+                        }                                                         
+    #endif                     
+
+                        const cv::Mat &d = CurrentFrame.mLineDescriptors.row(i2+CurrentFrame.NlinesLeft); 
+
+                        const int dist = DescriptorDistance(dML,d);
+
+                        
+                        if(dist<bestDist)
+                        {
+                            bestDist2=bestDist;
+                            bestDist=dist;
+                            bestIdx=i2;
+                        }
+                        else if(dist<bestDist2)
+                        {
+                            bestDist2=dist;
+                        }
+                        
+                    }
+
+                    if( (bestDist<=TH_HIGH) && (bestIdx>=0) )
+                    {
+                        
+                        if(bestDist>mfNNratio*bestDist2)
+                            continue;    
+                                    
+                        //std::cout << "match distance H: " << bestDist << std::endl; 
+                        
+                        CurrentFrame.mvpMapLines[bestIdx+CurrentFrame.NlinesLeft]=pML;
+                        nmatches++;
+
+                        if(mbCheckOrientation)
+                        {
+                            const auto &klCF = CurrentFrame.mvKeyLinesRightUn[bestIdx];
+
+                            float rot = klLF.angle-klCF.angle;
+                            if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; }
+                            int bin = round(rot*factor);
+                            if(bin==HISTO_LENGTH)
+                                bin=0;
+                            assert(bin>=0 && bin<HISTO_LENGTH);
+                            rotHist[bin].push_back(bestIdx);
+                        }
                     }
                 }
             }
@@ -1022,7 +1221,7 @@ int LineMatcher::SearchByKnn(Frame &F, const std::vector<MapLinePtr> &vpMapLines
     {
         if(!vpMapLines[kk]) 
             continue;
-        if(!vpMapLines[kk]->mbTrackInView)
+        if(!vpMapLines[kk]->mbTrackInView && vpMapLines[kk]->mbTrackInViewR)
             continue;
         if(vpMapLines[kk]->isBad())
             continue;
@@ -1078,153 +1277,268 @@ int LineMatcher::SearchByProjection(Frame &F, const std::vector<MapLinePtr> &vpM
     for(size_t iML=0,iMLEnd=vpMapLines.size(); iML<iMLEnd; iML++)
     {
         MapLinePtr pML = vpMapLines[iML];
-        if(!pML->mbTrackInView)
+        if(!pML->mbTrackInView && !pML->mbTrackInViewR)
             continue;
 
         if(pML->isBad())
             continue;
 
-        const int &nPredictedLevel = pML->mnTrackScaleLevel;
-//
-//        // The size of the window will depend on the viewing direction
-//        float r = RadiusByViewingCos(pML->mTrackViewCos);
-//
-//        if(bFactor)
-//            r*=th;
-
-        //const vector<size_t> vIndices = F.GetFeaturesInArea(pML->mTrackProjX,pML->mTrackProjY,r*F.mvScaleFactors[nPredictedLevel],nPredictedLevel-1,nPredictedLevel);
-        
-        Geom2DUtils::GetLine2dRepresentation(pML->mTrackProjStartX, pML->mTrackProjStartY, pML->mTrackProjEndX, pML->mTrackProjEndY, projLineRepresentation); 
-        
-        //const vector<size_t> vIndices = F.GetLineFeaturesInArea(projLineRepresentation);
-        const float scale = F.mvLineScaleFactors[nPredictedLevel];
-        const float deltaTheta = Frame::kDeltaTheta*scale;
-        const float deltaD = Frame::kDeltaD*scale;        
-        const vector<size_t> vIndices = F.GetLineFeaturesInArea(projLineRepresentation, deltaTheta, deltaD, nPredictedLevel-1,nPredictedLevel);
-
-        if(vIndices.empty())
-            continue;
-
-        const cv::Mat MPdescriptor = pML->GetDescriptor();
-
-        int bestDist  = 256;
-        int bestLevel= -1;
-        int bestDist2 = 256;
-        int bestLevel2 = -1;
-        int bestIdx = -1;
-
-        // Get best and second matches with near keylines
-        for(vector<size_t>::const_iterator vit=vIndices.begin(), vend=vIndices.end(); vit!=vend; vit++)   
+        if(pML->mbTrackInView)
         {
-            const size_t idx = *vit;
+            // check of left image 
 
-            if(F.mvpMapLines[idx])
-                if(F.mvpMapLines[idx]->Observations()>0)
-                    continue;
+            const int &nPredictedLevel = pML->mnTrackScaleLevel;
+    
+        //    // The size of the window will depend on the viewing direction
+        //    float r = RadiusByViewingCos(pML->mTrackViewCos);
+    
+        //    if(bFactor)
+        //        r*=th;
 
-//            if(F.mvuRight[idx]>0)
-//            {
-//                const float er = fabs(pML->mTrackProjStartXR-F.mvuRight[idx]);
-//                if(er>r*F.mvScaleFactors[nPredictedLevel])
-//                    continue;
-//            }
-
-            const cv::line_descriptor_c::KeyLine& kl = F.mvKeyLinesUn[idx];
-            //const int &klLevel= kl.octave;
+            //const vector<size_t> vIndices = F.GetFeaturesInArea(pML->mTrackProjX,pML->mTrackProjY,r*F.mvScaleFactors[nPredictedLevel],nPredictedLevel-1,nPredictedLevel);
             
-#if USE_DISTSEGMENT2SEGMENT_FOR_MATCHING             
-            // dist segment-segment 
-            const float distSegSeg = Geom2DUtils::distSegment2Segment(Eigen::Vector2f(pML->mTrackProjStartX, pML->mTrackProjStartY), 
-                                                                        Eigen::Vector2f(pML->mTrackProjEndX, pML->mTrackProjEndY),
-                                                                        Eigen::Vector2f(kl.startPointX, kl.startPointY),
-                                                                        Eigen::Vector2f(kl.endPointX, kl.endPointY));
+            Geom2DUtils::GetLine2dRepresentation(pML->mTrackProjStartX, pML->mTrackProjStartY, pML->mTrackProjEndX, pML->mTrackProjEndY, projLineRepresentation); 
+            
+            const float scale = F.mvLineScaleFactors[nPredictedLevel];
+            const float deltaTheta = Frame::kDeltaTheta*scale;
+            const float deltaD = Frame::kDeltaD*scale;        
+            const vector<size_t> vIndices = F.GetLineFeaturesInArea(projLineRepresentation, deltaTheta, deltaD, nPredictedLevel-1,nPredictedLevel);
 
-            if(distSegSeg*distSegSeg*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareSegSeg) 
-            {
+            if(vIndices.empty())
                 continue;
-            }
-#else 
-            // distance point-line + point-line
-            // line representation [l1,l2,l3]=[nx,ny,-d] with [nx,ny] defining a unit normal
-            // constraint: 0 = l1*u1 + l2*v1 + l3  
-            const float distS = projLineRepresentation.nx*kl.startPointX + projLineRepresentation.ny*kl.startPointY - projLineRepresentation.d;
-            const float distE = projLineRepresentation.nx*kl.endPointX + projLineRepresentation.ny*kl.endPointY - projLineRepresentation.d;
-            const float err2 = distS*distS + distE*distE; 
 
-            if(err2*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareLineMonoProj)  
+            const cv::Mat MPdescriptor = pML->GetDescriptor();
+
+            int bestDist  = 256;
+            int bestLevel= -1;
+            int bestDist2 = 256;
+            int bestLevel2 = -1;
+            int bestIdx = -1;
+
+            // Get best and second matches with near keylines
+            for(vector<size_t>::const_iterator vit=vIndices.begin(), vend=vIndices.end(); vit!=vend; vit++)   
             {
-                continue;
-            }    
-#endif 
+                const size_t idx = *vit; // this is a left line index
 
+                if(F.mvpMapLines[idx])
+                    if(F.mvpMapLines[idx]->Observations()>0)
+                        continue;
 
-#if USE_STEREO_PROJECTION_CHECK
-            if(F.mvuRightLineStart[idx]>=0 && F.mvuRightLineEnd[idx]>=0)
-            {
-                // we assume left and right images are rectified 
+            //    if(F.mvuRight[idx]>0)
+            //    {
+            //        const float er = fabs(pML->mTrackProjStartXR-F.mvuRight[idx]);
+            //        if(er>r*F.mvScaleFactors[nPredictedLevel])
+            //            continue;
+            //    }
 
-                // get right projection of pML 
-                const float proj_uSr = pML->mTrackProjStartX - F.mbf/pML->mTrackStartDepth;
-                const float proj_vSr = pML->mTrackProjStartY; 
+                const cv::line_descriptor_c::KeyLine& kl = F.mvKeyLinesUn[idx];
+                MSG_ASSERT(idx < F.NlinesLeft,"This must be a left line");              
+                
+    #if USE_DISTSEGMENT2SEGMENT_FOR_MATCHING             
+                // dist segment-segment 
+                const float distSegSeg = Geom2DUtils::distSegment2Segment(Eigen::Vector2f(pML->mTrackProjStartX, pML->mTrackProjStartY), 
+                                                                            Eigen::Vector2f(pML->mTrackProjEndX, pML->mTrackProjEndY),
+                                                                            Eigen::Vector2f(kl.startPointX, kl.startPointY),
+                                                                            Eigen::Vector2f(kl.endPointX, kl.endPointY));
 
-                const float proj_uEr = pML->mTrackProjEndX - F.mbf/pML->mTrackEndDepth;
-                const float proj_vEr = pML->mTrackProjEndY;  
-
-                Geom2DUtils::GetLine2dRepresentation(proj_uSr, proj_vSr, proj_uEr, proj_vEr, projRightLineRepresentation);  
-
-                // get current frame line end-points on right image
-                const float uSr = F.mvuRightLineStart[idx];
-                const float vSr = kl.startPointY;   
-
-                const float uEr = F.mvuRightLineEnd[idx];
-                const float vEr = kl.endPointY;                                                       
-
-                // distance point-line + point-line on right line
-                // line representation [l1,l2,l3]=[nx,ny,-d] with [nx,ny] defining a unit normal
-                // constraint: 0 = l1*u1 + l2*v1 + l3  
-                const float distSr = projRightLineRepresentation.nx*uSr + projRightLineRepresentation.ny*vSr - projRightLineRepresentation.d;
-                const float distEr = projRightLineRepresentation.nx*uEr + projRightLineRepresentation.ny*vEr - projRightLineRepresentation.d;
-                const float err2r = distSr*distSr + distEr*distEr; 
-
-                if(err2r*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareLineMonoProj)  
+                if(distSegSeg*distSegSeg*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareSegSeg) 
                 {
                     continue;
-                }                
-            }  
-#endif  
-                    
-            const cv::Mat &d = F.mLineDescriptors.row(idx);
+                }
+    #else 
+                // distance point-line + point-line
+                // line representation [l1,l2,l3]=[nx,ny,-d] with [nx,ny] defining a unit normal
+                // constraint: 0 = l1*u1 + l2*v1 + l3  
+                const float distS = projLineRepresentation.nx*kl.startPointX + projLineRepresentation.ny*kl.startPointY - projLineRepresentation.d;
+                const float distE = projLineRepresentation.nx*kl.endPointX + projLineRepresentation.ny*kl.endPointY - projLineRepresentation.d;
+                const float err2 = distS*distS + distE*distE; 
 
-            const int dist = DescriptorDistance(MPdescriptor,d);
+                if(err2*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareLineMonoProj)  
+                {
+                    continue;
+                }    
+    #endif 
 
-            if(dist<bestDist)
-            {
-                bestDist2=bestDist;
-                bestDist=dist;
-                bestLevel2 = bestLevel;
-                bestLevel = F.mvKeyLinesUn[idx].octave;
-                bestIdx=idx;
+
+    #if USE_STEREO_PROJECTION_CHECK
+                // fast stereo projection check with rectified images    
+                if(!F.mpCamera2 && F.mvuRightLineStart[idx]>=0 && F.mvuRightLineEnd[idx]>=0)
+                {
+                    // we assume left and right images are rectified 
+
+                    // get right projection of pML 
+                    const float proj_uSr = pML->mTrackProjStartX - F.mbf/pML->mTrackStartDepth;
+                    const float proj_vSr = pML->mTrackProjStartY; 
+
+                    const float proj_uEr = pML->mTrackProjEndX - F.mbf/pML->mTrackEndDepth;
+                    const float proj_vEr = pML->mTrackProjEndY;  
+
+                    Geom2DUtils::GetLine2dRepresentation(proj_uSr, proj_vSr, proj_uEr, proj_vEr, projRightLineRepresentation);  
+
+                    // get current frame line end-points on right image
+                    const float uSr = F.mvuRightLineStart[idx];
+                    const float vSr = kl.startPointY;   
+
+                    const float uEr = F.mvuRightLineEnd[idx];
+                    const float vEr = kl.endPointY;                                                       
+
+                    // distance point-line + point-line on right line
+                    // line representation [l1,l2,l3]=[nx,ny,-d] with [nx,ny] defining a unit normal
+                    // constraint: 0 = l1*u1 + l2*v1 + l3  
+                    const float distSr = projRightLineRepresentation.nx*uSr + projRightLineRepresentation.ny*vSr - projRightLineRepresentation.d;
+                    const float distEr = projRightLineRepresentation.nx*uEr + projRightLineRepresentation.ny*vEr - projRightLineRepresentation.d;
+                    const float err2r = distSr*distSr + distEr*distEr; 
+
+                    if(err2r*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareLineMonoProj)  
+                    {
+                        continue;
+                    }                
+                }  
+    #endif  
+                        
+                const cv::Mat &d = F.mLineDescriptors.row(idx);
+
+                const int dist = DescriptorDistance(MPdescriptor,d);
+
+                if(dist<bestDist)
+                {
+                    bestDist2=bestDist;
+                    bestDist=dist;
+                    bestLevel2 = bestLevel;
+                    //bestLevel = F.mvKeyLinesUn[idx].octave;
+                    bestLevel = kl.octave;
+                    bestIdx=idx;
+                }
+                else if(dist<bestDist2)
+                {
+                    //bestLevel2 = F.mvKeyLinesUn[idx].octave;
+                    bestLevel2 = kl.octave;
+                    bestDist2=dist;
+                }
             }
-            else if(dist<bestDist2)
+
+            // Apply ratio to second match (only if best and second are in the same scale level)
+            if( (bestDist<=TH_HIGH) && (bestIdx>=0) )
             {
-                bestLevel2 = F.mvKeyLinesUn[idx].octave;
-                bestDist2=dist;
+                if(bestLevel==bestLevel2 && bestDist>mfNNratio*bestDist2)
+                    continue;
+                //if(bestDist>mfNNratio*bestDist2)
+                //    continue;            
+
+                //std::cout << "match distance H: " << bestDist << std::endl; 
+                
+                F.mvpMapLines[bestIdx]=pML;
+
+                if(F.NlinesLeft != -1 && F.mvLeftToRightLinesMatch[bestIdx] != -1){ //Also match with the stereo observation at right camera
+                    F.mvpMapLines[F.mvLeftToRightLinesMatch[bestIdx] + F.NlinesLeft] = pML;
+                    nmatches++;
+                }
+
+                nmatches++;
             }
         }
 
-        // Apply ratio to second match (only if best and second are in the same scale level)
-        if( (bestDist<=TH_HIGH) && (bestIdx>=0) )
+        if(F.NlinesLeft!=-1 && pML->mbTrackInViewR)
         {
-            if(bestLevel==bestLevel2 && bestDist>mfNNratio*bestDist2)
-                continue;
-            //if(bestDist>mfNNratio*bestDist2)
-            //    continue;            
-
-            //std::cout << "match distance H: " << bestDist << std::endl; 
+            // check on right image 
             
-            F.mvpMapLines[bestIdx]=pML;
-            nmatches++;
+            const int &nPredictedLevel = pML->mnTrackScaleLevelR;
+            if(nPredictedLevel==-1) continue; 
+    
+            Geom2DUtils::GetLine2dRepresentation(pML->mTrackProjStartXR, pML->mTrackProjStartYR, pML->mTrackProjEndXR, pML->mTrackProjEndYR, projLineRepresentation); 
+            
+            const float scale = F.mvLineScaleFactors[nPredictedLevel];
+            const float deltaTheta = Frame::kDeltaTheta*scale;
+            const float deltaD = Frame::kDeltaD*scale;        
+            const vector<size_t> vIndices = F.GetLineFeaturesInArea(projLineRepresentation, deltaTheta, deltaD, nPredictedLevel-1,nPredictedLevel, true /*bRight*/);
+
+            if(vIndices.empty())
+                continue;
+
+            const cv::Mat MPdescriptor = pML->GetDescriptor();
+
+            int bestDist  = 256;
+            int bestLevel= -1;
+            int bestDist2 = 256;
+            int bestLevel2 = -1;
+            int bestIdx = -1;
+
+            // Get best and second matches with near keylines
+            for(vector<size_t>::const_iterator vit=vIndices.begin(), vend=vIndices.end(); vit!=vend; vit++)   
+            {
+                const size_t idx = *vit; // this is a right line index
+
+                if(F.mvpMapLines[idx])
+                    if(F.mvpMapLines[idx]->Observations()>0)
+                        continue;
+
+                const cv::line_descriptor_c::KeyLine& kl = F.mvKeyLinesRightUn[idx];
+                
+    #if USE_DISTSEGMENT2SEGMENT_FOR_MATCHING             
+                // dist segment-segment 
+                const float distSegSeg = Geom2DUtils::distSegment2Segment(Eigen::Vector2f(pML->mTrackProjStartXR, pML->mTrackProjStartYR), 
+                                                                            Eigen::Vector2f(pML->mTrackProjEndXR, pML->mTrackProjEndYR),
+                                                                            Eigen::Vector2f(kl.startPointX, kl.startPointY),
+                                                                            Eigen::Vector2f(kl.endPointX, kl.endPointY));
+
+                if(distSegSeg*distSegSeg*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareSegSeg) 
+                {
+                    continue;
+                }
+    #else 
+                // distance point-line + point-line
+                // line representation [l1,l2,l3]=[nx,ny,-d] with [nx,ny] defining a unit normal
+                // constraint: 0 = l1*u1 + l2*v1 + l3  
+                const float distS = projLineRepresentation.nx*kl.startPointX + projLineRepresentation.ny*kl.startPointY - projLineRepresentation.d;
+                const float distE = projLineRepresentation.nx*kl.endPointX + projLineRepresentation.ny*kl.endPointY - projLineRepresentation.d;
+                const float err2 = distS*distS + distE*distE; 
+
+                if(err2*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareLineMonoProj)  
+                {
+                    continue;
+                }    
+    #endif 
+ 
+                const cv::Mat &d = F.mLineDescriptors.row(idx + F.NlinesLeft);
+
+                const int dist = DescriptorDistance(MPdescriptor,d);
+
+                if(dist<bestDist)
+                {
+                    bestDist2=bestDist;
+                    bestDist=dist;
+                    bestLevel2 = bestLevel;
+                    bestLevel = kl.octave;
+                    bestIdx=idx;
+                }
+                else if(dist<bestDist2)
+                {
+                    bestLevel2 = kl.octave;
+                    bestDist2=dist;
+                }
+            }
+
+            // Apply ratio to second match (only if best and second are in the same scale level)
+            if( (bestDist<=TH_HIGH) && (bestIdx>=0) )
+            {
+                if(bestLevel==bestLevel2 && bestDist>mfNNratio*bestDist2)
+                    continue;
+                //if(bestDist>mfNNratio*bestDist2)
+                //    continue;            
+
+                //std::cout << "match distance H: " << bestDist << std::endl; 
+                
+                F.mvpMapLines[bestIdx + F.NlinesLeft]=pML;
+
+                if(F.NlinesLeft != -1 && F.mvRightToLeftLinesMatch[bestIdx] != -1){ //Also match with the stereo observation at right camera
+                    F.mvpMapLines[F.mvRightToLeftLinesMatch[bestIdx]] = pML;
+                    nmatches++;
+                }
+
+                nmatches++;
+            }
         }
+     
     }
 
 #if VERBOSE    
@@ -1252,14 +1566,15 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, KeyFramePtr& pKF, const
     const Eigen::Vector3f tcw = Tcw.translation();    
 
     // Rotation Histogram (to check rotation consistency)
-   vector<int> rotHist[HISTO_LENGTH];
-   for(int i=0;i<HISTO_LENGTH;i++)
-       rotHist[i].reserve(100);
-   const float factor = 1.0f/HISTO_LENGTH;
+    vector<int> rotHist[HISTO_LENGTH];
+    for(int i=0;i<HISTO_LENGTH;i++)
+        rotHist[i].reserve(100);
+    constexpr float factor = HISTO_LENGTH/M_2PI;
 
     const vector<MapLinePtr> vpMLs = pKF->GetMapLineMatches();
 
     LineProjection proj;
+    const FrameTransformsForLineProjection currFrameTransforms(CurrentFrame);    
     Line2DRepresentation projLineRepresentation;
     
     for(size_t i=0, iend=vpMLs.size(); i<iend; i++)
@@ -1302,7 +1617,8 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, KeyFramePtr& pKF, const
 //                // Search in a window
 //                const float radius = th*CurrentFrame.mvScaleFactors[nPredictedLevel];
                 
-                if(!proj.ProjectLineWithCheck(Rcw, tcw, pML, CurrentFrame))
+                //if(!proj.ProjectLineWithCheck(Rcw, tcw, pML, CurrentFrame))
+		        if(!proj.ProjectLineWithCheck(pML, CurrentFrame, currFrameTransforms))
                     continue;
                 
                 int nPredictedLevel = pML->PredictScale(proj.distMiddlePoint,&CurrentFrame);                
@@ -1368,8 +1684,7 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, KeyFramePtr& pKF, const
                    if(mbCheckOrientation)
                    {
                        float rot = pKF->mvKeyLinesUn[i].angle-CurrentFrame.mvKeyLinesUn[bestIdx].angle;
-                       if(rot<0.0)
-                           rot+=360.0f;
+                       if(rot<0.0){ rot+=M_2PI; } else if(rot>M_2PI) { rot-=M_2PI; }
                        int bin = round(rot*factor);
                        if(bin==HISTO_LENGTH)
                            bin=0;
@@ -1415,19 +1730,6 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, KeyFramePtr& pKF, const
 // vpMatched are the lines matched in the keyframe pKF 
 int LineMatcher::SearchByProjection(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const vector<MapLinePtr> &vpLines, vector<MapLinePtr> &vpMatched, int th, float ratioHamming)
 {
-    // Get Calibration Parameters for later projection
-//    const float &fx = pKF->fx;
-//    const float &fy = pKF->fy;
-//    const float &cx = pKF->cx;
-//    const float &cy = pKF->cy;
-
-    // Decompose Scw
-    // cv::Mat sRcw = Scw.rowRange(0,3).colRange(0,3);
-    // const float scw = sqrt(sRcw.row(0).dot(sRcw.row(0)));
-    // cv::Mat Rcw = sRcw/scw;
-    // cv::Mat tcw = Scw.rowRange(0,3).col(3)/scw;
-    // cv::Mat Ow = -Rcw.t()*tcw;
-
     // Transform Scw to SE3 
     Eigen::Matrix3f Rcw = Scw.rotationMatrix();
     float scale = Scw.scale(); 
@@ -1435,12 +1737,13 @@ int LineMatcher::SearchByProjection(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, 
     Eigen::Vector3f Ow = -Rcw.transpose()*tcw;    
 
     // Set of MapLines already found in the KeyFrame
-    set<MapLinePtr> spAlreadyFound(vpMatched.begin(), vpMatched.end());
+    unordered_set<MapLinePtr> spAlreadyFound(vpMatched.begin(), vpMatched.end());
     spAlreadyFound.erase(static_cast<MapLinePtr>(NULL));
 
     int nmatches=0;
 
     LineProjection proj;
+    const FrameTransformsForLineProjection frameTransforms(Rcw,tcw); 
     Line2DRepresentation projLineRepresentation;
     
     // For each Candidate MapLine Project and Match
@@ -1484,7 +1787,8 @@ int LineMatcher::SearchByProjection(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, 
 //            continue;
 
         
-        if(!proj.ProjectLineWithCheck(Rcw, tcw, pML, *pKF))
+        //if(!proj.ProjectLineWithCheck(Rcw, tcw, pML, *pKF))
+        if(!proj.ProjectLineWithCheck(pML, *pKF, frameTransforms))
             continue;
                 
         Eigen::Vector3f PO = proj.p3DMw-Ow;
@@ -1515,11 +1819,11 @@ int LineMatcher::SearchByProjection(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, 
 
         int bestDist  = 256;
         int bestIdx   = -1;
-        int bestDist2 = 256;
+        //int bestDist2 = 256;
         
         for(vector<size_t>::const_iterator vit=vIndices.begin(), vend=vIndices.end(); vit!=vend; vit++)
         {
-            const size_t idx = *vit;
+            const size_t idx = *vit; // this is a left line index
             if(vpMatched[idx])
                 continue;
 
@@ -1532,24 +1836,22 @@ int LineMatcher::SearchByProjection(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, 
 
             const int dist = DescriptorDistance(dML,dKF);
  
-//            if(dist<bestDist)
-//            {
-//                bestDist = dist;
-//                bestIdx = idx;
-//            }
+           if(dist<bestDist)
+           {
+               bestDist = dist;
+               bestIdx = idx;
+           }
             
-            if(dist<bestDist)
-            {
-                bestDist2=bestDist;
-                bestDist=dist;
-                bestIdx=idx;
-            }
-            else if(dist<bestDist2)
-            {
-                bestDist2=dist;
-            }
-            
-            
+            // if(dist<bestDist)
+            // {
+            //     bestDist2=bestDist;
+            //     bestDist=dist;
+            //     bestIdx=idx;
+            // }
+            // else if(dist<bestDist2)
+            // {
+            //     bestDist2=dist;
+            // }
         }
 
         
@@ -1575,19 +1877,6 @@ int LineMatcher::SearchByProjection(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, 
 int LineMatcher::SearchByProjection(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const std::vector<MapLinePtr> &vpLines, const std::vector<KeyFramePtr> &vpLinesKFs,
                                     std::vector<MapLinePtr> &vpMatched, std::vector<KeyFramePtr> &vpMatchedKF, int th, float ratioHamming)
 {
-//    // Get Calibration Parameters for later projection
-//    const float &fx = pKF->fx;
-//    const float &fy = pKF->fy;
-//    const float &cx = pKF->cx;
-//    const float &cy = pKF->cy;
-
-    // Decompose Scw
-    // cv::Mat sRcw = Scw.rowRange(0,3).colRange(0,3);
-    // const float scw = sqrt(sRcw.row(0).dot(sRcw.row(0)));
-    // cv::Mat Rcw = sRcw/scw;
-    // cv::Mat tcw = Scw.rowRange(0,3).col(3)/scw;
-    // cv::Mat Ow = -Rcw.t()*tcw;
-
     // Transform Scw to SE3 
     Eigen::Matrix3f Rcw = Scw.rotationMatrix();
     float scale = Scw.scale(); 
@@ -1595,11 +1884,12 @@ int LineMatcher::SearchByProjection(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, 
     Eigen::Vector3f Ow = -Rcw.transpose()*tcw;     
 
     // Set of MapLines already found in the KeyFrame
-    set<MapLinePtr> spAlreadyFound(vpMatched.begin(), vpMatched.end());
+    unordered_set<MapLinePtr> spAlreadyFound(vpMatched.begin(), vpMatched.end());
     spAlreadyFound.erase(static_cast<MapLinePtr>(NULL));
 
     int nmatches=0;
     LineProjection proj;
+    const FrameTransformsForLineProjection frameTransforms(Rcw,tcw); 
     Line2DRepresentation projLineRepresentation;
     
     // For each Candidate MapPoint Project and Match
@@ -1643,7 +1933,8 @@ int LineMatcher::SearchByProjection(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, 
     //    if(dist<minDistance || dist>maxDistance)
     //        continue;
 
-        if(!proj.ProjectLineWithCheck(Rcw, tcw, pML, *pKF))
+        //if(!proj.ProjectLineWithCheck(Rcw, tcw, pML, *pKF))
+	    if(!proj.ProjectLineWithCheck(pML, *pKF, frameTransforms))
             continue;
 
         Eigen::Vector3f PO = proj.p3DMw-Ow;
@@ -1677,7 +1968,7 @@ int LineMatcher::SearchByProjection(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, 
         int bestIdx = -1;
         for(vector<size_t>::const_iterator vit=vIndices.begin(), vend=vIndices.end(); vit!=vend; vit++)
         {
-            const size_t idx = *vit;
+            const size_t idx = *vit; // this is a lef line index
             if(vpMatched[idx])
                 continue;
 
@@ -1713,24 +2004,20 @@ int LineMatcher::SearchByProjection(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, 
 
 // used in LocalMapping::SearchInNeighbors()
 // Project MapLines into KeyFrame and search for duplicated MapLines
-int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, const float th) 
+int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, const float th, const bool bRight) 
 {
-    Eigen::Matrix3f Rcw = pKF->GetRotation();
-    Eigen::Vector3f tcw = pKF->GetTranslation();
+    if(bRight) MSG_ASSERT(pKF->NlinesLeft!=-1,"You can't ask for right lines without a proper left and right line management!");
 
-//    const float &fx = pKF->fx;
-//    const float &fy = pKF->fy;
-//    const float &cx = pKF->cx;
-//    const float &cy = pKF->cy;
-//    const float &bf = pKF->mbf;
-
-    Eigen::Vector3f Ow = pKF->GetCameraCenter();
+    // Eigen::Matrix3f Rcw = pKF->GetRotation();
+    // Eigen::Vector3f tcw = pKF->GetTranslation();
+    Eigen::Vector3f Ow = bRight ? pKF->GetRightCameraCenter() : pKF->GetCameraCenter();
 
     int nFused=0;
 
     const int nMLs = vpMapLines.size();
 
     LineProjection proj;
+    const FrameTransformsForLineProjection frameTransforms(*pKF);
     Line2DRepresentation projLineRepresentation;
     Line2DRepresentation projRightLineRepresentation;    
     
@@ -1767,7 +2054,8 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
         ///
 
         // project line to current frame 
-        if (!proj.ProjectLineWithCheck(Rcw, tcw, pML, *pKF))
+        //if (!proj.ProjectLineWithCheck(Rcw, tcw, pML, *pKF))
+	    if (!proj.ProjectLineWithCheck(pML, *pKF, frameTransforms, bRight))
             continue;
   
         ///
@@ -1800,7 +2088,7 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
         const float scale = pKF->mvLineScaleFactors[nPredictedLevel];
         const float deltaTheta = Frame::kDeltaTheta*scale;     
         const float deltaD = th * Frame::kDeltaD*scale; // increase just the distance               
-        const vector<size_t>& vIndices = pKF->GetLineFeaturesInArea(projLineRepresentation,deltaTheta,deltaD);  
+        const vector<size_t>& vIndices = pKF->GetLineFeaturesInArea(projLineRepresentation,deltaTheta,deltaD,bRight);  
         
         if(vIndices.empty())
             continue;
@@ -1811,13 +2099,14 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
 
         int bestDist  = 256;
         int bestIdx   = -1;
-        int bestDist2 = 256; // second to best 
+        //int bestDist2 = 256; // second to best 
         
         for(vector<size_t>::const_iterator vit=vIndices.begin(), vend=vIndices.end(); vit!=vend; vit++)
         {
-            const size_t idx = *vit;
+            size_t idx = *vit; // this can be left or right line index depending on bRight
 
-            const cv::line_descriptor_c::KeyLine &kl = pKF->mvKeyLinesUn[idx];
+            //const cv::line_descriptor_c::KeyLine &kl = pKF->mvKeyLinesUn[idx];
+            const cv::line_descriptor_c::KeyLine &kl = bRight? pKF->mvKeyLinesRightUn[idx] : pKF->mvKeyLinesUn[idx]; 
             const int klLevel= kl.octave;
 
             if(klLevel<nPredictedLevel-1 || klLevel>nPredictedLevel)
@@ -1882,7 +2171,8 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
             
 
 #if USE_STEREO_PROJECTION_CHECK
-            if(pKF->mvuRightLineStart[idx]>=0 && pKF->mvuRightLineEnd[idx]>=0)
+            // fast stereo projection check with rectified images
+            if(!pKF->mpCamera2 && pKF->mvuRightLineStart[idx]>=0 && pKF->mvuRightLineEnd[idx]>=0)
             {
                 // we assume left and right images are rectified 
 
@@ -1916,26 +2206,28 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
             }  
 #endif  
 
+            if(bRight) idx += pKF->NlinesLeft;
+
             const cv::Mat &dKF = pKF->mLineDescriptors.row(idx);
 
             const int dist = DescriptorDistance(dML,dKF);
 
-        //    if(dist<bestDist)
-        //    {
-        //        bestDist = dist;
-        //        bestIdx = idx;
-        //    }
-            
             if(dist<bestDist)
             {
-                bestDist2=bestDist;
-                bestDist=dist;
-                bestIdx=idx;
+                bestDist = dist;
+                bestIdx = idx;
             }
-            else if(dist<bestDist2)
-            {
-                bestDist2=dist;
-            }
+            
+            // if(dist<bestDist)
+            // {
+            //     bestDist2=bestDist;
+            //     bestDist=dist;
+            //     bestIdx=idx;
+            // }
+            // else if(dist<bestDist2)
+            // {
+            //     bestDist2=dist;
+            // }
             
         }
 
@@ -1953,7 +2245,6 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
             {
                 if(!pMLinKF->isBad())
                 {
-                    // 
                     if(pMLinKF->Observations() > pML->Observations())
                         pML->Replace(pMLinKF);
                     else
@@ -1985,19 +2276,6 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
 // Project MapLines into KeyFrame using a given Sim3 and search for duplicated MapLines
 int LineMatcher::Fuse(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const std::vector<MapLinePtr> &vpLines, const float th, vector<MapLinePtr> &vpReplaceLine)
 {
-    // Get Calibration Parameters for later projection
-//    const float &fx = pKF->fx;
-//    const float &fy = pKF->fy;
-//    const float &cx = pKF->cx;
-//    const float &cy = pKF->cy;
-
-    // Decompose Scw
-    // cv::Mat sRcw = Scw.rowRange(0,3).colRange(0,3);
-    // const float scw = sqrt(sRcw.row(0).dot(sRcw.row(0)));
-    // cv::Mat Rcw = sRcw/scw;
-    // cv::Mat tcw = Scw.rowRange(0,3).col(3)/scw;
-    // cv::Mat Ow = -Rcw.t()*tcw;
-
     // Transform Scw to SE3 
     Eigen::Matrix3f Rcw = Scw.rotationMatrix();
     float scale = Scw.scale(); 
@@ -2005,13 +2283,14 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const std::vec
     Eigen::Vector3f Ow = -Rcw.transpose()*tcw;      
 
     // Set of MapLines already found in the KeyFrame
-    const set<MapLinePtr> spAlreadyFound = pKF->GetMapLines();
+    const unordered_set<MapLinePtr> spAlreadyFound = pKF->GetMapLinesUnordered();
 
     int nFused=0;
 
     const int nLines = vpLines.size();
     
     LineProjection proj;
+    const FrameTransformsForLineProjection frameTransforms(Rcw,tcw);
     Line2DRepresentation projLineRepresentation;
     Line2DRepresentation projRightLineRepresentation;    
 
@@ -2070,7 +2349,8 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const std::vec
         
 
         // project line to current frame 
-        if (!proj.ProjectLineWithCheck(Rcw, tcw, pML, *pKF))
+        //if (!proj.ProjectLineWithCheck(Rcw, tcw, pML, *pKF))
+	    if (!proj.ProjectLineWithCheck(pML, *pKF, frameTransforms))
             continue;
   
         Eigen::Vector3f PO = proj.p3DMw-Ow;
@@ -2101,11 +2381,11 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const std::vec
 
         int bestDist  = INT_MAX;
         int bestIdx   = -1;
-        int bestDist2 = INT_MAX;
+        //int bestDist2 = INT_MAX;
         
         for(vector<size_t>::const_iterator vit=vIndices.begin(); vit!=vIndices.end(); vit++)
         {
-            const size_t idx = *vit;
+            const size_t idx = *vit; // this is a left line index
             
             const cv::line_descriptor_c::KeyLine &kl = pKF->mvKeyLinesUn[idx];
             const int &klLevel= kl.octave;
@@ -2141,7 +2421,7 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const std::vec
 
 
 #if 0 //USE_STEREO_PROJECTION_CHECK  // disabled: it is not used in sim3 search and fuse for points
-            if(pKF->mvuRightLineStart[idx]>=0 && pKF->mvuRightLineEnd[idx]>=0)
+            if(!pKF->mpCamera2 && pKF->mvuRightLineStart[idx]>=0 && pKF->mvuRightLineEnd[idx]>=0)
             {
                 // we assume left and right images are rectified 
 
@@ -2179,22 +2459,22 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const std::vec
 
             int dist = DescriptorDistance(dML,dKF);
 
-        //    if(dist<bestDist)
-        //    {
-        //        bestDist = dist;
-        //        bestIdx = idx;
-        //    }
+           if(dist<bestDist)
+           {
+               bestDist = dist;
+               bestIdx = idx;
+           }
             
-            if(dist<bestDist)
-            {
-                bestDist2=bestDist;
-                bestDist=dist;
-                bestIdx=idx;
-            }
-            else if(dist<bestDist2)
-            {
-                bestDist2=dist;
-            }
+            // if(dist<bestDist)
+            // {
+            //     bestDist2=bestDist;
+            //     bestDist=dist;
+            //     bestIdx=idx;
+            // }
+            // else if(dist<bestDist2)
+            // {
+            //     bestDist2=dist;
+            // }
             
         }
 

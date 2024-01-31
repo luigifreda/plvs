@@ -125,10 +125,9 @@ class Uniform
 class Shader : public pangolin::GlSlProgram
 {
     public:
-        Shader()
-        {}
+        Shader() = default; 
 
-        GLuint programId()
+        GLuint programId() const
         {
             return prog;
         }
@@ -176,10 +175,39 @@ class Shader : public pangolin::GlSlProgram
         {
             matProjModelView_ = mvp; 
         }
-        
-        
-        pangolin::OpenGlMatrix matProjModelView_;
 
+        void SetModelViewMatrix(const pangolin::OpenGlMatrix& mv)
+        {
+            matModelView_ = mv; 
+        }
+
+        void SetProjectionMatrix(const pangolin::OpenGlMatrix& mp)
+        {
+            matProjection_ = mp; 
+        }
+
+    public: 
+
+        const pangolin::OpenGlMatrix& GetProjectionModelViewMatrix() const
+        {
+            return matProjModelView_;
+        }
+
+        const pangolin::OpenGlMatrix& GetModelViewMatrix() const
+        {
+            return matModelView_;
+        }
+
+        const pangolin::OpenGlMatrix& GetProjectionMatrix() const
+        {
+            return matProjection_;
+        }
+
+    protected: 
+
+        pangolin::OpenGlMatrix matProjModelView_; // combined projection and modelview
+        pangolin::OpenGlMatrix matModelView_;
+        pangolin::OpenGlMatrix matProjection_;
 };
 
 static inline std::string getShadersDir()

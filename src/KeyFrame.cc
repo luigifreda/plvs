@@ -1,6 +1,5 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -105,8 +104,8 @@ KeyFrame::KeyFrame():
         /*mK(NULL),*/  
         mPrevKF(static_cast<KeyFramePtr>(NULL)), mNextKF(static_cast<KeyFramePtr>(NULL)), mbFirstConnection(true), mpParent(NULL), mbNotErase(false),
         mbToBeErased(false), mbBad(false), mHalfBaseline(0), mbCurrentPlaceRecognition(false), mnMergeCorrectedForKF(0), 
-        NLeft(0),NRight(0), mnNumberOfOpt(0),
-        NlinesLeft(0),NlinesRight(0), 
+        NLeft(-1),NRight(-1), mnNumberOfOpt(0),
+        NlinesLeft(-1),NlinesRight(-1), 
         mpMap(0),        
         mbVisited(false), mbFixed(false),
         mbHasVelocity(false)
@@ -158,7 +157,8 @@ KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB):
     mpCamera(F.mpCamera), mpCamera2(F.mpCamera2),
     mvLeftToRightMatch(F.mvLeftToRightMatch),mvRightToLeftMatch(F.mvRightToLeftMatch), mTlr(F.GetRelativePoseTlr()),
     mvKeysRight(F.mvKeysRight), NLeft(F.Nleft), NRight(F.Nright), 
-    mvKeyLinesRight(F.mvKeyLinesRight), NlinesLeft(F.NlinesLeft), NlinesRight(F.NlinesRight), 
+    mvKeyLinesRight(F.mvKeyLinesRight), mvKeyLinesRightUn(F.mvKeyLinesRightUn), NlinesLeft(F.NlinesLeft), NlinesRight(F.NlinesRight), 
+    mvLeftToRightLinesMatch(F.mvLeftToRightLinesMatch),mvRightToLeftLinesMatch(F.mvRightToLeftLinesMatch),
     mTrl(F.GetRelativePoseTrl()), mnNumberOfOpt(0),
     mbVisited(false), mbFixed(false),   
     mbHasVelocity(false)
@@ -187,11 +187,17 @@ KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB):
     if(F.mpLineExtractorLeft)
     {
         mLineGrid.resize(mnLineDGridCols);
+        if(F.NlinesLeft != -1)  mLineGridRight.resize(mnLineDGridCols);
         for(int i=0; i<mnLineDGridCols;i++)
         {
             mLineGrid[i].resize(mnLineThetaGridRows);
-            for(int j=0; j<mnLineThetaGridRows; j++)
+            if(F.NlinesLeft != -1) mLineGridRight[i].resize(mnLineThetaGridRows);
+            for(int j=0; j<mnLineThetaGridRows; j++){
                 mLineGrid[i][j] = F.mLineGrid[i][j];
+                if(F.NlinesLeft != -1){
+                    mLineGridRight[i][j] = F.mLineGridRight[i][j];
+                }
+            }
         }
     }
 
@@ -520,7 +526,22 @@ set<MapPointPtr> KeyFrame::GetMapPoints()
     {
         if(!mvpMapPoints[i])
             continue;
-        MapPointPtr pMP = mvpMapPoints[i];
+        const MapPointPtr& pMP = mvpMapPoints[i];
+        if(!pMP->isBad())
+            s.insert(pMP);
+    }
+    return s;
+}
+
+unordered_set<MapPointPtr> KeyFrame::GetMapPointsUnordered()
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    unordered_set<MapPointPtr> s;
+    for(size_t i=0, iend=mvpMapPoints.size(); i<iend; i++)
+    {
+        if(!mvpMapPoints[i])
+            continue;
+        const MapPointPtr& pMP = mvpMapPoints[i];
         if(!pMP->isBad())
             s.insert(pMP);
     }
@@ -603,7 +624,22 @@ set<MapLinePtr> KeyFrame::GetMapLines()
     {
         if(!mvpMapLines[i])
             continue;
-        MapLinePtr& pML = mvpMapLines[i];
+        const MapLinePtr& pML = mvpMapLines[i];
+        if(!pML->isBad())
+            s.insert(pML);
+    }
+    return s;
+}
+
+std::unordered_set<MapLinePtr> KeyFrame::GetMapLinesUnordered()
+{
+    unique_lock<mutex> lock(mMutexLineFeatures);
+    std::unordered_set<MapLinePtr> s;
+    for(size_t i=0, iend=mvpMapLines.size(); i<iend; i++)
+    {
+        if(!mvpMapLines[i])
+            continue;
+        const MapLinePtr& pML = mvpMapLines[i];
         if(!pML->isBad())
             s.insert(pML);
     }
@@ -1163,16 +1199,22 @@ vector<size_t> KeyFrame::GetFeaturesInArea(const float &x, const float &y, const
     if(nMaxCellY<0)
         return vIndices;
 
+    const auto& grid = (!bRight) ? mGrid : mGridRight;
+    const auto& keys = (NLeft == -1) ? mvKeysUn : 
+                                      (!bRight) ? mvKeys : mvKeysRight;
+
     for(int ix = nMinCellX; ix<=nMaxCellX; ix++)
     {
         for(int iy = nMinCellY; iy<=nMaxCellY; iy++)
         {
-            const vector<size_t>& vCell = (!bRight) ? mGrid[ix][iy] : mGridRight[ix][iy];
+            //const vector<size_t>& vCell = (!bRight) ? mGrid[ix][iy] : mGridRight[ix][iy];
+            const vector<size_t>& vCell = grid[ix][iy];
             for(size_t j=0, jend=vCell.size(); j<jend; j++)
             {
-                const cv::KeyPoint &kpUn = (NLeft == -1) ? mvKeysUn[vCell[j]]
-                                                         : (!bRight) ? mvKeys[vCell[j]]
-                                                                     : mvKeysRight[vCell[j]];
+                // const cv::KeyPoint &kpUn = (NLeft == -1) ? mvKeysUn[vCell[j]]
+                //                                          : (!bRight) ? mvKeys[vCell[j]]
+                //                                                      : mvKeysRight[vCell[j]];
+                const cv::KeyPoint &kpUn = keys[vCell[j]];                                                                     
                 const float distx = kpUn.pt.x-x;
                 const float disty = kpUn.pt.y-y;
 
@@ -1186,11 +1228,11 @@ vector<size_t> KeyFrame::GetFeaturesInArea(const float &x, const float &y, const
 }
 
 
-vector<size_t> KeyFrame::GetLineFeaturesInArea(const float &xs, const float  &ys, const float &xe, const float  &ye, const float& dtheta, const float& dd) const
+vector<size_t> KeyFrame::GetLineFeaturesInArea(const float &xs, const float  &ys, const float &xe, const float  &ye, const float& dtheta, const float& dd, const bool bRight) const
 {    
     Line2DRepresentation lineRepresentation;
     Geom2DUtils::GetLine2dRepresentation(xs, ys, xe, ye, lineRepresentation);
-    return GetLineFeaturesInArea(lineRepresentation,dtheta,dd);
+    return GetLineFeaturesInArea(lineRepresentation,dtheta,dd,bRight);
 }
 
 //vector<size_t> KeyFrame::GetLineFeaturesInArea(const Line2DRepresentation& lineRepresentation, const float& dtheta, const float& dd) const
@@ -1245,7 +1287,7 @@ vector<size_t> KeyFrame::GetLineFeaturesInArea(const float &xs, const float  &ys
 //}
 
 
-vector<size_t> KeyFrame::GetLineFeaturesInArea(const Line2DRepresentation& lineRepresentation, const float& dtheta, const float& dd) const
+vector<size_t> KeyFrame::GetLineFeaturesInArea(const Line2DRepresentation& lineRepresentation, const float& dtheta, const float& dd, const bool bRight) const
 {       
     vector<size_t> vIndices;
     vIndices.reserve(Nlines);
@@ -1263,12 +1305,12 @@ vector<size_t> KeyFrame::GetLineFeaturesInArea(const Line2DRepresentation& lineR
     const float dMin = lineRepresentation.d - dd;
     const float dMax = lineRepresentation.d + dd;    
     
-    GetLineFeaturesInArea(thetaMin, thetaMax, dMin, dMax, vIndices);
+    GetLineFeaturesInArea(thetaMin, thetaMax, dMin, dMax, vIndices, bRight);
 
     return vIndices;
 }
 
-void KeyFrame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax, const float dMin, const float dMax, vector<size_t>& vIndices) const
+void KeyFrame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax, const float dMin, const float dMax, vector<size_t>& vIndices, const bool bRight) const
 {                    
     if( thetaMin < -M_PI_2 )
     {
@@ -1280,13 +1322,13 @@ void KeyFrame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax,
         const float thetaMax1 = M_PI_2 - std::numeric_limits<float>::epsilon();
         const float dMin1 = -dMax; 
         const float dMax1 = -dMin; 
-        GetLineFeaturesInArea(thetaMin1,thetaMax1,dMin1,dMax1,vIndices);
+        GetLineFeaturesInArea(thetaMin1,thetaMax1,dMin1,dMax1,vIndices,bRight);
         
         const float thetaMin2 = -M_PI_2 + std::numeric_limits<float>::epsilon(); 
         const float thetaMax2 = thetaMax;
         const float dMin2 = dMin; 
         const float dMax2 = dMax; 
-        GetLineFeaturesInArea(thetaMin2,thetaMax2,dMin2,dMax2,vIndices);
+        GetLineFeaturesInArea(thetaMin2,thetaMax2,dMin2,dMax2,vIndices,bRight);
         
         return; // < EXIT 
     }
@@ -1301,13 +1343,13 @@ void KeyFrame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax,
         const float thetaMax1 = thetaMax - M_PI;
         const float dMin1 = -dMax; 
         const float dMax1 = -dMin; 
-        GetLineFeaturesInArea(thetaMin1,thetaMax1,dMin1,dMax1,vIndices);
+        GetLineFeaturesInArea(thetaMin1,thetaMax1,dMin1,dMax1,vIndices,bRight);
         
         const float thetaMin2 = thetaMin; 
         const float thetaMax2 = M_PI_2 - std::numeric_limits<float>::epsilon();
         const float dMin2 = dMin; 
         const float dMax2 = dMax; 
-        GetLineFeaturesInArea(thetaMin2,thetaMax2,dMin2,dMax2,vIndices);
+        GetLineFeaturesInArea(thetaMin2,thetaMax2,dMin2,dMax2,vIndices,bRight);
         
         return; // < EXIT         
         
@@ -1338,13 +1380,18 @@ void KeyFrame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax,
         return; 
     }
         
+    const auto& grid = (!bRight) ? mLineGrid : mLineGridRight;
+    // const auto& keyLines = (NlinesLeft == -1) ? mvKeyLinesUn : 
+    //                                            (!bRight) ? mvKeyLinesUn : mvKeyLinesRightUn;
+
     for(int ix = nMinCellDCol; ix<=nMaxCellDCol; ix++)
     {
         for(int iy = nMinCellThetaRow; iy<=nMaxCellThetaRow; iy++)
         {
             //const int iyW = Utils::Modulus(iy,LINE_THETA_GRID_ROWS); 
             const int iyW = iy;
-            const vector<size_t>& vCell = mLineGrid[ix][iyW];
+            //const vector<size_t>& vCell = mLineGrid[ix][iyW];
+            const vector<size_t>& vCell = grid[ix][iyW];
             if(vCell.empty())
                 continue;
 
@@ -1382,18 +1429,25 @@ bool KeyFrame::UnprojectStereoLine(const int& i, Eigen::Vector3f& p3DStart, Eige
 {
     bool res = true; 
     
-    const float& zS = mvDepthLineStart[i];
-    const float& zE = mvDepthLineEnd[i];
+    int idx = i;
+    if(NlinesLeft != -1 && idx >= NlinesLeft){
+        idx = mvRightToLeftLinesMatch[idx-NlinesLeft]; // get the corresponding left line if any 
+        if(idx<0)
+            return false;
+    }    
+
+    const float& zS = mvDepthLineStart[idx];
+    const float& zE = mvDepthLineEnd[idx];
     if( (zS>0) && (zE>0) )
     {
-        const float uS = mvKeyLinesUn[i].startPointX;
-        const float vS = mvKeyLinesUn[i].startPointY;
+        const float uS = mvKeyLinesUn[idx].startPointX;
+        const float vS = mvKeyLinesUn[idx].startPointY;
         const float xS = (uS-cx)*zS*invfx;
         const float yS = (vS-cy)*zS*invfy;
         const Eigen::Vector3f xS3Dc(xS, yS, zS);
         
-        const float uE = mvKeyLinesUn[i].endPointX;
-        const float vE = mvKeyLinesUn[i].endPointY;
+        const float uE = mvKeyLinesUn[idx].endPointX;
+        const float vE = mvKeyLinesUn[idx].endPointY;
         const float xE = (uE-cx)*zE*invfx;
         const float yE = (vE-cy)*zE*invfy;
         const Eigen::Vector3f xE3Dc(xE, yE, zE);
@@ -1431,6 +1485,18 @@ bool KeyFrame::UnprojectStereoLine(const int& i, Eigen::Vector3f& p3DStart, Eige
     return res; 
     
 }
+
+bool KeyFrame::UnprojectStereoLineFishEye(const int &i, Eigen::Vector3f& p3DStart, Eigen::Vector3f& p3DEnd)
+{
+    int idx = i;
+    if(NlinesLeft != -1 && idx >= NlinesLeft){
+        idx = mvRightToLeftLinesMatch[idx-NlinesLeft]; // get the corresponding left line if any 
+        if(idx<0)
+            return false;
+    }    
+    return UnprojectStereoLine(idx, p3DStart, p3DEnd); 
+}
+
 
 float KeyFrame::ComputeSceneMedianDepth(const int q)
 {
@@ -1602,6 +1668,7 @@ void KeyFrame::PreSave(set<KeyFramePtr>& spKF,set<MapPointPtr>& spMP, set<Geomet
         mBackupImuPreintegrated.CopyFrom(mpImuPreintegrated);
 }
 
+#if 0
 void KeyFrame::PostLoad(map<long unsigned int, KeyFramePtr>& mpKFid, map<long unsigned int, MapPointPtr>& mpMPid, map<unsigned int, GeometricCamera*>& mpCamId){
     // Rebuild the empty variables
 
@@ -1690,6 +1757,7 @@ void KeyFrame::PostLoad(map<long unsigned int, KeyFramePtr>& mpKFid, map<long un
 
     UpdateBestCovisibles();
 }
+#endif 
 
 bool KeyFrame::ProjectPointDistort(MapPointPtr pMP, cv::Point2f &kp, float &u, float &v)
 {
@@ -2224,9 +2292,12 @@ void KeyFrame::serialize(Archive& ar, const unsigned int version)
     ar & const_cast< std::vector< cv::KeyPoint > & >(mvKeysRight);
     ar & mGridRight;
 
+    ar & mvLeftToRightLinesMatch;
+    ar & mvRightToLeftLinesMatch;
     ar & const_cast<int&>(NlinesLeft);
     ar & const_cast<int&>(NlinesRight);    
     ar & const_cast< std::vector<cv::line_descriptor_c::KeyLine>& >(mvKeyLinesRight);
+    ar & const_cast< std::vector<cv::line_descriptor_c::KeyLine>& >(mvKeyLinesRightUn);    
     ar & mLineGridRight;
 
     // Inertial variables

@@ -1,6 +1,5 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -31,9 +30,56 @@
 namespace PLVS2
 {
 
+
+class FrameTransformsForLineProjection
+{
+public:    
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+    FrameTransformsForLineProjection() = default;
+
+    template<typename FrameType>    
+    explicit FrameTransformsForLineProjection(FrameType& F)
+    {
+        const auto mTcw = F.GetPose();
+        mRcw = mTcw.rotationMatrix();
+        mtcw = mTcw.translation();
+        const auto mTrw = F.GetRelativePoseTrl() * mTcw;
+        mRrw = mTrw.rotationMatrix();
+        mtrw = mTrw.translation();
+    }
+    // init left and right
+    FrameTransformsForLineProjection(const Eigen::Matrix3f& Rcw, const Eigen::Vector3f& tcw, const Eigen::Matrix3f& Rrw, const Eigen::Vector3f& trw)
+    {
+        mRcw = Rcw;
+        mtcw = tcw;
+        mRrw = Rrw;
+        mtrw = trw;
+    }
+    // init left only (right is initialized as left but it is supposed not to be used)
+    FrameTransformsForLineProjection(const Eigen::Matrix3f& Rcw, const Eigen::Vector3f& tcw)
+    {
+        mRcw = Rcw;
+        mtcw = tcw;
+
+        // right transforms initialized as left but not used 
+        mRrw = Rcw;
+        mtrw = tcw;
+    }
+
+    Eigen::Matrix3f mRcw; // left camera pose (world to left camera)
+    Eigen::Vector3f mtcw; 
+
+    Eigen::Matrix3f mRrw; // right camera pose (world to right camera)
+    Eigen::Vector3f mtrw;
+};
+
+
 class LineProjection
 {
 public: 
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    
     LineProjection():
         uS(0.f),vS(0.f),invSz(0.f), 
         uE(0.f),vE(0.f),invEz(0.f),
@@ -41,12 +87,13 @@ public:
         distMiddlePoint(0.f){}
     
     
-    template<typename FrameType>
-    void ProjectLine(const Eigen::Matrix3f& Rcw, const Eigen::Vector3f& tcw, const MapLinePtr& pML, const FrameType& F);
+    // template<typename FrameType>
+    // void ProjectLine(const MapLinePtr& pML, const FrameType& F, const FrameTransformsForLineProjection& frameTfs, bool bRight=false);
     
     template<typename FrameType>
-    bool ProjectLineWithCheck(const Eigen::Matrix3f& Rcw, const Eigen::Vector3f& tcw, const MapLinePtr& pML, const FrameType& F);
+    bool ProjectLineWithCheck(const MapLinePtr& pML, const FrameType& F, const FrameTransformsForLineProjection& frameTfs, bool bRight=false);
     
+    // undistorted projections 
     float uS,vS, invSz; // start (u,v, inverse depth)
     float uE,vE, invEz; // end   (u,v, inverse depth)
     float uM,vM;        // middle
@@ -56,60 +103,51 @@ public:
 };
 
 
-template<typename FrameType>
-inline void LineProjection::ProjectLine(const Eigen::Matrix3f& Rcw, const Eigen::Vector3f& tcw, const MapLinePtr& pML, const FrameType& F)
-{
-    const float &fx = F.fx;
-    const float &fy = F.fy;
-    const float &cx = F.cx;
-    const float &cy = F.cy;
-    const float &bf = F.mbf;
-    
-    Eigen::Vector3f p3DSw, p3DEw;
-    pML->GetWorldEndPoints(p3DSw, p3DEw);          
-    p3DMw = 0.5*(p3DSw+p3DEw);
+// template<typename FrameType>
+// inline void LineProjection::ProjectLine(const MapLinePtr& pML, const FrameType& F, const FrameTransformsForLineProjection& frameTfs, bool bRight)
+// {
+//     const GeometricCamera* cam = bRight ? F.mpCamera2 : F.mpCamera;
+//     const auto& R = bRight ? frameTfs.mRrw : frameTfs.mRcw;
+//     const auto& t = bRight ? frameTfs.mtrw : frameTfs.mtcw;
 
-    // 3D in camera coordinates
-    const Eigen::Vector3f p3DSc = Rcw*p3DSw+tcw;    
-    const float &p3DScX = p3DSc(0);
-    const float &p3DScY = p3DSc(1);
-    const float &p3DScZ = p3DSc(2);    
+//     Eigen::Vector3f p3DSw, p3DEw;
+//     pML->GetWorldEndPoints(p3DSw, p3DEw);          
+//     p3DMw = 0.5*(p3DSw+p3DEw);
+
+//     // 3D in camera coordinates
+//     const Eigen::Vector3f p3DSc = R*p3DSw+t;    
+//     const float &p3DScZ = p3DSc(2);    
     
-    const Eigen::Vector3f p3DEc = Rcw*p3DEw+tcw;
-    const float &p3DEcX = p3DEc(0);
-    const float &p3DEcY = p3DEc(1);
-    const float &p3DEcZ = p3DEc(2);   
+//     const Eigen::Vector3f p3DEc = R*p3DEw+t;
+//     const float &p3DEcZ = p3DEc(2);   
     
-    // Project in image 
-    invSz = 1.0f/p3DScZ;
-    uS=fx*p3DScX*invSz+cx;
-    vS=fy*p3DScY*invSz+cy;
+//     // Project in image (undistorted)
+//     invSz = 1.0f/p3DScZ;
+//     const Eigen::Vector2f uvS = cam->projectLinear(p3DSc); 
+//     uS= uvS(0); //fx*p3DScX*invSz+cx;
+//     vS= uvS(1); //fy*p3DScY*invSz+cy;
     
-    // Project in image 
-    invEz = 1.0f/p3DEcZ;
-    uE=fx*p3DEcX*invEz+cx;
-    vE=fy*p3DEcY*invEz+cy;
+//     // Project in image (undistorted)
+//     invEz = 1.0f/p3DEcZ;
+//     const Eigen::Vector2f uvE = cam->projectLinear(p3DEc);
+//     uE= uvE(0); //fx*p3DEcX*invEz+cx;
+//     vE= uvE(1); //fy*p3DEcY*invEz+cy;
     
+//     const Eigen::Vector3f p3DMc = 0.5*(p3DSc + p3DEc);
+//     uM = 0.5*(uS + uE);
+//     vM = 0.5*(vS + vE);
     
-    const Eigen::Vector3f p3DMc = 0.5*(p3DSc + p3DEc);
-    uM = 0.5*(uS + uE);
-    vM = 0.5*(vS + vE);
-    
-    const float &p3DMcX = p3DMc(0);
-    const float &p3DMcY = p3DMc(1);
-    const float &p3DMcZ = p3DMc(2);  
-    distMiddlePoint = sqrt(p3DMcX*p3DMcX + p3DMcY*p3DMcY + p3DMcZ*p3DMcZ);
-}
+//     distMiddlePoint = p3DMc.norm();
+// }
 
 
 template<typename FrameType>
-inline bool LineProjection::ProjectLineWithCheck(const Eigen::Matrix3f& Rcw, const Eigen::Vector3f& tcw, const MapLinePtr& pML, const FrameType& F)
+inline bool LineProjection::ProjectLineWithCheck(const MapLinePtr& pML, const FrameType& F, const FrameTransformsForLineProjection& frameTfs, bool bRight)
 {
-    const float &fx = F.fx;
-    const float &fy = F.fy;
-    const float &cx = F.cx;
-    const float &cy = F.cy;
-    //const float &bf = F.mbf;
+    const GeometricCamera* cam = bRight ? F.mpCamera2 : F.mpCamera;
+    const auto& R = bRight ? frameTfs.mRrw : frameTfs.mRcw;
+    const auto& t = bRight ? frameTfs.mtrw : frameTfs.mtcw;
+    const bool isPinhole = cam->GetType() == GeometricCamera::CAM_PINHOLE;
 
     // first check middle point 
     Eigen::Vector3f p3DSw, p3DEw;
@@ -117,63 +155,110 @@ inline bool LineProjection::ProjectLineWithCheck(const Eigen::Matrix3f& Rcw, con
     p3DMw = 0.5*(p3DSw+p3DEw);
 
     // 3D in camera coordinates
-    const Eigen::Vector3f p3DMc = Rcw*p3DMw+tcw;
-    const float &p3DMcX = p3DMc(0);
-    const float &p3DMcY = p3DMc(1);
+    const Eigen::Vector3f p3DMc = R*p3DMw+t; 
     const float &p3DMcZ = p3DMc(2);
         
     // Check positive depth
     if(p3DMcZ<0.0f)
         return false;  
     
-    // Project in image and check it is not outside
-    const float invMz = 1.0f/p3DMcZ;
-    uM = fx*p3DMcX*invMz+cx;
-    vM = fy*p3DMcY*invMz+cy;
+    // Project in image without distortion model
+    const Eigen::Vector2f uvM = cam->projectLinear(p3DMc);
+    uM = uvM(0); //fx*p3DMcX*invMz+cx;
+    vM = uvM(1); //fy*p3DMcY*invMz+cy;
     
-    if(uM<F.mnMinX || uM>F.mnMaxX)
-        return false;
-    if(vM<F.mnMinY || vM>F.mnMaxY)
-        return false;        
+    // Project in image with distortion model and check it is not outside
+    if(isPinhole)
+    {
+        // use projection without distortion model 
+        if(uM<F.mnMinX || uM>F.mnMaxX)
+            return false;
+        if(vM<F.mnMinY || vM>F.mnMaxY)
+            return false;   
+    }
+    else 
+    {
+        // project with distortion model 
+        const Eigen::Vector2f uvMraw = cam->project(p3DMc); 
+        if(uvMraw(0)<F.mnMinX || uvMraw(0)>F.mnMaxX)
+            return false;
+        if(uvMraw(1)<F.mnMinY || uvMraw(1)>F.mnMaxY)
+            return false;   
+    }     
     
-    distMiddlePoint = sqrt(p3DMcX*p3DMcX + p3DMcY*p3DMcY + p3DMcZ*p3DMcZ);
+    distMiddlePoint = p3DMc.norm();
     
     const float maxDistance = pML->GetMaxDistanceInvariance();
     const float minDistance = pML->GetMinDistanceInvariance();
     if(distMiddlePoint<minDistance || distMiddlePoint>maxDistance )
         return false;    
     
-    // 3D in camera coordinates
-    const Eigen::Vector3f p3DSc = Rcw*p3DSw+tcw;    
-    const float &p3DScX = p3DSc(0);
-    const float &p3DScY = p3DSc(1);
+    // 3D in camera coordinates of start point
+    const Eigen::Vector3f p3DSc = R*p3DSw+t;
     const float &p3DScZ = p3DSc(2);    
     
-    // Project in image 
-    invSz = 1.0f/p3DScZ;
-    uS=fx*p3DScX*invSz+cx;
-    vS=fy*p3DScY*invSz+cy;
+    // Check positive depth
+    if(p3DScZ<0.0f)
+        return false;  
 
-    if(uS<F.mnMinX || uS>F.mnMaxX)
-        return false;
-    if(vS<F.mnMinY || vS>F.mnMaxY)
-        return false;         
-
-    // 3D in camera coordinates    
-    const Eigen::Vector3f p3DEc = Rcw*p3DEw+tcw;
-    const float &p3DEcX = p3DEc(0);
-    const float &p3DEcY = p3DEc(1);
+    // 3D in camera coordinates of end point 
+    const Eigen::Vector3f p3DEc = R*p3DEw+t; 
     const float &p3DEcZ = p3DEc(2);   
+
+    // Check positive depth
+    if(p3DEcZ<0.0f)
+        return false;    
+
+
+    // Project start point in image without distortion model
+    invSz = 1.0f/p3DScZ;
+    const Eigen::Vector2f uvS = cam->projectLinear(p3DSc);     
+    uS= uvS(0); //fx*p3DScX*invSz+cx;
+    vS= uvS(1); //fy*p3DScY*invSz+cy;
+
+    // Project in image with distortion model and check it is not outside
+    if(isPinhole)
+    {
+        // use projection without distortion model
+        if(uS<F.mnMinX || uS>F.mnMaxX)
+            return false;
+        if(vS<F.mnMinY || vS>F.mnMaxY)
+            return false;        
+    }
+    else 
+    {
+        // project with distortion model 
+        const Eigen::Vector2f uvSraw = cam->project(p3DSc); 
+        if(uvSraw(0)<F.mnMinX || uvSraw(0)>F.mnMaxX)
+            return false;
+        if(uvSraw(1)<F.mnMinY || uvSraw(1)>F.mnMaxY)
+            return false;
+    } 
     
-    // Project in image 
+    // Project end point in image without distortion model
     invEz = 1.0f/p3DEcZ;
-    uE=fx*p3DEcX*invEz+cx;
-    vE=fy*p3DEcY*invEz+cy;
+    const Eigen::Vector2f uvE = cam->projectLinear(p3DEc);    
+    uE= uvE(0); //fx*p3DEcX*invEz+cx;
+    vE= uvE(1); //fy*p3DEcY*invEz+cy;
         
-    if(uE<F.mnMinX || uE>F.mnMaxX)
-        return false;
-    if(vE<F.mnMinY || vE>F.mnMaxY)
-        return false;     
+    // Project in image with distortion model and check it is not outside        
+    if(isPinhole)
+    {
+        // use projection without distortion model
+        if(uE<F.mnMinX || uE>F.mnMaxX)
+            return false;
+        if(vE<F.mnMinY || vE>F.mnMaxY)
+            return false;     
+    }
+    else 
+    {
+        // project with distortion model 
+        const Eigen::Vector2f uvEraw = cam->project(p3DEc); 
+        if(uvEraw(0)<F.mnMinX || uvEraw(0)>F.mnMaxX)
+            return false;
+        if(uvEraw(1)<F.mnMinY || uvEraw(1)>F.mnMaxY)
+            return false;
+    }
 
     return true; 
 }

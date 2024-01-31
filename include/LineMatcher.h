@@ -92,7 +92,7 @@ public:
                            std::vector<MapLinePtr> &vpMatched, std::vector<KeyFramePtr> &vpMatchedKF, int th, float ratioHamming);
 
     // Project MapLines into KeyFrame and search for duplicated MapLines
-    int Fuse(KeyFramePtr& pKF, const std::vector<MapLinePtr> &vpMapLines, const float th=3.0);  
+    int Fuse(KeyFramePtr& pKF, const std::vector<MapLinePtr> &vpMapLines, const float th=3.0, const bool bRight=false);  
     
     // Project MapLines into KeyFrame using a given Sim3 and search for duplicated MapLines
     int Fuse(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const std::vector<MapLinePtr> &vpLines, const float th, std::vector<MapLinePtr> &vpReplaceLine);

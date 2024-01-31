@@ -1,6 +1,5 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -48,10 +47,40 @@ namespace PLVS2
 
 class KeyFrame;
 
+
+struct CameraPairTriangulationInput
+{
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+    Eigen::Matrix3f K1, K2; 
+    
+    Eigen::Matrix3f R12, R21;
+    Eigen::Vector3f t12, t21;
+
+    Eigen::Matrix3f H21;
+    Eigen::Vector3f e2;    
+
+    float minZ = -1; 
+    float maxZ = -1; 
+};
+
+struct LineTriangulationOutput
+{
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+    Eigen::Vector3f p3DS; // start point in camera 1 (left) coordinates
+    Eigen::Vector3f p3DE; // end point in camera 1 (left) coordinates
+    float depthS = -1;    // start point depth in camera 1 (left)
+    float depthE = -1;    // end point depth in camera 1 (left)
+    bool isValid = false; 
+};
+
+
 class GeometricTools
 {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    
     // Compute the Fundamental matrix between KF1 and KF2
     static Eigen::Matrix3f ComputeF12(KeyFrame* &pKF1, KeyFrame* &pKF2);
 

@@ -1,6 +1,5 @@
 /*
- * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
+ * This file is part of PLVS
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -17,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * 
  */
-
 /**
 * This file is part of ORB-SLAM3
 *
@@ -168,8 +166,8 @@ protected:
     cv::Matx33f ComputeF12_(KeyFramePtr& pKF1, KeyFramePtr& pKF2);
     void ComputeF12(KeyFramePtr& pKF1, KeyFramePtr& pKF2, cv::Mat& F12, cv::Mat& H12, cv::Mat& e1);    
     void ComputeF12_(KeyFramePtr& pKF1, KeyFramePtr& pKF2, cv::Matx33f& F12, cv::Matx33f& H12, cv::Matx31f& e1);        
-    void ComputeH12(KeyFramePtr& pKF1, KeyFramePtr& pKF2, Eigen::Matrix3f& H12, Eigen::Vector3f& e1);
-    void ComputeH21(KeyFramePtr& pKF1, KeyFramePtr& pKF2, Eigen::Matrix3f& H21, Eigen::Vector3f& e2);    
+    void ComputeH12(KeyFramePtr& pKF1, KeyFramePtr& pKF2, Eigen::Matrix3f& H12, Eigen::Vector3f& e1, const bool bRight1=false, const bool bRight2=false);
+    void ComputeH21(KeyFramePtr& pKF1, KeyFramePtr& pKF2, Eigen::Matrix3f& H21, Eigen::Vector3f& e2, const bool bRight1=false, const bool bRight2=false);    
 
     cv::Mat SkewSymmetricMatrix(const cv::Mat &v);
     cv::Matx33f SkewSymmetricMatrix_(const cv::Matx31f &v);

@@ -1,6 +1,6 @@
 /*
  * This file is part of PLVS.
- * This file is a modified version present in RGBDSLAM2 (https://github.com/felixendres/rgbdslam_v2)
+
  * Copyright (C) 2018-present Luigi Freda <luigifreda at gmail dot com>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -117,10 +117,10 @@ private:
 
     void DrawImageTexture(pangolin::GlTexture &imageTexture, cv::Mat &im, bool bColor = true);
 
-    System* mpSystem;
-    FrameDrawer* mpFrameDrawer;
-    MapDrawer* mpMapDrawer;
-    Tracking* mpTracker;
+    System* mpSystem=nullptr;
+    FrameDrawer* mpFrameDrawer=nullptr;
+    MapDrawer* mpMapDrawer=nullptr;
+    Tracking* mpTracker=nullptr;
     
     std::shared_ptr<PointCloudDrawer> mpPointCloudDrawer;
 
@@ -132,7 +132,8 @@ private:
     
     int mGLviewportWidth, mGLviewportHeight;    
     int mUiWidth = kUiWidth; 
-    float mfx, mfy, mcx, mcy;  
+    float mfx, mfy, mcx, mcy;
+    GeometricCamera* mpCamera1 = nullptr;  
     bool mbRGB; 
 
     float mViewpointX, mViewpointY, mViewpointZ, mViewpointF;

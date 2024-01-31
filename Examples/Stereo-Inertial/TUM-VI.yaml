@@ -136,3 +136,30 @@ SparseMapping.forceRelocalization: 1
 
 
 ## NOTE: in the stereo case, lines and volumetric mapping are only supported with rectified stereo pairs. 
+
+#--------------------------------------------------------------------------------------------
+# Line Segments Tracking
+#--------------------------------------------------------------------------------------------
+
+# Line.on: 1 is ON, 0 is OFF
+Line.on: 1
+
+# set to 0 if keeping all lines   
+Line.nfeatures: 100
+# number of levels in the scale pyramid	
+Line.nLevels: 3
+# scale factor between levels in the scale pyramid 
+Line.scaleFactor: 1.2
+# noise standard deviation on line extraction (in pixel)   CHANGED!
+Line.sigma: 2
+# min. line length (relative to img size)
+Line.minLineLength: 0.02
+# weighting of lines w.r.t. points in success/failure tracking conditions 
+Line.lineTrackWeigth: 2
+# min. line length 3D (meters)
+Line.minLineLength3D: 0.01
+# mu weight for endpoint-endpoint dist in line 3D dist
+Line.muWeightForLine3dDist: 0.3
+
+# for using LSD extractor (much slower) instead of EDLine lines extractor
+Line.LSD.on: 0
