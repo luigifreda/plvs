@@ -1,6 +1,6 @@
 #version 330 core
 
-// visualization shader for raw features using Kannal-Brandt distortion model
+// visualization shader for raw features using Kannala-Brandt distortion model
                         
 uniform float minDistanceColor;
 uniform float maxDistanceColor;
