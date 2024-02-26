@@ -1,20 +1,20 @@
 #version 330 core
 
-// visualization shader for raw features using Kannal-Brandt distortion model
+// visualization shader for raw features using Kannala-Brandt distortion model
                         
 attribute vec4 position;
 
 // uniforms 
 uniform mat4 matModelView;
 uniform mat4 matProjection;
-uniform vec4 kbIntrinsicsk1k2k3k4; // Kannal-Brandt k1 k2 k3 k4
+uniform vec4 kbIntrinsicsk1k2k3k4; // Kannala-Brandt k1 k2 k3 k4
 uniform vec3 color;
 
 // out 
 out vec3 color_;
 out float distance_;
 
-// Kannal-Brandt distort 3D point represented in camera frame  
+// Kannala-Brandt distort 3D point represented in the camera frame  
 vec4 distort(vec4 position_c)
 {
     vec2 uvn = position_c.xy /position_c.z; // normalized coords  
@@ -29,7 +29,7 @@ vec4 distort(vec4 position_c)
 
     float r = theta * (1.0 + kbIntrinsicsk1k2k3k4[0] * theta2 + kbIntrinsicsk1k2k3k4[1] * theta4 + kbIntrinsicsk1k2k3k4[2] * theta6 + kbIntrinsicsk1k2k3k4[3] * theta8);
 
-    // distorted coords 
+    // distorted coordinatess 
     float ud = r * sin (psi);
     float vd = r * cos (psi);        
                
