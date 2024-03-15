@@ -93,22 +93,31 @@ if [ ! -d $TARGET_FOLDER/opencv ]; then
         sudo apt-get install -y libcudnn8 libcudnn8-dev
     fi 
 
-        if [[ $version == *"20.04"* ]] || [[ $version == *"22.04"* ]] ; then
-            sudo apt install -y libtbb-dev libeigen3-dev 
-            sudo apt install -y zlib1g-dev libjpeg-dev libwebp-dev libpng-dev libtiff5-dev 
-            sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
-            sudo apt install -y libjasper-dev
-            sudo apt install -y libv4l-dev libdc1394-22-dev libtheora-dev libvorbis-dev libxvidcore-dev libx264-dev yasm \
-                                    libopencore-amrnb-dev libopencore-amrwb-dev libxine2-dev            
-        fi
-        if [[ $version == *"18.04"* ]] ; then
-            sudo apt-get install -y libpng-dev 
-            sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
-            sudo apt-get install -y libjasper-dev
-        fi
-        if [[ $version == *"16.04"* ]] ; then
-            sudo apt-get install -y libpng12-dev libjasper-dev 
-        fi        
+    if [[ $version == *"22.04"* ]] ; then
+        sudo apt install -y libtbb-dev libeigen3-dev 
+        sudo apt install -y zlib1g-dev libjpeg-dev libwebp-dev libpng-dev libtiff5-dev 
+        sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
+        sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 3B4FE6ACC0B21F32 # for libjasper-dev 
+        sudo apt install -y libjasper-dev
+        sudo apt install -y libv4l-dev libdc1394-dev libtheora-dev libvorbis-dev libxvidcore-dev libx264-dev yasm \
+                                libopencore-amrnb-dev libopencore-amrwb-dev libxine2-dev            
+    fi
+    if [[ $version == *"20.04"* ]] ; then
+        sudo apt install -y libtbb-dev libeigen3-dev 
+        sudo apt install -y zlib1g-dev libjpeg-dev libwebp-dev libpng-dev libtiff5-dev 
+        sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
+        sudo apt install -y libjasper-dev
+        sudo apt install -y libv4l-dev libdc1394-22-dev libtheora-dev libvorbis-dev libxvidcore-dev libx264-dev yasm \
+                                libopencore-amrnb-dev libopencore-amrwb-dev libxine2-dev            
+    fi        
+    if [[ $version == *"18.04"* ]] ; then
+        sudo apt-get install -y libpng-dev 
+        sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
+        sudo apt-get install -y libjasper-dev
+    fi
+    if [[ $version == *"16.04"* ]] ; then
+        sudo apt-get install -y libpng12-dev libjasper-dev 
+    fi        
 
 	DO_INSTALL_FFMPEG=$(check_package ffmpeg)
 	if [ $DO_INSTALL_FFMPEG -eq 1 ] ; then

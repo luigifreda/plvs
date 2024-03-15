@@ -3,7 +3,7 @@ project(libSGM VERSION 2.0.0)
 
 set(CPP_STANDARD_VERSION "17" CACHE STRING "Desired C++ standard version") 
 option(ENABLE_ZED_DEMO "Build a Demo using ZED Camera" OFF)
-option(ENABLE_SAMPLES  "Build samples" ON)
+option(ENABLE_SAMPLES  "Build samples" OFF)
 option(LIBSGM_SHARED   "Build a shared library" OFF)
 
 if(WIN32)
