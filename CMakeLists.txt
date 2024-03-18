@@ -120,8 +120,9 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
 
 #====================================
 # CUDA 
+message(STATUS "WITH_CUDA: " ${WITH_CUDA})
 
-if(WITH_CUDA)
+if (WITH_CUDA)
     find_package(CUDA REQUIRED)
 
     set(CUDA_PROPAGATE_HOST_FLAGS OFF)
@@ -155,7 +156,6 @@ if(WITH_CUDA)
 
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DUSE_CUDA")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_CUDA")
-
 endif()
 
 #====================================
@@ -173,7 +173,7 @@ include(${CMAKE_MODULE_PATH}/CheckFastfusionSupport.cmake)
 if(BUILD_FASTFUSION AND WITH_FASTFUSION)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DUSE_FASTFUSION")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_FASTFUSION")
-    message(STATUS "building fastfusion ***************")
+    message(STATUS "Building fastfusion! ***************")
 else()
     message(STATUS "fastfusion disabled! ***************")
 endif()
@@ -287,47 +287,46 @@ endif()
 
 if(WITH_LIBSGM)
     if(NOT CUDA_FOUND)
-        find_package(CUDA REQUIRED) # make the check if not already done above
+        find_package(CUDA) # make the check if not already done above
     endif()
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DUSE_LIBSGM")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_LIBSGM")
     if(CUDA_FOUND)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DUSE_LIBSGM")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_LIBSGM")
         message(STATUS "building with stereo libsgm CUDA ***************")
+        set(LIBSGM_INCLUDES 
+        ${PROJECT_SOURCE_DIR}/Thirdparty/libsgm/include
+        )
+        set(LIBSGM_LIBRARIES 
+        ${PROJECT_SOURCE_DIR}/Thirdparty/libsgm/lib/libsgm.a  # this contains CUDA 
+        )
+    else()
+        message(STATUS "stereo libsgm disabled! ***************")
     endif()
-    set(LIBSGM_INCLUDES 
-    ${PROJECT_SOURCE_DIR}/Thirdparty/libsgm/include
-    )
-    set(LIBSGM_LIBRARIES 
-    ${PROJECT_SOURCE_DIR}/Thirdparty/libsgm/lib/libsgm.a  # this contains CUDA 
-    )
 else()
     message(STATUS "stereo libsgm disabled! ***************")
 endif()
 
 
 if( WITH_G2O_NEW )
-        # In order to set RPATH (instead of RUNPATH) for g2o and other libraries linking issue.
-        # ISSUE: g2o binaries link to system g2o (here /opt/ros/noetic/lib/libg2o_core.so) and crash (different version); 
-        # we need to set LD_LIBRARY_PATH for correct linking
-        # https://stackoverflow.com/questions/47117443/dynamic-linking-with-rpath-not-working-under-ubuntu-17-10 
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,--disable-new-dtags")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,--disable-new-dtags")
-
-        find_package(Cholmod)
-        include_directories(${CHOLMOD_INCLUDE_DIR})
-
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DUSE_G2O_NEW")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_G2O_NEW")
-
-        # NOTE: use the following block of lines to test latest g2o version support.
-        #       If it crashes. Check this link: https://github.com/rst-tu-dortmund/teb_local_planner/issues/336
-        set(CMAKE_PREFIX_PATH ${PROJECT_SOURCE_DIR}/Thirdparty/g2o_new/install/lib/cmake/g2o/)
-        set(G2O_ROOT ${PROJECT_SOURCE_DIR}/Thirdparty/g2o_new/install/)
-        message(STATUS "set custom g2o root folder: ${G2O_ROOT}")
-        find_package(G2O REQUIRED)
-        # used in the latest g2o version 
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DG2O_USE_VENDORED_CERES")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DG2O_USE_VENDORED_CERES")
+    # In order to set RPATH (instead of RUNPATH) for g2o and other libraries linking issue.
+    # ISSUE: g2o binaries link to system g2o (here /opt/ros/noetic/lib/libg2o_core.so) and crash (different version); 
+    # we need to set LD_LIBRARY_PATH for correct linking
+    # https://stackoverflow.com/questions/47117443/dynamic-linking-with-rpath-not-working-under-ubuntu-17-10 
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,--disable-new-dtags")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,--disable-new-dtags")          
+    find_package(Cholmod)
+    include_directories(${CHOLMOD_INCLUDE_DIR})        
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DUSE_G2O_NEW")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_G2O_NEW")    
+    # NOTE: use the following block of lines to test latest g2o version support.
+    #       If it crashes. Check this link: https://github.com/rst-tu-dortmund/teb_local_planner/issues/336
+    set(CMAKE_PREFIX_PATH ${PROJECT_SOURCE_DIR}/Thirdparty/g2o_new/install/lib/cmake/g2o/)
+    set(G2O_ROOT ${PROJECT_SOURCE_DIR}/Thirdparty/g2o_new/install/)
+    message(STATUS "set custom g2o root folder: ${G2O_ROOT}")
+    find_package(G2O REQUIRED)
+    # used in the latest g2o version 
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DG2O_USE_VENDORED_CERES")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DG2O_USE_VENDORED_CERES")
 else()
     # g2o provided with ORBSLAM3
     set(G2O_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/)
@@ -389,11 +388,13 @@ ${PCL_LIBRARIES}
 ${GLOG_LIBRARIES}
 ${OCTOMAP_LIBRARIES}
 ${PROTOBUF_LIBRARIES}
-${CUDA_LIBRARIES} # these are used just for stereo disparity computation when libelas or libsgm support are added 
 ${LibCrypto_LIBRARY}
 ${GLFW_LIBRARIES}
 ${CHOLMOD_LIBRARIES}
 )
+if(CUDA_FOUND)
+    set(EXTERNAL_CORE_LIBS ${EXTERNAL_CORE_LIBS} ${CUDA_LIBRARIES}) # ${CUDA_LIBRARIES} are used just for stereo disparity computation when libelas or libsgm support are added 
+endif()
 
 # If RealSense SDK is found the library is added and its examples compiled
 if(realsense2_FOUND)
