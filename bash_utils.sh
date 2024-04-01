@@ -52,7 +52,7 @@ function install_packages(){
 
 function check_pip_package(){
     package_name=$1
-    PKG_OK=$(pip list |grep $package_name)
+    PKG_OK=$(pip3 list |grep $package_name)
     #print_blue "checking for package $package_name: $PKG_OK"
     if [ "" == "$PKG_OK" ]; then
       #print_blue "$package_name is not installed"
@@ -104,3 +104,36 @@ function get_current_nvidia_driver_version(){
     echo $NVIDIA_DRIVER_VERSION
 }
 
+
+# Function to compare two version strings
+# Returns:
+#   0 if versions are equal
+#   1 if version1 > version2
+#   2 if version1 < version2
+function version_compare() {
+    local v1=$1
+    local v2=$2
+    if [[ $v1 == $v2 ]]; then
+        echo 0
+        exit
+    fi
+    local IFS=.
+    local a1=($v1)
+    local a2=($v2)
+    local len=$(( ${#a1[@]} > ${#a2[@]} ? ${#a1[@]} : ${#a2[@]} ))
+    for ((i=0; i<len; i++)); do
+        local part1=${a1[i]}
+        local part2=${a2[i]}
+        # If a version part is missing, consider it as 0
+        [[ -z $part1 ]] && part1=0
+        [[ -z $part2 ]] && part2=0
+        if ((part1 > part2)); then
+            echo 1
+            exit
+        elif ((part1 < part2)); then
+            echo 2
+            exit
+        fi
+    done
+    echo 0
+}

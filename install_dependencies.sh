@@ -10,6 +10,7 @@ sudo apt-get install -y build-essential cmake
 sudo apt-get install -y libeigen3-dev 
 sudo apt-get install -y libopenni-dev libopenni2-dev libpcl-dev
 sudo apt-get install -y curl software-properties-common
+sudo apt-get install -y lsb-core
 
 #sudo apt-get install -y libzstd-devel 
 
@@ -47,5 +48,23 @@ sudo apt-get install -y librealsense2-dev librealsense2-dbg
 # ros 
 # see https://catkin-tools.readthedocs.io/en/latest/installing.html
 sudo pip3 install -U catkin_tools
+
+version=$(lsb_release -a 2>&1)  # ubuntu version 
+if [[ $version == *"18.04"* ]] ; then
+    source ./bash_utils.sh 
+    cmake_desired_version="3.16.7"
+    cmake_version=$(cmake --version | grep -oE "[0-9]+\.[0-9]+\.[0-9]+")
+    echo "CMake version $cmake_version"
+    result=$(version_compare $cmake_version $cmake_desired_version)
+    echo "cmake compare result $result"
+    if [[ $result == 2 ]]; then
+        echo "CMake version $cmake_version is smaller than $cmake_desired_version"
+        wget https://cmake.org/files/v3.16/cmake-3.16.7-Linux-x86_64.tar.gz  
+        tar zxvf cmake-3.16.7-Linux-x86_64.tar.gz
+        sudo mv cmake-3.16.7-Linux-x86_64  /opt/cmake-3.16.7  
+        sudo ln -sf  /opt/cmake-3.16.7/bin/*    /usr/bin/
+    fi 
+fi 
+
 
 echo "...All deps installed!"

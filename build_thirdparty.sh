@@ -236,9 +236,9 @@ fi
 DO_INSTALL_EVO=$(check_pip_package evo)
 if [ $DO_INSTALL_EVO -eq 1 ] ; then
 	echo "installing evo package"
-    pip install matplotlib --upgrade 
-    pip install pandas --upgrade 
-    pip install evo --upgrade --no-binary evo --user
+    pip3 install matplotlib --upgrade 
+    pip3 install pandas --upgrade 
+    pip3 install evo --upgrade --no-binary evo --user
 fi
 
 

@@ -14,7 +14,7 @@ uniform vec3 color;
 out vec3 color_;
 out float distance_;
 
-// Kannala-Brandt distort 3D point represented in the camera frame  
+// Kannala-Brandt distort 3D point represented in camera frame  
 vec4 distort(vec4 position_c)
 {
     vec2 uvn = position_c.xy /position_c.z; // normalized coords  
@@ -29,7 +29,7 @@ vec4 distort(vec4 position_c)
 
     float r = theta * (1.0 + kbIntrinsicsk1k2k3k4[0] * theta2 + kbIntrinsicsk1k2k3k4[1] * theta4 + kbIntrinsicsk1k2k3k4[2] * theta6 + kbIntrinsicsk1k2k3k4[3] * theta8);
 
-    // distorted coordinatess 
+    // distorted coords 
     float ud = r * sin (psi);
     float vd = r * cos (psi);        
                

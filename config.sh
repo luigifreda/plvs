@@ -7,11 +7,18 @@ CONFIG_DIR=$(readlink -f $CONFIG_DIR)  # this reads the actual path if a symboli
 cd $CONFIG_DIR # this brings us in the actual folder of this config script (not the symbolic one)
 #echo "current dir: $CONFIG_DIR"
 
+version=$(lsb_release -a 2>&1)  # ubuntu version 
+
 # ====================================================
 # C++ standard  
 # ====================================================
 
 export CPP_STANDARD_VERSION=17   # we need c++17 since nvcc does not support c++20 yet (probably we can try mixing c++ standards and just let nvcc use c++17 ... not sure this is the best choice)
+
+if [[ $version == *"18.04"* ]] ; then
+	export CPP_STANDARD_VERSION=11
+	echo "Forcing C++11 standard under Ubuntu 18.04"
+fi 
 
 # ====================================================
 # OpenCV Settings 
