@@ -1043,7 +1043,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
                 {
                     rightIndex -= pKF->NlinesLeft;
 
-                    const cv::line_descriptor_c::KeyLine &klUn = pKF->mvKeyLinesRightUn[leftIndex];
+                    const cv::line_descriptor_c::KeyLine &klUn = pKF->mvKeyLinesRightUn[rightIndex];
                     Line2DRepresentation lineRepresentation;
                     Geom2DUtils::GetLine2dRepresentationNoTheta(klUn.startPointX,klUn.startPointY,klUn.endPointX,klUn.endPointY, lineRepresentation);
                 
@@ -2052,9 +2052,11 @@ void Optimizer::FullInertialBA(Map *pMap, int its, const bool bFixLocal, const l
                 e->setRobustKernel(rk);
         
                 optimizer.addEdge(e);               
-            } else {
-                std::cout << IoColor::Yellow() << "FullInertialBA - unexected line case" << std::endl;     
-            }
+            } 
+            // else {
+            //     const int rightIndex = get<1>(mit->second);
+            //     std::cout << IoColor::Yellow() << "FullInertialBA - unexected line case - leftIndex: " << leftIndex << ", rightIndex: " << rightIndex << ", uRightLineStart: " << uRightLineStart << ", uRightLineEnd: " << uRightLineEnd << std::endl;     
+            // }
     #endif  // if USE_LINES_STEREO_INERTIAL               
             
     #if USE_LINES_RIGHT_PROJECTION
@@ -2068,7 +2070,7 @@ void Optimizer::FullInertialBA(Map *pMap, int its, const bool bFixLocal, const l
 
                     nEdges++;
 
-                    const cv::line_descriptor_c::KeyLine &klUn = pKFi->mvKeyLinesRightUn[leftIndex];
+                    const cv::line_descriptor_c::KeyLine &klUn = pKFi->mvKeyLinesRightUn[rightIndex];
                     Line2DRepresentation lineRepresentation;
                     Geom2DUtils::GetLine2dRepresentationNoTheta(klUn.startPointX,klUn.startPointY,klUn.endPointX,klUn.endPointY, lineRepresentation);
                 
@@ -6396,7 +6398,7 @@ void Optimizer::LocalInertialBA(KeyFramePtr pKF, bool *pbStopFlag, Map *pMap, in
         MSG_ASSERT(mit->second >=3, "number of visual edge observation must be >=3! current observations num: " << mit->second);
         //assert(mit->second>=3);
 #else  
-        //NOTE: [Luigi] added this instead of the assert! If the KF is not well constrained we consider it fixed!
+        //NOTE: [Luigi] added this instead of the assert! If the KF is not well constrained we may want to consider it fixed!
         //      See also this open issue: 
         //      https://github.com/UZ-SLAMLab/ORB_SLAM3/issues/145
         if(mit->second<3)

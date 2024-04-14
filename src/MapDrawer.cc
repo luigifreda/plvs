@@ -217,7 +217,7 @@ void MapDrawer::DrawMapPoints()
     }
     else 
     {
-        // draw points in the starndar way 
+        // draw points in the standard way 
 
         glPointSize(mPointSize);
 

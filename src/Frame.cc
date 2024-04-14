@@ -58,6 +58,10 @@
 #include <include/CameraModels/Pinhole.h>
 #include <include/CameraModels/KannalaBrandt8.h>
 
+#if RERUN_ENABLE
+#include "RerunSingleton.h" 
+#endif 
+
 
 #define LOG_ASSIGN_FEATURES 0
 
@@ -232,9 +236,6 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     
     if(mpLineExtractorLeft)
     {
-        //mfLineSigma2    = mpLineExtractorLeft->GetSigmaScale2();
-        //mfInvLineSigma2 = mpLineExtractorLeft->GetInvSigmaScale2();
-        
         mnLineScaleLevels    = mpLineExtractorLeft->GetLevels();
         mfLineScaleFactor    = mpLineExtractorLeft->GetScaleFactor();    
         mfLineLogScaleFactor = log(mfLineScaleFactor);        
@@ -407,6 +408,8 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
     // Frame ID
     mnId=nNextId++;
 
+    //imgLeft = imGray.clone(); // just needed for debugging and viz purposes 
+
     // Scale Level Info
     mnScaleLevels = mpORBextractorLeft->GetLevels();
     mfScaleFactor = mpORBextractorLeft->GetScaleFactor();
@@ -418,9 +421,6 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
     
     if(mpLineExtractorLeft)
     {
-        //mfLineSigma2    = mpLineExtractorLeft->GetSigmaScale2();
-        //mfInvLineSigma2 = mpLineExtractorLeft->GetInvSigmaScale2();
-        
         mnLineScaleLevels    = mpLineExtractorLeft->GetLevels();
         mfLineScaleFactor    = mpLineExtractorLeft->GetScaleFactor();    
         mfLineLogScaleFactor = log(mfLineScaleFactor);        
@@ -1596,25 +1596,31 @@ void Frame::UndistortKeyLines()
     else
     {
         MSG_ASSERT(mpCamera->GetType() == GeometricCamera::CAM_FISHEYE, "Invalid camera type - It should be fisheye!");
-        cv::Mat D = (cv::Mat_<float>(4,1) << mpCamera->getParameter(4), mpCamera->getParameter(5), mpCamera->getParameter(6), mpCamera->getParameter(7));
-        cv::Mat K = static_cast<KannalaBrandt8*>(mpCamera)->toK();                
+        const cv::Mat D = (cv::Mat_<float>(4,1) << mpCamera->getParameter(4), mpCamera->getParameter(5), mpCamera->getParameter(6), mpCamera->getParameter(7));
+        const cv::Mat K = static_cast<KannalaBrandt8*>(mpCamera)->toK();                
         cv::fisheye::undistortPoints(mat,mat, K, D, cv::Mat(), K);
 
         if(NlinesRight>0)
         {
-            cv::Mat D2 = (cv::Mat_<float>(4,1) << mpCamera2->getParameter(4), mpCamera2->getParameter(5), mpCamera2->getParameter(6), mpCamera2->getParameter(7));
-            cv::Mat K2 = static_cast<KannalaBrandt8*>(mpCamera)->toK();                
+            const cv::Mat D2 = (cv::Mat_<float>(4,1) << mpCamera2->getParameter(4), mpCamera2->getParameter(5), mpCamera2->getParameter(6), mpCamera2->getParameter(7));
+            const cv::Mat K2 = static_cast<KannalaBrandt8*>(mpCamera)->toK();                
             cv::fisheye::undistortPoints(matRight,matRight, K2, D2, cv::Mat(), K2);
         }
     }
     mat=mat.reshape(1);
     if(NlinesRight>0) matRight=matRight.reshape(1);
 
+    std::vector<cv::line_descriptor_c::KeyLine> vKeyLines;
+    cv::Mat descriptors; 
+
     // Fill undistorted keypoint vector
-    mvKeyLinesUn.resize(numLines);
+    mvKeyLinesUn.reserve(numLines);
+    vKeyLines.reserve(numLines);
+    descriptors.reserve(numLines);
     for(size_t i=0, j=0; i<numLines; i++, j+=2)
     {
-        cv::line_descriptor_c::KeyLine& kl = mvKeyLinesUn[i];
+        //cv::line_descriptor_c::KeyLine& kl = mvKeyLinesUn[i];
+        cv::line_descriptor_c::KeyLine kl;
         kl = mvKeyLines[i];
         kl.startPointX = mat.at<float>(j,0);
         kl.startPointY = mat.at<float>(j,1);
@@ -1622,13 +1628,42 @@ void Frame::UndistortKeyLines()
         kl.endPointY   = mat.at<float>(j+1,1);
         kl.angle = cv::fastAtan2( ( kl.endPointY - kl.startPointY ), ( kl.endPointX - kl.startPointX ) ) * DEG2RAD; // kl.angle is originally in radians
         //std::cout << "kl[" << i <<  "]: " << kl.startPointX <<", "<< kl.startPointY <<"  -  " << kl.endPointX << ", " << kl.endPointY << std::endl;  
+        // TODO: add check with linear fov scale 
+        if(kl.startPointX<mnMinX || kl.startPointX>=mnMaxX || kl.startPointY<mnMinY || kl.startPointY>=mnMaxY || kl.endPointX<mnMinX || kl.endPointX>=mnMaxX || kl.endPointY<mnMinY || kl.endPointY>=mnMaxY)
+        {
+            continue;     
+        }
+        mvKeyLinesUn.push_back(kl);   
+        vKeyLines.push_back(mvKeyLines[i]);
+        descriptors.push_back(mLineDescriptors.row(i));
     }
+    mvKeyLines = std::move(vKeyLines);
+    mLineDescriptors = descriptors;
+    MSG_ASSERT(mvKeyLines.size() == mvKeyLinesUn.size(), "mvKeyLines.size() != mvKeyLinesUn.size()");
+    if(NlinesLeft != -1) 
+    {
+        NlinesLeft = mvKeyLinesUn.size();
+        NlinesRight = mvKeyLinesRight.size();
+        Nlines = NlinesLeft + NlinesRight;
+    }
+    else
+    {
+        Nlines = mvKeyLinesUn.size();
+    } 
+    
+
     if(NlinesRight>0)
     {
-        mvKeyLinesRightUn.resize(NlinesRight);
+        std::vector<cv::line_descriptor_c::KeyLine> vKeyLinesRight;
+        cv::Mat descriptorsRight;
+
+        mvKeyLinesRightUn.reserve(NlinesRight);
+        vKeyLinesRight.reserve(NlinesRight);
+        descriptorsRight.reserve(NlinesRight);
         for(size_t i=0, j=0; i<NlinesRight; i++, j+=2)
         {
-            cv::line_descriptor_c::KeyLine& kl = mvKeyLinesRightUn[i];
+            //cv::line_descriptor_c::KeyLine& kl = mvKeyLinesRightUn[i];
+            cv::line_descriptor_c::KeyLine kl;
             kl = mvKeyLinesRight[i];
             kl.startPointX = matRight.at<float>(j,0);
             kl.startPointY = matRight.at<float>(j,1);
@@ -1636,8 +1671,67 @@ void Frame::UndistortKeyLines()
             kl.endPointY   = matRight.at<float>(j+1,1);
             kl.angle = cv::fastAtan2( ( kl.endPointY - kl.startPointY ), ( kl.endPointX - kl.startPointX ) ) * DEG2RAD; // kl.angle is originally in radians
             //std::cout << "kl[" << i <<  "]: " << kl.startPointX <<", "<< kl.startPointY <<"  -  " << kl.endPointX << ", " << kl.endPointY << std::endl;  
+            // TODO: add check with linear fov scale 
+            if(kl.startPointX<mnMinX || kl.startPointX>=mnMaxX || kl.startPointY<mnMinY || kl.startPointY>=mnMaxY || kl.endPointX<mnMinX || kl.endPointX>=mnMaxX || kl.endPointY<mnMinY || kl.endPointY>=mnMaxY)
+            {
+                continue;     
+            }          
+            mvKeyLinesRightUn.push_back(kl);
+            vKeyLinesRight.push_back(mvKeyLinesRight[i]);
+            descriptorsRight.push_back(mLineDescriptorsRight.row(i));  
+        }
+        mvKeyLinesRight = std::move(vKeyLinesRight);
+        mLineDescriptorsRight = descriptorsRight;
+        MSG_ASSERT(mvKeyLinesRight.size() == mvKeyLinesRightUn.size(), "mvKeyLinesRight.size() != mvKeyLinesRightUn.size()");
+        NlinesRight = mvKeyLinesRightUn.size();
+        Nlines = NlinesLeft + NlinesRight;
+    }
+
+#if 0 && RERUN_ENABLE
+    auto& rec = RerunSingleton::instance();
+    cv::Mat imageUndistorted, imageUndistorted2; 
+    if(mpCamera->GetType() == GeometricCamera::CAM_PINHOLE)
+    {
+        if(!imgLeft.empty())
+        {
+            cv::undistort(imgLeft, imageUndistorted, mK, mDistCoef);
+            for(const auto& kl: mvKeyLinesUn)
+            {
+                //std::cout << "kl[" << i <<  "]: " << kl.startPointX <<", "<< kl.startPointY <<"  -  " << kl.endPointX << ", " << kl.endPointY << std::endl;
+                //if(kl.startPointX<0 || kl.startPointX>=imgLeft.cols || kl.startPointY<0 || kl.startPointY>=imgLeft.rows || kl.endPointX<0 || kl.endPointX>=imgLeft.cols || kl.endPointY<0 || kl.endPointY>=imgLeft.rows)
+                //    continue;
+                cv::line(imageUndistorted,cv::Point(kl.startPointX,kl.startPointY),cv::Point(kl.endPointX,kl.endPointY), cv::Scalar(255,0,255));   
+            }
+            rec.log("debug/image_lines_undistorted", rerun::Image(tensor_shape(imageUndistorted), rerun::TensorBuffer::u8(imageUndistorted)));        
         }
     }
+    else 
+    {
+        //const Settings* settings = Settings::instance();
+        const cv::Mat D = (cv::Mat_<float>(4,1) << mpCamera->getParameter(4), mpCamera->getParameter(5), mpCamera->getParameter(6), mpCamera->getParameter(7));
+        const cv::Mat K = static_cast<KannalaBrandt8*>(mpCamera)->toK();
+        const float scale = 0.7;       
+        const cv::Mat Knew = (cv::Mat_<float>(3,3) << K.at<float>(0,0)*scale, K.at<float>(0,1)*scale, K.at<float>(0,2), 
+                                                    K.at<float>(1,0)*scale, K.at<float>(1,1)*scale, K.at<float>(1,2), 
+                                                            K.at<float>(2,0),       K.at<float>(2,1), K.at<float>(2,2));
+        cv::fisheye::undistortImage(imgLeft, imageUndistorted, K, D, K);
+        cv::fisheye::undistortImage(imgLeft, imageUndistorted2, K, D, Knew);
+        const float fx = Knew.at<float>(0,0);
+        const float fy = Knew.at<float>(1,1);
+        const float cx = Knew.at<float>(0,2);
+        const float cy = Knew.at<float>(1,2);
+        for(const auto& kl: mvKeyLinesUn)
+        {
+            //std::cout << "kl[" << i <<  "]: " << kl.startPointX <<", "<< kl.startPointY <<"  -  " << kl.endPointX << ", " << kl.endPointY << std::endl;
+            //if(kl.startPointX<0 || kl.startPointX>=imgLeft.cols || kl.startPointY<0 || kl.startPointY>=imgLeft.rows || kl.endPointX<0 || kl.endPointX>=imgLeft.cols || kl.endPointY<0 || kl.endPointY>=imgLeft.rows)
+            //    continue;
+            cv::line(imageUndistorted,cv::Point(kl.startPointX,kl.startPointY),cv::Point(kl.endPointX,kl.endPointY), cv::Scalar(255,0,255));
+            cv::line(imageUndistorted2,scale*cv::Point(kl.startPointX-cx,kl.startPointY-cy) + cv::Point(cx,cy),scale*cv::Point(kl.endPointX-cx,kl.endPointY-cy)+ cv::Point(cx,cy), cv::Scalar(255,0,255));        
+        }
+        rec.log("debug/image_lines_undistorted", rerun::Image(tensor_shape(imageUndistorted), rerun::TensorBuffer::u8(imageUndistorted)));     
+        rec.log("debug/image_lines_undistorted2", rerun::Image(tensor_shape(imageUndistorted2), rerun::TensorBuffer::u8(imageUndistorted2))); 
+    }
+#endif
 }
 
 void Frame::ComputeImageBounds(const cv::Mat &imLeft)
@@ -2670,10 +2764,7 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     mMedianDepth(KeyFrame::skFovCenterDistance),    
     mbImuPreintegrated(false), mpCamera(pCamera), mpCamera2(pCamera2),
     mbHasPose(false), mbHasVelocity(false)
-
-{
-    /// < TODO: Luigi add management of lines here!
-    
+{    
     imgLeft = imLeft.clone();
     imgRight = imRight.clone();
 
@@ -2691,9 +2782,6 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
 
     if(mpLineExtractorLeft)
     {
-        //mfLineSigma2    = mpLineExtractorLeft->GetSigmaScale2();
-        //mfInvLineSigma2 = mpLineExtractorLeft->GetInvSigmaScale2();
-        
         mnLineScaleLevels    = mpLineExtractorLeft->GetLevels();
         mfLineScaleFactor    = mpLineExtractorLeft->GetScaleFactor();    
         mfLineLogScaleFactor = log(mfLineScaleFactor);        
@@ -2827,7 +2915,13 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
         }
 
         //Put all descriptors in the same matrix
-        cv::vconcat(mLineDescriptors,mLineDescriptorsRight,mLineDescriptors);
+        if(mLineDescriptorsRight.rows > 0)
+        {
+            if(mLineDescriptors.rows == 0)
+                mLineDescriptors = mLineDescriptorsRight;
+            else
+                cv::vconcat(mLineDescriptors,mLineDescriptorsRight,mLineDescriptors);
+        }
 
         mvpMapLines = vector<MapLinePtr>(Nlines,static_cast<MapLinePtr>(NULL));
         mvbLineOutlier = vector<bool>(Nlines,false);
@@ -2848,6 +2942,12 @@ void Frame::ComputeStereoFishEyeMatches()
     //Speed it up by matching keypoints in the lapping area
     //vector<cv::KeyPoint> stereoLeft(mvKeys.begin() + monoLeft, mvKeys.end());
     //vector<cv::KeyPoint> stereoRight(mvKeysRight.begin() + monoRight, mvKeysRight.end());
+
+    if(mDescriptors.rows == 0 || mDescriptorsRight.rows == 0)
+    {
+        MSG_WARN_STREAM("No keypoints detected in frame " << mnId);
+        return;
+    }
 
     cv::Mat stereoDescLeft = mDescriptors.rowRange(monoLeft, mDescriptors.rows); // NOTE: here we haven't vconcatenated the descriptors yet!
     cv::Mat stereoDescRight = mDescriptorsRight.rowRange(monoRight, mDescriptorsRight.rows);
@@ -2893,6 +2993,13 @@ void Frame::ComputeStereoFishEyeMatches()
 void Frame::ComputeStereoFishEyeLineMatches() 
 {
     MSG_ASSERT(mpCamera2, "No second camera");
+    MSG_ASSERT(NlinesLeft==mLineDescriptors.rows && NlinesRight==mLineDescriptorsRight.rows, "Line descriptors must be concatenated in Frame::ComputeStereoFishEyeLineMatches()");
+
+    if(NlinesLeft == 0 || NlinesRight == 0)
+    {
+        MSG_WARN_STREAM("No lines detected in frame " << mnId);
+        return;
+    }
 
     // NOTE: here, we assume we haven't vconcatenated the descriptors yet!
     cv::Mat stereoDescLinesLeft = mLineDescriptors.rowRange(monoLinesLeft, mLineDescriptors.rows); 

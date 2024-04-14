@@ -9,12 +9,14 @@ set(OPENCV_VERSION "4" CACHE STRING "Desired OpenCV version") # this is the firs
 
 set(BUILD_WITH_MARCH_NATIVE ON  CACHE BOOL "Build with \"-march native\"")
 
-set(WITH_FASTFUSION ON  CACHE BOOL "Add fastfusion support") # for enabling RGBD dense reconstruction via fastfusion (it needs Intel SIMD)
-set(WITH_G2O_NEW    OFF CACHE BOOL "Add g2o new support") # for using the new version of g2o with Cholmod and Csparse solvers (and more...)
-set(WITH_LIBELAS    ON  CACHE BOOL "Add libelas support")  # for stereo dense reconstruction (it needs Intel SIMD, optionally can be compiled with CUDA)
-set(WITH_LIBSGM     ON  CACHE BOOL "Add stereo libsgm support")  # for stereo dense reconstruction (it needs CUDA)
-set(WITH_OPENMP     ON  CACHE BOOL "Add OpenMP support") # useful for PCL (since we use the macro PCL_NO_PRECOMPILE!)
-set(WITH_CUDA       OFF CACHE BOOL "Add CUDA support")
+set(WITH_FASTFUSION     ON  CACHE BOOL "Add fastfusion support") # for enabling RGBD dense reconstruction via fastfusion (it needs Intel SIMD)
+set(WITH_G2O_NEW        OFF CACHE BOOL "Add g2o new support") # for using the new version of g2o with Cholmod and Csparse solvers (and more...)
+set(WITH_LIBELAS        ON  CACHE BOOL "Add libelas support")  # for stereo dense reconstruction (it needs Intel SIMD, optionally can be compiled with CUDA)
+set(WITH_LIBSGM         ON  CACHE BOOL "Add stereo libsgm support")  # for stereo dense reconstruction (it needs CUDA)
+set(WITH_OPENMP         ON  CACHE BOOL "Add OpenMP support") # useful for PCL (since we use the macro PCL_NO_PRECOMPILE!)
+set(WITH_CUDA           OFF CACHE BOOL "Add CUDA support")
+set(WITH_TRACY_PROFILER OFF CACHE BOOL "Add Tracy profiler support.")
+set(WITH_RERUN          OFF  CACHE BOOL "Add Rerun support.")
 
 #====================================
 # c++ standard 
@@ -336,6 +338,23 @@ message(STATUS "g2o include: ${G2O_INCLUDE_DIR}")
 message(STATUS "g2o lib dirs: ${G2O_LIB_DIR}")
 message(STATUS "g2o libs: ${G2O_LIBS}")
 
+if(WITH_TRACY_PROFILER)
+  if(EXISTS "/usr/local/lib/libTracyClient.a")
+    message(STATUS "Found Tracy")
+    add_definitions(-DTRACY_ENABLE)
+    set(TRACY_LIBS /usr/local/lib/libTracyClient.a -ldl -lpthread)
+  endif()
+endif()
+
+if(WITH_RERUN)
+    # rerun_sdk
+    add_definitions(-DRERUN_ENABLE) 
+    set(CMAKE_PREFIX_PATH ${PROJECT_SOURCE_DIR}/Thirdparty/rerun/install/lib/cmake/rerun_sdk/)
+    set(Rerun_DIR ${PROJECT_SOURCE_DIR}/Thirdparty/rerun/install/)
+    message(STATUS "set custom rerun folder: ${Rerun_DIR}")
+    find_package(rerun_sdk REQUIRED)
+    message(STATUS "rerun include: ${RERUN_LIBRARIES}")
+endif()
 
 #====================================
 # includes 
@@ -394,6 +413,9 @@ ${CHOLMOD_LIBRARIES}
 )
 if(CUDA_FOUND)
     set(EXTERNAL_CORE_LIBS ${EXTERNAL_CORE_LIBS} ${CUDA_LIBRARIES}) # ${CUDA_LIBRARIES} are used just for stereo disparity computation when libelas or libsgm support are added 
+endif()
+if(WITH_RERUN)
+    set(EXTERNAL_CORE_LIBS ${EXTERNAL_CORE_LIBS} rerun_sdk)
 endif()
 
 # If RealSense SDK is found the library is added and its examples compiled

@@ -1027,6 +1027,7 @@ void KeyFrame::SetErase()
 
 void KeyFrame::SetBadFlag()
 {
+    MSG_ASSERT(mpMap,"mpMap not set");
     {
         unique_lock<mutex> lock(mMutexConnections);
         if(mnId==mpMap->GetInitKFid())

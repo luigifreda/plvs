@@ -78,6 +78,16 @@ namespace PLVS2 {
          */
         Settings(const std::string &configFile, const int& sensor);
 
+
+        /*
+         * Singleton method to create the settings
+         */
+        static Settings* create(const std::string &configFile, const int& sensor);
+        /*
+        * Singleton method to get the settings
+        */
+        static const Settings* instance(){ return instance_; }
+
         /*
          * Ostream operator overloading to dump settings to the terminal
          */
@@ -268,8 +278,11 @@ namespace PLVS2 {
          */
         SettingsLines lines_; 
 
+
+        static Settings* instance_; //singleton
+
     };
-};
+}
 
 
 #endif //ORB_SLAM3_SETTINGS_H

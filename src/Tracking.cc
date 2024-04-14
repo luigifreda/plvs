@@ -2873,6 +2873,8 @@ void Tracking::StereoInitialization()
 #endif                  
 
         } else{
+
+            if(mCurrentFrame.Nright>0)
             for(int i = 0; i < mCurrentFrame.Nleft; i++){
                 int rightIndex = mCurrentFrame.mvLeftToRightMatch[i];
                 if(rightIndex != -1){
@@ -2898,15 +2900,17 @@ void Tracking::StereoInitialization()
 
 #if CREATE_NEW_LINES_ON_TRACKING  
             if(mbLineTrackerOn)
-            {                  
+            {              
                 // Create MapLines and associate to KeyFrame
+                if(mCurrentFrame.NlinesRight>0)
                 for(int i=0; i<mCurrentFrame.NlinesLeft;i++)
                 {
                     int rightIndex = mCurrentFrame.mvLeftToRightLinesMatch[i];
                     if(rightIndex != -1)             
                     {                         
-                        Eigen::Vector3f xs3D = mCurrentFrame.mvStereo3DLineStartPoints[i]; 
-                        Eigen::Vector3f xe3D = mCurrentFrame.mvStereo3DLineEndPoints[i];                         
+                        // at initialization time we don't need to transform with Twc
+                        const Eigen::Vector3f xs3D = mCurrentFrame.mvStereo3DLineStartPoints[i]; 
+                        const Eigen::Vector3f xe3D = mCurrentFrame.mvStereo3DLineEndPoints[i];                       
               
                         //MapLinePtr pNewLine = new MapLine(xs3D,xe3D,pKFini,mpAtlas->GetCurrentMap());
                         MapLinePtr pNewLine = MapLineNewPtr(xs3D,xe3D,pKFini,mpAtlas->GetCurrentMap());

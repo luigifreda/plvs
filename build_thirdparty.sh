@@ -75,8 +75,31 @@ if [[ ! -f build/src/libpangolin.so && ! -f build/libpango_core.so ]]; then
 	#cmake .. -DCMAKE_BUILD_TYPE=Release -DAVFORMAT_INCLUDE_DIR="" -DCPP11_NO_BOOST=ON $EXTERNAL_OPTION
 	cmake .. -DCMAKE_INSTALL_PREFIX="`pwd`/../install" -DCMAKE_BUILD_TYPE=Release $EXTERNAL_OPTION    
 	make -j 8
-        make install     
+    make install     
 fi
+cd $SCRIPT_DIR
+
+
+print_blue '================================================'
+print_blue "Configuring and building Thirdparty/rerun ..."
+
+cd Thirdparty
+if [ ! -d rerun ]; then
+	sudo apt-get install -y cargo 
+    git clone https://github.com/rerun-io/rerun.git rerun
+    #git fetch --all --tags # to fetch tags 
+    cd rerun
+    git checkout 0.14.1
+    cd .. 
+fi
+cd rerun
+make_buid_dir
+if [[ ! -d install ]]; then
+	cd build
+    cmake .. -DCMAKE_INSTALL_PREFIX="`pwd`/../install" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS} -fPIC"  $EXTERNAL_OPTION
+	make -j 8
+    make install 
+fi 
 cd $SCRIPT_DIR
 
 print_blue '================================================'

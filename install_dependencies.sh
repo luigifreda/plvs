@@ -11,6 +11,7 @@ sudo apt-get install -y libeigen3-dev
 sudo apt-get install -y libopenni-dev libopenni2-dev libpcl-dev
 sudo apt-get install -y curl software-properties-common
 sudo apt-get install -y lsb-core
+sudo apt-get install -y libboost-all-dev
 
 #sudo apt-get install -y libzstd-devel 
 
@@ -29,6 +30,9 @@ sudo apt-get install -y libpcl-conversions-dev liboctomap-dev
 
 # python for rgbd-tum dataset tools and evo package
 sudo apt-get install -y python3-pip python3-scipy python3-sklearn-pandas
+
+# rerun 
+sudo apt-get install -y cargo 
 
 # realsense 
 # see https://github.com/IntelRealSense/librealsense/blob/master/doc/distribution_linux.md#installing-the-packages

@@ -25,6 +25,15 @@ if [[ -d Thirdparty/Pangolin ]]; then
 	cd $SCRIPT_DIR
 fi 
 
+echo "cleaning Thirdparty/rerun ..."
+if [[ -d Thirdparty/rerun ]]; then 
+	cd Thirdparty/rerun
+	if [[ -d build ]]; then 	
+		rm -R build install 
+	fi 
+	cd $SCRIPT_DIR
+fi 
+
 echo "cleaning Thirdparty/DBoW2 ..."
 if [[ -d Thirdparty/DBoW2 ]]; then 
 	cd Thirdparty/DBoW2

@@ -57,6 +57,8 @@ using namespace std;
 
 namespace PLVS2 {
 
+    Settings* Settings::instance_ = nullptr;
+
     template<>
     float Settings::readParameter<float>(cv::FileStorage& fSettings, const std::string& name, bool& found, const bool required){
         cv::FileNode node = fSettings[name];
@@ -208,6 +210,12 @@ namespace PLVS2 {
         cout << "----------------------------------" << endl;
     }
 
+    Settings* Settings::create(const std::string &configFile, const int& sensor)
+    {
+        if(!instance_)  instance_ = new Settings(configFile, sensor);
+        return instance_;
+    }
+
     void Settings::readCamera1(cv::FileStorage &fSettings) {
         bool found;
 
@@ -287,7 +295,7 @@ namespace PLVS2 {
                 //Rectified images are assumed to be ideal PinHole images (no distortion)      
                 vCalibration = {fx, fy, cx, cy};                    
                 calibration1_ = new Pinhole(vCalibration);
-                originalCalib1_ = new KannalaBrandt8(vCalibration);      
+                originalCalib1_ = new KannalaBrandt8({fx,fy,cx,cy,k0,k1,k2,k3});      
 
                 vFisheyeDistorsion1_ = {k0,k1,k2,k3}; // Luigi: TODO improperly used as pin-hole distortion       
             } else {
@@ -365,7 +373,7 @@ namespace PLVS2 {
                 vCalibration = {fx, fy, cx, cy};  
 
                 calibration2_ = new Pinhole(vCalibration);
-                originalCalib2_ = new KannalaBrandt8(vCalibration);      
+                originalCalib2_ = new KannalaBrandt8({fx,fy,cx,cy,k0,k1,k2,k3});      
 
                 vFisheyeDistorsion2_ = {k0,k1,k2,k3};  // Luigi: TODO improperly used as pin-hole distortion          
             } else {

@@ -69,7 +69,14 @@ namespace PLVS2 {
 
     public:
         GeometricCamera() {}
-        GeometricCamera(const std::vector<float> &_vParameters) : mvParameters(_vParameters) {}
+        GeometricCamera(const std::vector<float> &_vParameters, const float _linearFovScale=1.0) 
+            : mvParameters(_vParameters), mfLinearFovScale(_linearFovScale) 
+            {
+                assert(_vParameters.size() >= 4); // at least fx,fy,cx,cy
+                mvLinearParameters = _vParameters;
+                mvLinearParameters[0] *= _linearFovScale; // fx 
+                mvLinearParameters[1] *= _linearFovScale; // fy
+            }
         ~GeometricCamera() {}
 
         virtual cv::Point2f project(const cv::Point3f &p3D) const = 0;
@@ -116,6 +123,14 @@ namespace PLVS2 {
             mvParameters = vParameters;
         }
 
+        float getLinearParameter(const int i) const {return mvLinearParameters[i];}
+        void setLinearParameter(const float p, const size_t i){mvLinearParameters[i] = p;}
+        void setLinearParameters(const std::vector<float>& vParameters)
+        {
+            if(mvLinearParameters.size()>0) assert(mvParameters.size() == mvLinearParameters.size());
+            mvLinearParameters = vParameters;
+        }
+
         size_t size() const {return mvParameters.size();}
 
         virtual bool matchAndtriangulate(const cv::KeyPoint& kp1, const cv::KeyPoint& kp2, GeometricCamera* pOther,
@@ -134,12 +149,16 @@ namespace PLVS2 {
 
     protected:
         std::vector<float> mvParameters;
+        std::vector<float> mvLinearParameters;  // corresponding undistorted PinHole camera model      
 
         unsigned int mnId;
 
         unsigned int mnType;
+
+        float mfLinearFovScale = 1.0f; // this acts on the linear projection model, which represents a corresponding undistorted PinHole camera model
     };
 
+    // TODO: replace mvParameters with mvLinearParameters in all the followint *Linear* functions 
     inline Eigen::Vector2d GeometricCamera::projectLinear(const Eigen::Vector3d & v3D) const
     {
         Eigen::Vector2d res;
@@ -185,7 +204,6 @@ namespace PLVS2 {
         Jac(1, 2) = -mvParameters[1] * v3D[1] / v3Dz2;
         return Jac;
     }    
-
 }
 
 
