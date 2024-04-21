@@ -25,7 +25,9 @@
                 "/usr/include/eigen3/",
                 "/opt/ros/noetic/include",
             ],
-            "defines": [],
+            "defines": [
+                "RERUN_ENABLE=1",
+            ],
             "compilerPath": "/usr/bin/g++",
             "cStandard": "c11",
             "cppStandard": "c++17",

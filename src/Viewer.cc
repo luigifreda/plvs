@@ -140,10 +140,10 @@ void Viewer::newParameterLoader(Settings *settings) {
 
     GeometricCamera* camera1 = settings->camera1();
     mpCamera1 = camera1;
-    if(camera1->GetType() != GeometricCamera::CAM_PINHOLE)
-    {
-        MSG_WARN_STREAM("!AR will not work with a fisheye camera! (WIP)");
-    }
+    // if(camera1->GetType() != GeometricCamera::CAM_PINHOLE)
+    // {
+    //     MSG_WARN_STREAM("!AR will not work with a fisheye camera! (WIP)");
+    // }
     mfx = camera1->getParameter(0);
     mfy = camera1->getParameter(1);
     mcx = camera1->getParameter(2);

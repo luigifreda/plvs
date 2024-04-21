@@ -54,24 +54,27 @@
 #include "Utils.h"
 #include "Geom2DUtils.h"
 
+#if RERUN_ENABLED
+#include "RerunSingleton.h" 
+#endif 
+
 #include <thread>
 #include <include/CameraModels/Pinhole.h>
 #include <include/CameraModels/KannalaBrandt8.h>
-
-#if RERUN_ENABLE
-#include "RerunSingleton.h" 
-#endif 
 
 
 #define LOG_ASSIGN_FEATURES 0
 
 #define CHECK_RGBD_ENDPOINTS_DEPTH_CONSISTENCY 1
 #define USE_PARALLEL_POINTS_LINES_EXTRACTION 1
-#define USE_UNFILTERED_PYRAMID_FOR_LINES 1 // N.B.: AT PRESENT TIME, it's better not to use the filtered pyramid!
+#define USE_UNFILTERED_PYRAMID_FOR_LINES 1 // N.B.: AT PRESENT TIME, it's better not to use the filtered pyramid! We prefer to use the unfiltered pyramid.
                                            //       This is because a Gaussian filter is added in keylines extraction when a pre-computed pyramid is set.
                                            //       In fact, the keypoint Gaussian filter is too strong for keyline extraction (it blurs the image too much!)
 
-#define DISABLE_STATIC_LINE_TRIANGULATION 0  // set this to 1 to check how local mapping is able to triangulate lines without using any static stereo line triangulation
+#define DISABLE_STATIC_LINE_TRIANGULATION 0  // Set this to 1 to check how local mapping is able to triangulate lines without using any static stereo line triangulation
+#define KEEP_IMGAGES 0  // Clone the input images and keep them for debugging in the case of mono, stereo and rgbd. Note that, in the case of fisheye cameras, the images are kept by default  
+
+#define VISUALIZE_LINE_MATCHES 0 && RERUN_ENABLED
 
 #if LOG_ASSIGN_FEATURES
 #include "Logger.h"
@@ -224,6 +227,11 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
 {
     // Frame ID
     mnId=nNextId++;
+
+#if KEEP_IMGAGES
+    this->imgLeft = imLeft.clone();
+    this->imgRight = imRight.clone();
+#endif 
 
     // Scale Level Info
     mnScaleLevels = mpORBextractorLeft->GetLevels();
@@ -408,7 +416,9 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
     // Frame ID
     mnId=nNextId++;
 
-    //imgLeft = imGray.clone(); // just needed for debugging and viz purposes 
+#if KEEP_IMGAGES
+    this->imgLeft = imGray.clone(); // just needed for debugging and viz purposes 
+#endif 
 
     // Scale Level Info
     mnScaleLevels = mpORBextractorLeft->GetLevels();
@@ -591,7 +601,7 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
 /// < MONOCULAR 
 Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, GeometricCamera* pCamera, cv::Mat &distCoef, const float &bf, const float &thDepth, Frame* pPrevF, const IMU::Calib &ImuCalib)
     :mpcpi(NULL),mpORBvocabulary(voc),mpORBextractorLeft(extractor),mpORBextractorRight(static_cast<ORBextractor*>(NULL)),
-     mTimeStamp(timeStamp), mK(static_cast<Pinhole*>(pCamera)->toK()), mK_(static_cast<Pinhole*>(pCamera)->toK_()), 
+     mTimeStamp(timeStamp), mK(pCamera->toLinearK()), mK_(pCamera->toLinearK_()), 
      mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth),
      mImuCalib(ImuCalib), mpImuPreintegrated(NULL),mpPrevFrame(pPrevF),mpImuPreintegratedFrame(NULL), mpReferenceKF(static_cast<KeyFramePtr>(NULL)), 
      mbIsSet(false), mbImuPreintegrated(false), mpCamera(pCamera),
@@ -599,6 +609,10 @@ Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extra
 {
     // Frame ID
     mnId=nNextId++;
+
+#if KEEP_IMGAGES
+    this->imgLeft = imGray.clone();
+#endif 
 
     // Scale Level Info
     mnScaleLevels = mpORBextractorLeft->GetLevels();
@@ -1508,19 +1522,18 @@ void Frame::UndistortKeyPoints()
         mat.at<float>(i,1)=mvKeys[i].pt.y;
     }
 
-    // Undistort points
+    // Undistort points (we don't undistort right points here since they are not used in tracking)
     mat=mat.reshape(2);
     if(mpCamera->GetType() == GeometricCamera::CAM_PINHOLE)
     {
-        cv::undistortPoints(mat,mat, static_cast<Pinhole*>(mpCamera)->toK(),mDistCoef,cv::Mat(),mK);
+        cv::undistortPoints(mat,mat, mpCamera->toK(),mDistCoef,cv::Mat(),mpCamera->toLinearK());
     }
     else
     {
         MSG_ASSERT(mpCamera->GetType() == GeometricCamera::CAM_FISHEYE, "Invalid camera type - It should be fisheye!");
         cv::Mat D = (cv::Mat_<float>(4,1) << mpCamera->getParameter(4), mpCamera->getParameter(5), mpCamera->getParameter(6), mpCamera->getParameter(7));
-        cv::Mat R = cv::Mat::eye(3,3,CV_32F);
-        cv::Mat K = static_cast<KannalaBrandt8*>(mpCamera)->toK();              
-        cv::fisheye::undistortPoints(mat,mat, K, D, R, K);        
+        cv::Mat R = cv::Mat::eye(3,3,CV_32F);          
+        cv::fisheye::undistortPoints(mat,mat, mpCamera->toK(), D, R, mpCamera->toLinearK());        
     }    
     mat=mat.reshape(1);
 
@@ -1589,34 +1602,32 @@ void Frame::UndistortKeyLines()
     
     if(mpCamera->GetType() == GeometricCamera::CAM_PINHOLE)
     {
-        cv::undistortPoints(mat,mat, static_cast<Pinhole*>(mpCamera)->toK(),mDistCoef,cv::Mat(),mK);
+        cv::undistortPoints(mat,mat, mpCamera->toK(),mDistCoef,cv::Mat(),mpCamera->toLinearK());
         //NOTE: here we should have NlinesRight == 0
         MSG_ASSERT(NlinesRight == -1, "Should be NlinesRight == -1!");
     }
     else
     {
         MSG_ASSERT(mpCamera->GetType() == GeometricCamera::CAM_FISHEYE, "Invalid camera type - It should be fisheye!");
-        const cv::Mat D = (cv::Mat_<float>(4,1) << mpCamera->getParameter(4), mpCamera->getParameter(5), mpCamera->getParameter(6), mpCamera->getParameter(7));
-        const cv::Mat K = static_cast<KannalaBrandt8*>(mpCamera)->toK();                
-        cv::fisheye::undistortPoints(mat,mat, K, D, cv::Mat(), K);
+        const cv::Mat D = mpCamera->getDistortionParams();               
+        cv::fisheye::undistortPoints(mat,mat, mpCamera->toK(), D, cv::Mat(), mpCamera->toLinearK());
 
         if(NlinesRight>0)
         {
-            const cv::Mat D2 = (cv::Mat_<float>(4,1) << mpCamera2->getParameter(4), mpCamera2->getParameter(5), mpCamera2->getParameter(6), mpCamera2->getParameter(7));
-            const cv::Mat K2 = static_cast<KannalaBrandt8*>(mpCamera)->toK();                
-            cv::fisheye::undistortPoints(matRight,matRight, K2, D2, cv::Mat(), K2);
+            const cv::Mat D2 = mpCamera2->getDistortionParams();             
+            cv::fisheye::undistortPoints(matRight,matRight, mpCamera2->toK(), D2, cv::Mat(), mpCamera2->toLinearK());
         }
     }
     mat=mat.reshape(1);
     if(NlinesRight>0) matRight=matRight.reshape(1);
 
     std::vector<cv::line_descriptor_c::KeyLine> vKeyLines;
-    cv::Mat descriptors; 
+    cv::Mat lineDescriptors;
+    lineDescriptors.reserve(numLines);
 
     // Fill undistorted keypoint vector
     mvKeyLinesUn.reserve(numLines);
     vKeyLines.reserve(numLines);
-    descriptors.reserve(numLines);
     for(size_t i=0, j=0; i<numLines; i++, j+=2)
     {
         //cv::line_descriptor_c::KeyLine& kl = mvKeyLinesUn[i];
@@ -1626,6 +1637,7 @@ void Frame::UndistortKeyLines()
         kl.startPointY = mat.at<float>(j,1);
         kl.endPointX   = mat.at<float>(j+1,0);
         kl.endPointY   = mat.at<float>(j+1,1);
+        //std::cout << "kl[" << i <<  "]: angle " << kl.angle << std::endl;
         kl.angle = cv::fastAtan2( ( kl.endPointY - kl.startPointY ), ( kl.endPointX - kl.startPointX ) ) * DEG2RAD; // kl.angle is originally in radians
         //std::cout << "kl[" << i <<  "]: " << kl.startPointX <<", "<< kl.startPointY <<"  -  " << kl.endPointX << ", " << kl.endPointY << std::endl;  
         // TODO: add check with linear fov scale 
@@ -1635,10 +1647,10 @@ void Frame::UndistortKeyLines()
         }
         mvKeyLinesUn.push_back(kl);   
         vKeyLines.push_back(mvKeyLines[i]);
-        descriptors.push_back(mLineDescriptors.row(i));
+        lineDescriptors.push_back(mLineDescriptors.row(i));
     }
     mvKeyLines = std::move(vKeyLines);
-    mLineDescriptors = descriptors;
+    mLineDescriptors = lineDescriptors;
     MSG_ASSERT(mvKeyLines.size() == mvKeyLinesUn.size(), "mvKeyLines.size() != mvKeyLinesUn.size()");
     if(NlinesLeft != -1) 
     {
@@ -1655,11 +1667,10 @@ void Frame::UndistortKeyLines()
     if(NlinesRight>0)
     {
         std::vector<cv::line_descriptor_c::KeyLine> vKeyLinesRight;
-        cv::Mat descriptorsRight;
-
+        cv::Mat lineDescriptorsRight;
+        lineDescriptorsRight.reserve(NlinesRight);
         mvKeyLinesRightUn.reserve(NlinesRight);
         vKeyLinesRight.reserve(NlinesRight);
-        descriptorsRight.reserve(NlinesRight);
         for(size_t i=0, j=0; i<NlinesRight; i++, j+=2)
         {
             //cv::line_descriptor_c::KeyLine& kl = mvKeyLinesRightUn[i];
@@ -1678,58 +1689,59 @@ void Frame::UndistortKeyLines()
             }          
             mvKeyLinesRightUn.push_back(kl);
             vKeyLinesRight.push_back(mvKeyLinesRight[i]);
-            descriptorsRight.push_back(mLineDescriptorsRight.row(i));  
+            lineDescriptorsRight.push_back(mLineDescriptorsRight.row(i));  
         }
         mvKeyLinesRight = std::move(vKeyLinesRight);
-        mLineDescriptorsRight = descriptorsRight;
+        mLineDescriptorsRight = lineDescriptorsRight;
         MSG_ASSERT(mvKeyLinesRight.size() == mvKeyLinesRightUn.size(), "mvKeyLinesRight.size() != mvKeyLinesRightUn.size()");
         NlinesRight = mvKeyLinesRightUn.size();
         Nlines = NlinesLeft + NlinesRight;
     }
 
-#if 0 && RERUN_ENABLE
+#if 0 && RERUN_ENABLED 
     auto& rec = RerunSingleton::instance();
-    cv::Mat imageUndistorted, imageUndistorted2; 
+    cv::Mat imageLeftUndistorted, imageRightUndistorted; 
     if(mpCamera->GetType() == GeometricCamera::CAM_PINHOLE)
     {
         if(!imgLeft.empty())
         {
-            cv::undistort(imgLeft, imageUndistorted, mK, mDistCoef);
+            cv::undistort(imgLeft, imageLeftUndistorted, mK, mDistCoef);
             for(const auto& kl: mvKeyLinesUn)
             {
                 //std::cout << "kl[" << i <<  "]: " << kl.startPointX <<", "<< kl.startPointY <<"  -  " << kl.endPointX << ", " << kl.endPointY << std::endl;
                 //if(kl.startPointX<0 || kl.startPointX>=imgLeft.cols || kl.startPointY<0 || kl.startPointY>=imgLeft.rows || kl.endPointX<0 || kl.endPointX>=imgLeft.cols || kl.endPointY<0 || kl.endPointY>=imgLeft.rows)
                 //    continue;
-                cv::line(imageUndistorted,cv::Point(kl.startPointX,kl.startPointY),cv::Point(kl.endPointX,kl.endPointY), cv::Scalar(255,0,255));   
+                cv::line(imageLeftUndistorted,cv::Point(kl.startPointX,kl.startPointY),cv::Point(kl.endPointX,kl.endPointY), cv::Scalar(255,0,255));   
             }
-            rec.log("debug/image_lines_undistorted", rerun::Image(tensor_shape(imageUndistorted), rerun::TensorBuffer::u8(imageUndistorted)));        
+            rec.log("debug/image_left_lines_undistorted", rerun::Image(tensor_shape(imageLeftUndistorted), rerun::TensorBuffer::u8(imageLeftUndistorted)));        
+        }
+        else
+        {
+            MSG_WARN_STREAM("imgLeft is empty");
         }
     }
     else 
     {
-        //const Settings* settings = Settings::instance();
-        const cv::Mat D = (cv::Mat_<float>(4,1) << mpCamera->getParameter(4), mpCamera->getParameter(5), mpCamera->getParameter(6), mpCamera->getParameter(7));
-        const cv::Mat K = static_cast<KannalaBrandt8*>(mpCamera)->toK();
-        const float scale = 0.7;       
-        const cv::Mat Knew = (cv::Mat_<float>(3,3) << K.at<float>(0,0)*scale, K.at<float>(0,1)*scale, K.at<float>(0,2), 
-                                                    K.at<float>(1,0)*scale, K.at<float>(1,1)*scale, K.at<float>(1,2), 
-                                                            K.at<float>(2,0),       K.at<float>(2,1), K.at<float>(2,2));
-        cv::fisheye::undistortImage(imgLeft, imageUndistorted, K, D, K);
-        cv::fisheye::undistortImage(imgLeft, imageUndistorted2, K, D, Knew);
-        const float fx = Knew.at<float>(0,0);
-        const float fy = Knew.at<float>(1,1);
-        const float cx = Knew.at<float>(0,2);
-        const float cy = Knew.at<float>(1,2);
+        const cv::Mat D = mpCamera->getDistortionParams();
+        const cv::Mat K = mpCamera->toK();
+        const cv::Mat Knew = mpCamera->toLinearK();
+        cv::fisheye::undistortImage(imgLeft, imageLeftUndistorted, K, D, Knew);
         for(const auto& kl: mvKeyLinesUn)
         {
-            //std::cout << "kl[" << i <<  "]: " << kl.startPointX <<", "<< kl.startPointY <<"  -  " << kl.endPointX << ", " << kl.endPointY << std::endl;
-            //if(kl.startPointX<0 || kl.startPointX>=imgLeft.cols || kl.startPointY<0 || kl.startPointY>=imgLeft.rows || kl.endPointX<0 || kl.endPointX>=imgLeft.cols || kl.endPointY<0 || kl.endPointY>=imgLeft.rows)
-            //    continue;
-            cv::line(imageUndistorted,cv::Point(kl.startPointX,kl.startPointY),cv::Point(kl.endPointX,kl.endPointY), cv::Scalar(255,0,255));
-            cv::line(imageUndistorted2,scale*cv::Point(kl.startPointX-cx,kl.startPointY-cy) + cv::Point(cx,cy),scale*cv::Point(kl.endPointX-cx,kl.endPointY-cy)+ cv::Point(cx,cy), cv::Scalar(255,0,255));        
+            cv::line(imageLeftUndistorted,cv::Point(kl.startPointX,kl.startPointY),cv::Point(kl.endPointX,kl.endPointY), cv::Scalar(255,0,255));
         }
-        rec.log("debug/image_lines_undistorted", rerun::Image(tensor_shape(imageUndistorted), rerun::TensorBuffer::u8(imageUndistorted)));     
-        rec.log("debug/image_lines_undistorted2", rerun::Image(tensor_shape(imageUndistorted2), rerun::TensorBuffer::u8(imageUndistorted2))); 
+
+        const cv::Mat D2 = mpCamera2->getDistortionParams();
+        const cv::Mat K2 = mpCamera2->toK();
+        const cv::Mat K2new = mpCamera2->toLinearK();
+        cv::fisheye::undistortImage(imgRight, imageRightUndistorted, K2, D2, K2new);
+        for(const auto& kl: mvKeyLinesRightUn)
+        {
+            cv::line(imageRightUndistorted,cv::Point(kl.startPointX,kl.startPointY),cv::Point(kl.endPointX,kl.endPointY), cv::Scalar(255,0,255));
+        }
+
+        rec.log("debug/image_left_lines_undistorted", rerun::Image(tensor_shape(imageLeftUndistorted), rerun::TensorBuffer::u8(imageLeftUndistorted)));     
+        rec.log("debug/image_right_lines_undistorted2", rerun::Image(tensor_shape(imageRightUndistorted), rerun::TensorBuffer::u8(imageRightUndistorted))); 
     }
 #endif
 }
@@ -1746,7 +1758,7 @@ void Frame::ComputeImageBounds(const cv::Mat &imLeft)
         mat.at<float>(3,0)=imLeft.cols; mat.at<float>(3,1)=imLeft.rows;
 
         mat=mat.reshape(2);
-        cv::undistortPoints(mat,mat,static_cast<Pinhole*>(mpCamera)->toK(),mDistCoef,cv::Mat(),mK);
+        cv::undistortPoints(mat,mat,mpCamera->toK(),mDistCoef,cv::Mat(),mpCamera->toLinearK());
         mat=mat.reshape(1);
 
         // Undistort corners
@@ -2765,8 +2777,8 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     mbImuPreintegrated(false), mpCamera(pCamera), mpCamera2(pCamera2),
     mbHasPose(false), mbHasVelocity(false)
 {    
-    imgLeft = imLeft.clone();
-    imgRight = imRight.clone();
+    this->imgLeft = imLeft.clone();
+    this->imgRight = imRight.clone();
 
     // Frame ID
     mnId=nNextId++;
@@ -3041,7 +3053,7 @@ void Frame::ComputeStereoFishEyeLineMatches()
     vValidMatches.reserve(NlinesLeft);
 
     int nLineMatches = 0;    
-    LineMatcher lineMatcher(0.7);   
+    LineMatcher lineMatcher(0.8);   
     if( mvKeyLines.size()>0 && mvKeyLinesRight.size()>0 ) 
     {
         nLineMatches = lineMatcher.SearchStereoMatchesByKnn(*this, vMatches, vValidMatches, thDescriptorDist);
@@ -3059,8 +3071,8 @@ void Frame::ComputeStereoFishEyeLineMatches()
     int descMatches = 0;
 
     CameraPairTriangulationInput camPairData; 
-    camPairData.K1 = mpCamera->toK_();       
-    camPairData.K2 = mpCamera2->toK_();
+    camPairData.K1 = mpCamera->toLinearK_();       
+    camPairData.K2 = mpCamera2->toLinearK_();
     camPairData.R12 = mRlr;
     camPairData.t12 = mtlr;
     camPairData.R21 = mRlr.transpose();
@@ -3068,10 +3080,10 @@ void Frame::ComputeStereoFishEyeLineMatches()
     camPairData.e2 = camPairData.K2*camPairData.t21; // epipole in image 2 (right)     
 
     Eigen::Matrix3f K1inv;
-    const float invfx = 1.0f/mpCamera->getParameter(0);
-    const float invfy = 1.0f/mpCamera->getParameter(1);
-    const float cx = mpCamera->getParameter(2);
-    const float cy = mpCamera->getParameter(3);
+    const float invfx = 1.0f/camPairData.K1(0,0);
+    const float invfy = 1.0f/camPairData.K1(1,1);
+    const float cx = camPairData.K1(0,2);
+    const float cy = camPairData.K1(1,2);
     K1inv <<  invfx,     0,  -cx*invfx, 
                   0, invfy,  -cy*invfy, 
                   0,     0,         1.;
@@ -3129,6 +3141,40 @@ void Frame::ComputeStereoFishEyeLineMatches()
             }
         }
     }
+
+#if VISUALIZE_LINE_MATCHES && RERUN_ENABLED
+    auto& rec = RerunSingleton::instance();
+    cv::Mat lineImageMatching;
+#if USE_LINE_MATCHER
+    std::vector<char> lineMatchingMask( vValidMatches.size());
+    for( size_t ii = 0; ii < vValidMatches.size(); ii++ ) lineMatchingMask[ii] = vValidMatches[ii] ? 1 : 0;
+#else 
+    std::vector<char> lineMatchingMask(matches.size(),1);
+    std::vector<cv::DMatch> vMatches;
+    vMatches.reserve(matches.size());
+    for( size_t ii = 0; ii < matches.size(); ii++ ) vMatches.push_back(matches[ii][0]);    
+#endif 
+    cv::Mat imageLeftUndistorted, imageRightUndistorted; 
+
+    const cv::Mat D = mpCamera->getDistortionParams();
+    const cv::Mat K = mpCamera->toK();
+    const cv::Mat Knew = mpCamera->toLinearK();
+    cv::fisheye::undistortImage(imgLeft, imageLeftUndistorted, K, D, Knew);
+
+    const cv::Mat D2 = mpCamera2->getDistortionParams();
+    const cv::Mat K2 = mpCamera2->toK();
+    const cv::Mat K2new = mpCamera2->toLinearK();
+    cv::fisheye::undistortImage(imgRight, imageRightUndistorted, K2, D2, K2new);
+
+    cv::Mat imageLeftUnColor, imageRightUnColor;
+    cv::cvtColor(imageLeftUndistorted, imageLeftUnColor, cv::COLOR_GRAY2BGR);
+    cv::cvtColor(imageRightUndistorted, imageRightUnColor, cv::COLOR_GRAY2BGR);
+    cv::line_descriptor_c::drawLineMatches(imageLeftUnColor, mvKeyLinesUn, imageRightUnColor, mvKeyLinesRightUn, vMatches, lineImageMatching, 
+                                           cv::Scalar::all( -1 ), cv::Scalar::all( -1 ), lineMatchingMask, cv::line_descriptor_c::DrawLinesMatchesFlags::DEFAULT);
+
+    rec.log("debug/image_line_stereo_matching", rerun::Image(tensor_shape(lineImageMatching), rerun::TensorBuffer::u8(lineImageMatching)));     
+#endif
+
     std::cout << "Frame::ComputeStereoFishEyeLineMatches() - #triangulated line matches: " << nMatches << ", #desc matches: " << descMatches 
               << ", perc: " << std::setprecision(2) << std::fixed << 100.0f*nMatches/descMatches << "%" << std::endl;
 }

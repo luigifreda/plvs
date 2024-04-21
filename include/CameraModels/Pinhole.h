@@ -63,23 +63,22 @@ namespace PLVS2 {
     }
 
     public:
-        Pinhole() {
+        Pinhole() : GeometricCamera(1.0) {
             mvParameters.resize(4);
             mnId=nNextId++;
             mnType = CAM_PINHOLE;
         }
-        Pinhole(const std::vector<float> _vParameters) : GeometricCamera(_vParameters), tvr(nullptr) {
+        Pinhole(const std::vector<float> _vParameters) : GeometricCamera(_vParameters, 1.0), tvr(nullptr) {
             assert(mvParameters.size() == 4);
             mnId=nNextId++;
             mnType = CAM_PINHOLE;
         }
 
-        Pinhole(Pinhole* pPinhole) : GeometricCamera(pPinhole->mvParameters), tvr(nullptr) {
+        Pinhole(Pinhole* pPinhole) : GeometricCamera(pPinhole->mvParameters, 1.0), tvr(nullptr) {
             assert(mvParameters.size() == 4);
             mnId=nNextId++;
             mnType = CAM_PINHOLE;
         }
-
 
         ~Pinhole(){
             if(tvr) delete tvr;

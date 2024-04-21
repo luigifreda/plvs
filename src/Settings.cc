@@ -395,7 +395,7 @@ namespace PLVS2 {
         //Load stereo extrinsic calibration
         if(cameraType_ == Rectified){
             b_ = readParameter<float>(fSettings,"Stereo.b",found);
-            bf_ = b_ * calibration1_->getParameter(0);
+            bf_ = b_ * calibration1_->getLinearParameter(0);
         }
         else{
             cv::Mat cvTlr = readParameter<cv::Mat>(fSettings,"Stereo.T_c1_c2",found);
@@ -404,7 +404,7 @@ namespace PLVS2 {
             //TODO: also search for Trl and invert if necessary
 
             b_ = Tlr_.translation().norm();
-            bf_ = b_ * calibration1_->getParameter(0);
+            bf_ = b_ * calibration1_->getLinearParameter(0);
             std::cout << "Stereo.b recomputed to " << b_ << std::endl; 
         }
 
@@ -432,11 +432,12 @@ namespace PLVS2 {
                 float scaleRowFactor = (float)newImSize_.height / (float)originalImSize_.height;
                 calibration1_->setParameter(calibration1_->getParameter(1) * scaleRowFactor, 1);
                 calibration1_->setParameter(calibration1_->getParameter(3) * scaleRowFactor, 3);
-
+                calibration1_->updateLinearParameters();
 
                 if((sensor_ == System::STEREO || sensor_ == System::IMU_STEREO) && cameraType_ != Rectified){
                     calibration2_->setParameter(calibration2_->getParameter(1) * scaleRowFactor, 1);
                     calibration2_->setParameter(calibration2_->getParameter(3) * scaleRowFactor, 3);
+                    calibration2_->updateLinearParameters();
                 }
             }
         }
@@ -451,10 +452,12 @@ namespace PLVS2 {
                 float scaleColFactor = (float)newImSize_.width /(float) originalImSize_.width;
                 calibration1_->setParameter(calibration1_->getParameter(0) * scaleColFactor, 0);
                 calibration1_->setParameter(calibration1_->getParameter(2) * scaleColFactor, 2);
+                calibration1_->updateLinearParameters();
 
                 if((sensor_ == System::STEREO || sensor_ == System::IMU_STEREO) && cameraType_ != Rectified){
                     calibration2_->setParameter(calibration2_->getParameter(0) * scaleColFactor, 0);
                     calibration2_->setParameter(calibration2_->getParameter(2) * scaleColFactor, 2);
+                    calibration2_->updateLinearParameters();
 
                     if(cameraType_ == KannalaBrandt && !bNeedToRectifyFishEye_){
                         static_cast<KannalaBrandt8*>(calibration1_)->mvLappingArea[0] *= scaleColFactor;
@@ -497,7 +500,7 @@ namespace PLVS2 {
         depthMapFactor_ = readParameter<float>(fSettings,"RGBD.DepthMapFactor",found);
         thDepth_ = readParameter<float>(fSettings,"Stereo.ThDepth",found);
         b_ = readParameter<float>(fSettings,"Stereo.b",found);
-        bf_ = b_ * calibration1_->getParameter(0);
+        bf_ = b_ * calibration1_->getLinearParameter(0);
     }
 
     void Settings::readORB(cv::FileStorage &fSettings) {
@@ -548,9 +551,9 @@ namespace PLVS2 {
 
     void Settings::precomputeRectificationMaps(cv::FileStorage& fSettings) {
         //Precompute rectification maps, new calibrations, ...
-        cv::Mat K1 = static_cast<Pinhole*>(calibration1_)->toK();
+        cv::Mat K1 = calibration1_->toLinearK();
         K1.convertTo(K1,CV_64F);
-        cv::Mat K2 = static_cast<Pinhole*>(calibration2_)->toK();
+        cv::Mat K2 = calibration2_->toLinearK();
         K2.convertTo(K2,CV_64F);
 
         cv::Mat cvTlr;
@@ -598,11 +601,13 @@ namespace PLVS2 {
         calibration1_->setParameter(P1.at<double>(1,1), 1);
         calibration1_->setParameter(P1.at<double>(0,2), 2);
         calibration1_->setParameter(P1.at<double>(1,2), 3);
+        calibration1_->updateLinearParameters();
 
         calibration2_->setParameter(P2.at<double>(0,0), 0);
         calibration2_->setParameter(P2.at<double>(1,1), 1);
         calibration2_->setParameter(P2.at<double>(0,2), 2);
-        calibration2_->setParameter(P2.at<double>(1,2), 3);        
+        calibration2_->setParameter(P2.at<double>(1,2), 3);
+        calibration2_->updateLinearParameters();        
 
         MSG_ASSERT(bNeedToUndistort_==false,"We should not have to undistort here!"); // in Tracking this guides to consider the vector of dist coefficient as zeros
 

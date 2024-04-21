@@ -1,7 +1,7 @@
 # New Features 
 
 This is a list of the **new features** provided by PLVS: 
-* **Line segment** detection, matching, triangulation and tracking with both pinhole and **fisheye cameras** (**NEW**). 
+* **Line segment** detection, matching, triangulation and tracking with both pinhole and **fisheye cameras** (**NEW** experimental). 
   - This capability can be enabled via the option `Line.on` in the yaml settings.
   - Removed some bugs and optimized parts of the adopted [line_descriptor](https://github.com/opencv/opencv_contrib/tree/4.x/modules/line_descriptor) OpenCV module. 
 * Dense reconstruction with different **volumetric mapping methods**: *voxelgrid*, *octree_point*, *[octomap](https://github.com/OctoMap/octomap)*, *[fastfusion](https://github.com/tum-vision/fastfusion)*, *[chisel](https://github.com/personalrobotics/OpenChisel)*, *[voxblox](https://github.com/ethz-asl/voxblox)*.  
@@ -25,6 +25,7 @@ This is a list of the **new features** provided by PLVS:
 * **MapOjbect**: Experimental representation for planar objects (WIP for PLVS II).
 * C++17 support. This can be configured at global level in [config.sh](./config.sh) by setting the variable `CPP_STANDARD_VERSION`.
 * Many convenient scripts are provided for launching apps, benchmarking and monitoring the system. See the `Scripts` and the `Benchmarking` folders.
+* [Rerun](https://www.rerun.io/) visualizations are now supported (NEW).
   
 **Note**: PLVS is an active project. The main *README* is under construction and will be updated soon with further information and details. Code improvements are coming soon. 
 

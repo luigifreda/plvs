@@ -194,9 +194,9 @@ namespace PLVS2 {
     }
 
     bool KannalaBrandt8::ReconstructWithTwoViews(const std::vector<cv::KeyPoint>& vKeys1, const std::vector<cv::KeyPoint>& vKeys2, const std::vector<int> &vMatches12,
-                                          Sophus::SE3f &T21, std::vector<cv::Point3f> &vP3D, std::vector<bool> &vbTriangulated){
+                                                 Sophus::SE3f &T21, std::vector<cv::Point3f> &vP3D, std::vector<bool> &vbTriangulated){
         if(!tvr){
-            Eigen::Matrix3f K = this->toK_();
+            Eigen::Matrix3f K = this->toLinearK_();
             tvr = new TwoViewReconstruction(K);
         }
 
@@ -207,11 +207,12 @@ namespace PLVS2 {
         for(size_t i = 0; i < vKeys1.size(); i++) vPts1[i] = vKeys1[i].pt;
         for(size_t i = 0; i < vKeys2.size(); i++) vPts2[i] = vKeys2[i].pt;
 
-        cv::Mat D = (cv::Mat_<float>(4,1) << mvParameters[4], mvParameters[5], mvParameters[6], mvParameters[7]);
-        cv::Mat R = cv::Mat::eye(3,3,CV_32F);
-        cv::Mat K = this->toK();
-        cv::fisheye::undistortPoints(vPts1,vPts1,K,D,R,K);
-        cv::fisheye::undistortPoints(vPts2,vPts2,K,D,R,K);
+        const cv::Mat D = (cv::Mat_<float>(4,1) << mvParameters[4], mvParameters[5], mvParameters[6], mvParameters[7]);
+        const cv::Mat R = cv::Mat::eye(3,3,CV_32F);
+        const cv::Mat K = this->toK();
+        const cv::Mat LinearK = this->toLinearK();
+        cv::fisheye::undistortPoints(vPts1,vPts1,K,D,R,LinearK);
+        cv::fisheye::undistortPoints(vPts2,vPts2,K,D,R,LinearK);
 
         for(size_t i = 0; i < vKeys1.size(); i++) vKeysUn1[i].pt = vPts1[i];
         for(size_t i = 0; i < vKeys2.size(); i++) vKeysUn2[i].pt = vPts2[i];
@@ -403,12 +404,10 @@ namespace PLVS2 {
         const auto& minZ = camPairdata.minZ;
         const auto& maxZ = camPairdata.maxZ;
 
-        const float invfx1 = 1.0f/mvParameters[0];
-        const float invfy1 = 1.0f/mvParameters[1];
-        const float& cx1 = mvParameters[2];
-        const float& cy1 = mvParameters[3];
-        // res[0] = mvParameters[0] * v3D[0] / v3D[2] + mvParameters[2];
-        // res[1] = mvParameters[1] * v3D[1] / v3D[2] + mvParameters[3];        
+        const float invfx1 = 1.0f/K1(0,0);
+        const float invfy1 = 1.0f/K1(1,1);
+        const float& cx1 = K1(0,2);
+        const float& cy1 = K1(1,2);
 
 #define KEYLINES_ARE_DISTORTED 0
 
@@ -449,12 +448,12 @@ namespace PLVS2 {
         Eigen::Vector3f n2_1 = camPairdata.R12*n2; // n2 in camera 1 coordinates
         const float normalsDotProduct= fabs( n1.dot(n2_1) );
         const float sigma = std::max( sigma1, sigma2 );
-        const float dotProductThreshold = 1e-4 * sigma; //Frame::kLineNormalsDotProdThreshold * sigma; // this is a percentage over unitary modulus ( we modulate threshold by sigma)
+        const float dotProductThreshold = 1e-5 * sigma; //Frame::kLineNormalsDotProdThreshold * sigma; // this is a percentage over unitary modulus ( we modulate threshold by sigma)
         //const float dotProductThreshold = Frame::kLineNormalsDotProdThreshold * sigma; // this is a percentage over unitary modulus ( we modulate threshold by sigma)
         if( fabs( normalsDotProduct - 1.f ) < dotProductThreshold) 
         {
             bCanTriangulateLines = false; // normals are almost parallel => cannot triangulate lines
-            //std::cout << "  -cannot triangulate n1: " << n1.transpose() << ", n2: " << n2.transpose() << std::endl;                     
+            //std::cout << "  - cannot triangulate n1: " << n1.transpose() << ", n2: " << n2.transpose() <<", normalsDotProduct: " << fabs( normalsDotProduct - 1.f ) << std::endl;                     
         }
         
         if(bCanTriangulateLines)
@@ -465,7 +464,7 @@ namespace PLVS2 {
             const float denP = (l2.dot(camPairdata.H21*p1)); // distance point-line in pixels 
             const float denQ = (l2.dot(camPairdata.H21*q1)); // distance point-line in pixels
             
-            constexpr float denTh = 10;            
+            constexpr float denTh = 5;            
             if( ( fabs(denP) < denTh ) || (fabs(denQ) < denTh) ) return false; 
                 
             outData.depthS = num/denP; // depthP1

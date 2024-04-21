@@ -1416,6 +1416,12 @@ CV_EXPORTS void drawLineMatches( const Mat& img1, const std::vector<KeyLine>& ke
                                  const Scalar& singleLineColor = Scalar::all( -1 ), const std::vector<char>& matchesMask = std::vector<char>(),
                                  int flags = DrawLinesMatchesFlags::DEFAULT );
 
+CV_EXPORTS void drawLineMatchesStereo( const Mat& img1L, const Mat& img1R, const std::vector<KeyLine>& keylines1L, const std::vector<KeyLine>& keylines1R, int N1Left,
+                                       const Mat& img2L, const Mat& img2R, const std::vector<KeyLine>& keylines2L, const std::vector<KeyLine>& keylines2R, int N2Left,
+                                       const std::vector<DMatch>& matches1to2, Mat& outImg, const Scalar& matchColor = Scalar::all( -1 ),
+                                       const Scalar& singleLineColor = Scalar::all( -1 ), const std::vector<char>& matchesMask = std::vector<char>(),
+                                       int flags = DrawLinesMatchesFlags::DEFAULT );                                 
+
 /** @brief Draws keylines.
 
 @param image input image

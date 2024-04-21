@@ -674,17 +674,9 @@ void Tracking::newParameterLoader(Settings *settings) {
     //TODO: missing image scaling and rectification
     mImageScale = 1.0f;
 
-    mK = cv::Mat::eye(3,3,CV_32F);
-    mK.at<float>(0,0) = mpCamera->getParameter(0);
-    mK.at<float>(1,1) = mpCamera->getParameter(1);
-    mK.at<float>(0,2) = mpCamera->getParameter(2);
-    mK.at<float>(1,2) = mpCamera->getParameter(3);
+    mK = mpCamera->toLinearK();
 
-    mK_.setIdentity();
-    mK_(0,0) = mpCamera->getParameter(0);
-    mK_(1,1) = mpCamera->getParameter(1);
-    mK_(0,2) = mpCamera->getParameter(2);
-    mK_(1,2) = mpCamera->getParameter(3);
+    mK_ = mpCamera->toLinearK_();
 
     if((mSensor==System::STEREO || mSensor==System::IMU_STEREO || mSensor==System::IMU_RGBD) &&
         settings->cameraType() == Settings::KannalaBrandt){
@@ -1323,7 +1315,7 @@ bool Tracking::ParseCamParamFile(cv::FileStorage &fSettings)
 
     if(mSensor==System::STEREO || mSensor==System::RGBD || mSensor==System::IMU_STEREO || mSensor==System::IMU_RGBD)
     {
-        float fx = mpCamera->getParameter(0);
+        float fx = mpCamera->getLinearParameter(0);
         cv::FileNode node = fSettings["ThDepth"];
         if(!node.empty()  && node.isReal())
         {

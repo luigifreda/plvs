@@ -47,12 +47,16 @@
 #include "LineMatcher.h"
 #include "Utils.h"
 
+#if RERUN_ENABLED
+#include "RerunSingleton.h" 
+#endif 
+
 #include<mutex>
 #include<chrono>
 
 #define TRIANGULATE_NEW_LINES 1
 #define ASSIGN_VIRTUAL_DISPARITY_WHEN_TRIANGULATING_LINES 1
-#define USE_CURRENT_KF_LINE_TRIANGULATION 1
+#define VISUALIZE_LINE_MATCHES 0 && RERUN_ENABLED
 
 namespace PLVS2
 {
@@ -542,6 +546,7 @@ void LocalMapping::CreateNewMapFeatures()
     Eigen::Matrix<float,3,3> Rcw1 = eigTcw1.block<3,3>(0,0);
     Eigen::Matrix<float,3,3> Rwc1 = Rcw1.transpose();
     Eigen::Vector3f tcw1 = sophTcw1.translation();
+    Eigen::Vector3f twc1 = -Rwc1*tcw1;
     Eigen::Vector3f Ow1 = mpCurrentKeyFrame->GetCameraCenter();
 
     const float &fx1 = mpCurrentKeyFrame->fx;
@@ -551,10 +556,10 @@ void LocalMapping::CreateNewMapFeatures()
     const float &invfx1 = mpCurrentKeyFrame->invfx;
     const float &invfy1 = mpCurrentKeyFrame->invfy;
 
-    const float fx1R = mpCurrentKeyFrame->mpCamera2 ? mpCurrentKeyFrame->mpCamera2->getParameter(0) : 0.f;
-    const float fy1R = mpCurrentKeyFrame->mpCamera2 ? mpCurrentKeyFrame->mpCamera2->getParameter(1) : 0.f; 
-    const float cx1R = mpCurrentKeyFrame->mpCamera2 ? mpCurrentKeyFrame->mpCamera2->getParameter(2) : 0.f;
-    const float cy1R = mpCurrentKeyFrame->mpCamera2 ? mpCurrentKeyFrame->mpCamera2->getParameter(3) : 0.f; 
+    const float fx1R = mpCurrentKeyFrame->mpCamera2 ? mpCurrentKeyFrame->mpCamera2->getLinearParameter(0) : 0.f;
+    const float fy1R = mpCurrentKeyFrame->mpCamera2 ? mpCurrentKeyFrame->mpCamera2->getLinearParameter(1) : 0.f; 
+    const float cx1R = mpCurrentKeyFrame->mpCamera2 ? mpCurrentKeyFrame->mpCamera2->getLinearParameter(2) : 0.f;
+    const float cy1R = mpCurrentKeyFrame->mpCamera2 ? mpCurrentKeyFrame->mpCamera2->getLinearParameter(3) : 0.f; 
     const float invfx1R = mpCurrentKeyFrame->mpCamera2 ? 1.f/fx1R : 0.f;
     const float invfy1R = mpCurrentKeyFrame->mpCamera2 ? 1.f/fy1R : 0.f;
 
@@ -562,14 +567,54 @@ void LocalMapping::CreateNewMapFeatures()
     int nnewPoints=0;
     
 #if TRIANGULATE_NEW_LINES       
-    const Eigen::Matrix3f K1L = mpCurrentKeyFrame->mpCamera->toK_();
-    const Eigen::Matrix3f K1R = mpCurrentKeyFrame->mpCamera2 ? mpCurrentKeyFrame->mpCamera2->toK_() : Eigen::Matrix3f();    
+    const Eigen::Matrix3f K1L = mpCurrentKeyFrame->mpCamera->toLinearK_();
+    const Eigen::Matrix3f K1R = mpCurrentKeyFrame->mpCamera2 ? mpCurrentKeyFrame->mpCamera2->toLinearK_() : Eigen::Matrix3f();    
     const float linesRatioFactor = 1.5f*mpCurrentKeyFrame->mfLineScaleFactor;    
     int nnewLines=0; 
     size_t nlineTotMatches = 0;
 
     const Eigen::Matrix3f Rwc1L = Rwc1; 
-    const Eigen::Matrix3f Rwc1R = mpCurrentKeyFrame->mpCamera2 ? Rwc1L * mpCurrentKeyFrame->GetRelativePoseTlr().rotationMatrix() : Eigen::Matrix3f();
+    const Eigen::Vector3f twc1L = twc1; 
+    const Sophus::SE3f Twc1R = mpCurrentKeyFrame->mpCamera2 ? sophTcw1.inverse() * mpCurrentKeyFrame->GetRelativePoseTlr() : Sophus::SE3f();
+    const Eigen::Matrix3f Rwc1R = mpCurrentKeyFrame->mpCamera2 ? Twc1R.rotationMatrix() : Eigen::Matrix3f();
+    const Eigen::Vector3f twc1R = mpCurrentKeyFrame->mpCamera2 ? Twc1R.translation() : Eigen::Vector3f();
+
+
+#if VISUALIZE_LINE_MATCHES
+    auto getUndistortedColorImages = [&](const KeyFramePtr& pKF, cv::Mat& imageLeftUnColor, cv::Mat& imageRightUnColor)
+    {
+        MSG_ASSERT(!pKF->imgLeft.empty(),"You probably need to set KEEP_IMGAGES to 1 in Frame.cc in order to store images into keyframes");
+        cv::Mat imageLeftUn, imageRightUn; 
+        if(pKF->mpCamera->GetType() == GeometricCamera::CAM_FISHEYE)
+        {
+            const cv::Mat D = pKF->mpCamera->getDistortionParams();
+            const cv::Mat K = pKF->mpCamera->toK();
+            const cv::Mat Knew = pKF->mpCamera->toLinearK();
+            cv::fisheye::undistortImage(pKF->imgLeft, imageLeftUn, K, D, Knew);
+
+            const cv::Mat D2 = pKF->mpCamera2->getDistortionParams();
+            const cv::Mat K2 = pKF->mpCamera2->toK();
+            const cv::Mat K2new = pKF->mpCamera2->toLinearK();
+            cv::fisheye::undistortImage(pKF->imgRight, imageRightUn, K2, D2, K2new);
+            cv::cvtColor(imageLeftUn, imageLeftUnColor, cv::COLOR_GRAY2BGR);
+            cv::cvtColor(imageRightUn, imageRightUnColor, cv::COLOR_GRAY2BGR);
+        }
+        else if(pKF->mpCamera->GetType() == GeometricCamera::CAM_PINHOLE)
+        {
+            cv::undistort(pKF->imgLeft, imageLeftUn, pKF->mpCamera->toK(),pKF->mDistCoef, pKF->mpCamera->toK());
+            cv::cvtColor(imageLeftUn, imageLeftUnColor, cv::COLOR_GRAY2BGR);
+        }
+
+    };
+
+    auto& rec = RerunSingleton::instance();
+
+    cv::Mat currImageLeftUnColor, currImageRightUnColor;
+    getUndistortedColorImages(mpCurrentKeyFrame, currImageLeftUnColor, currImageRightUnColor);    
+    //rec.log("debug/curr_KF_left", rerun::Image(tensor_shape(currImageLeftUnColor), rerun::TensorBuffer::u8(currImageLeftUnColor)));   
+    //rec.log("debug/curr_KF_right", rerun::Image(tensor_shape(currImageRightUnColor), rerun::TensorBuffer::u8(currImageRightUnColor)));     
+#endif
+
 #endif 
 
     //int countStereo = 0;
@@ -616,6 +661,7 @@ void LocalMapping::CreateNewMapFeatures()
         Eigen::Matrix<float,3,3> Rcw2 = eigTcw2.block<3,3>(0,0);
         Eigen::Matrix<float,3,3> Rwc2 = Rcw2.transpose();
         Eigen::Vector3f tcw2 = sophTcw2.translation();
+        Eigen::Vector3f twc2 = -Rwc2*tcw2;
 
         const float &fx2 = pKF2->fx;
         const float &fy2 = pKF2->fy;
@@ -625,15 +671,27 @@ void LocalMapping::CreateNewMapFeatures()
         const float &invfy2 = pKF2->invfy;
 
 #if TRIANGULATE_NEW_LINES   
-        const float fx2R = pKF2->mpCamera2 ? pKF2->mpCamera2->getParameter(0) : 0.f;
-        const float fy2R = pKF2->mpCamera2 ? pKF2->mpCamera2->getParameter(1) : 0.f; 
-        const float cx2R = pKF2->mpCamera2 ? pKF2->mpCamera2->getParameter(2) : 0.f;
-        const float cy2R = pKF2->mpCamera2 ? pKF2->mpCamera2->getParameter(3) : 0.f; 
+        const float fx2R = pKF2->mpCamera2 ? pKF2->mpCamera2->getLinearParameter(0) : 0.f;
+        const float fy2R = pKF2->mpCamera2 ? pKF2->mpCamera2->getLinearParameter(1) : 0.f; 
+        const float cx2R = pKF2->mpCamera2 ? pKF2->mpCamera2->getLinearParameter(2) : 0.f;
+        const float cy2R = pKF2->mpCamera2 ? pKF2->mpCamera2->getLinearParameter(3) : 0.f; 
         const float invfx2R = pKF2->mpCamera2 ? 1.f/fx2R : 0.f;
         const float invfy2R = pKF2->mpCamera2 ? 1.f/fy2R : 0.f;
 
         const Eigen::Matrix3f Rwc2L = Rwc2; 
-        const Eigen::Matrix3f Rwc2R = pKF2->mpCamera2 ? Rwc2L * pKF2->GetRelativePoseTlr().rotationMatrix() : Eigen::Matrix3f();            
+        const Eigen::Vector3f twc2L = twc2;
+        const Sophus::SE3f Twc2R = pKF2->mpCamera2 ? sophTcw2.inverse() * pKF2->GetRelativePoseTlr() : Sophus::SE3f();        
+        const Eigen::Matrix3f Rwc2R = pKF2->mpCamera2 ? Twc2R.rotationMatrix() : Eigen::Matrix3f();
+        const Eigen::Vector3f twc2R = pKF2->mpCamera2 ? Twc2R.translation() : Eigen::Vector3f();         
+
+
+#if VISUALIZE_LINE_MATCHES
+    cv::Mat kf2ImageLeftUnColor, kf2ImageRightUnColor;
+    getUndistortedColorImages(pKF2, kf2ImageLeftUnColor, kf2ImageRightUnColor);    
+    //rec.log("debug/KF" + std::to_string(i) + "_left", rerun::Image(tensor_shape(kf2ImageLeftUnColor), rerun::TensorBuffer::u8(kf2ImageLeftUnColor)));   
+    //rec.log("debug/KF" + std::to_string(i) + "_right", rerun::Image(tensor_shape(kf2ImageRightUnColor), rerun::TensorBuffer::u8(kf2ImageRightUnColor))); 
+#endif           
+
 #endif 
 
         // Triangulate each match
@@ -878,7 +936,6 @@ void LocalMapping::CreateNewMapFeatures()
             //F12 = ComputeF12(mpCurrentKeyFrame, pKF2); 
             //ComputeF12(mpCurrentKeyFrame, pKF2, F12, H12, e1);     
 
-#if USE_CURRENT_KF_LINE_TRIANGULATION
             Eigen::Matrix3f H21_LL, H21_LR, H21_RL, H21_RR; 
             Eigen::Vector3f e2_LL, e2_LR, e2_RL, e2_RR;
 
@@ -888,15 +945,10 @@ void LocalMapping::CreateNewMapFeatures()
                 ComputeH21(mpCurrentKeyFrame, pKF2, H21_LR, e2_LR, false/*bRight1*/, true/*bRight2*/);
                 ComputeH21(mpCurrentKeyFrame, pKF2, H21_RL, e2_RL, true/*bRight1*/, false/*bRight2*/);
                 ComputeH21(mpCurrentKeyFrame, pKF2, H21_RR, e2_RR, true/*bRight1*/, true/*bRight2*/);
-            }
-#else 
-            Eigen::Matrix3f H12; 
-            Eigen::Vector3f e1;
-            ComputeH12(mpCurrentKeyFrame, pKF2, H12, e1);
-#endif             
+            }       
             
-            const Eigen::Matrix3f K2L = pKF2->mpCamera->toK_(); // pKF2->mK;
-            const Eigen::Matrix3f K2R = pKF2->mpCamera2 ? pKF2->mpCamera2->toK_() : Eigen::Matrix3f::Zero();
+            const Eigen::Matrix3f K2L = pKF2->mpCamera->toLinearK_(); // pKF2->mK;
+            const Eigen::Matrix3f K2R = pKF2->mpCamera2 ? pKF2->mpCamera2->toLinearK_() : Eigen::Matrix3f::Zero();
             const float minZ = pKF2->mb; // baseline in meters  
             const float maxZ = Tracking::skLineStereoMaxDist;   
                 
@@ -904,9 +956,35 @@ void LocalMapping::CreateNewMapFeatures()
             std::vector<pair<size_t,size_t> > vMatchedLineIndices;
             pLineMatcher->SearchForTriangulation(mpCurrentKeyFrame,pKF2,vMatchedLineIndices,false);
             
+#if VISUALIZE_LINE_MATCHES
+            cv::Mat lineImageMatching;
+            const auto& vKeyLinesLeftKF = mpCurrentKeyFrame->mvKeyLinesUn;
+            const auto& vpKeyLinesLeftKF2 = pKF2->mvKeyLinesUn;            
+            std::vector<cv::DMatch> vMatches;
+            vMatches.reserve(vMatchedLineIndices.size());
+            for( size_t ii = 0; ii < vMatchedLineIndices.size(); ii++ ) vMatches.push_back({vMatchedLineIndices[ii].first, vMatchedLineIndices[ii].second, 0.}); 
+            std::vector<char> lineMatchingMask( vMatchedLineIndices.size(),1);            
+            if(mpCurrentKeyFrame->mpCamera2 && !vMatchedLineIndices.empty())
+            {
+                const auto& vKeyLinesRightKF = mpCurrentKeyFrame->mvKeyLinesRightUn;
+                const auto& vpKeyLinesRightKF2 = pKF2->mvKeyLinesRightUn;
+                cv::line_descriptor_c::drawLineMatchesStereo(currImageLeftUnColor, currImageRightUnColor, vKeyLinesLeftKF, vKeyLinesRightKF, mpCurrentKeyFrame->NlinesLeft,
+                                                             kf2ImageLeftUnColor, kf2ImageRightUnColor, vpKeyLinesLeftKF2, vpKeyLinesRightKF2, pKF2->NlinesLeft, 
+                                                             vMatches, lineImageMatching, cv::Scalar::all( -1 ), cv::Scalar::all( -1 ), lineMatchingMask, cv::line_descriptor_c::DrawLinesMatchesFlags::DEFAULT);
+            }
+            else 
+            {
+                cv::line_descriptor_c::drawLineMatches(currImageLeftUnColor, vKeyLinesLeftKF, kf2ImageLeftUnColor, vpKeyLinesLeftKF2, vMatches, lineImageMatching, 
+                                           cv::Scalar::all( -1 ), cv::Scalar::all( -1 ), lineMatchingMask, cv::line_descriptor_c::DrawLinesMatchesFlags::DEFAULT);                       
+            }
+            rec.log("debug/loc_mapping_image_line_stereo_matching" + std::to_string(i), rerun::Image(tensor_shape(lineImageMatching), rerun::TensorBuffer::u8(lineImageMatching)));     
+
+#endif 
+
             // Triangulate each line match
             const size_t nlineMatches = vMatchedLineIndices.size();
             nlineTotMatches += nlineMatches;
+
             //std::cout << "lines triangulation, matched " << nlineMatches << " lines " << std::endl; 
             for(size_t ikl=0; ikl<nlineMatches; ikl++)
             {
@@ -963,13 +1041,15 @@ void LocalMapping::CreateNewMapFeatures()
                 Eigen::Vector3f n2 = K2.transpose()*l2; n2 /= n2.norm();
 
                 const auto& Rwc1 = bRight1 ? Rwc1R : Rwc1L;
+                const auto& twc1 = bRight1 ? twc1R : twc1L;
                 const auto& Rwc2 = bRight2 ? Rwc2R : Rwc2L;
+                const auto& twc2 = bRight2 ? twc2R : twc2L;
 
                 Eigen::Vector3f n1w = Rwc1*n1;
                 Eigen::Vector3f n2w = Rwc2*n2;
                 const float normalsDotProduct= fabs( n1w.dot(n2w) );
                 const float sigma = std::max( sigma1, sigma2 );
-                const float dotProductThreshold = 0.002 * sigma;// 0.002 // 0.005 //Frame::kLineNormalsDotProdThreshold * sigma; // this is a percentage over unitary modulus ( we modulate threshold by sigma)
+                const float dotProductThreshold = (mpCurrentKeyFrame->NlinesLeft == -1) ? 0.002 * sigma : 0.005 * sigma;// 0.002 // 0.005 //Frame::kLineNormalsDotProdThreshold * sigma; // this is a percentage over unitary modulus ( we modulate threshold by sigma)
                 //const float dotProductThreshold = Frame::kLineNormalsDotProdThreshold * sigma; // this is a percentage over unitary modulus ( we modulate threshold by sigma)
                 if( fabs( normalsDotProduct - 1.f ) < dotProductThreshold) 
                 {
@@ -1008,8 +1088,6 @@ void LocalMapping::CreateNewMapFeatures()
                 bool bLineTriangulatedByIntersection = false;
                 if( bCanTriangulateLines && (cosParallaxRays<cosParallaxStereo) && (cosParallaxRays>0) && (bStereo1 || bStereo2 || cosParallaxRays<0.9998))
                 {
-#if USE_CURRENT_KF_LINE_TRIANGULATION
-                    
                     const auto& e2 = bRight1 ? (bRight2 ? e2_RR : e2_RL) : 
                                               (bRight2 ? e2_LR : e2_LL); 
                     const auto& H21 = bRight1 ? (bRight2 ? H21_RR : H21_RL) : 
@@ -1021,7 +1099,7 @@ void LocalMapping::CreateNewMapFeatures()
                     const float den1 = (l2.dot(H21*p1)); // distance point-line in pixels 
                     const float den2 = (l2.dot(H21*q1)); // distance point-line in pixels 
                     
-                    constexpr float denTh = 10;
+                    constexpr float denTh = 5;
                     if( ( fabs(den1) < denTh ) || (fabs(den2) < denTh) ) continue; 
                         
                     const float depthP1 = num/den1;
@@ -1031,11 +1109,11 @@ void LocalMapping::CreateNewMapFeatures()
                     {
                         const Eigen::Vector3f x3DSc = bRight1 ? Eigen::Vector3f( (p1[0]-cx1R)*invfx1R*depthP1, (p1[1]-cy1R)*invfy1R*depthP1, depthP1 ) : // depthP1 * K1R.inv()*p1;
                                                                 Eigen::Vector3f( (p1[0]-cx1)*invfx1*depthP1,   (p1[1]-cy1)*invfy1*depthP1,   depthP1 );  // depthP1 * K1.inv()*p1;
-                        x3DS = Rwc1*x3DSc;
+                        x3DS = Rwc1*x3DSc + twc1;
                                                 
                         const Eigen::Vector3f x3DEc = bRight1 ? Eigen::Vector3f( (q1[0]-cx1R)*invfx1R*depthQ1, (q1[1]-cy1R)*invfy1R*depthQ1, depthQ1 ) : // depthQ1 * K1R.inv()*q1;
                                                                 Eigen::Vector3f( (q1[0]-cx1)*invfx1*depthQ1,   (q1[1]-cy1)*invfy1*depthQ1,   depthQ1 );  // depthQ1 * K1.inv()*q1;  
-                        x3DE = Rwc1*x3DEc;
+                        x3DE = Rwc1*x3DEc + twc1;
 
                         Eigen::Vector3f camRay = x3DSc.normalized();
                         Eigen::Vector3f lineES = x3DSc-x3DEc;  
@@ -1078,57 +1156,24 @@ void LocalMapping::CreateNewMapFeatures()
                                 //std::cout << "triangulated line : " << x3DS << " , " << x3DE << std::endl; 
                             }
                         }
-                    }
-#else                     
-                    // TODO Luigi: this has not been update yet with new fisheye camera improvements!
-                    // compute the intersections of rays backprojected from camera 2 with the 3D plane corresponding to l1
-                    // (check PLVS report)                                              
-                    const float num = -l1.dot(e1);
-                    const float den1 = (l1.dot(H12*p2));
-                    const float den2 = (l1.dot(H12*q2));
-                    
-                    if( ( fabs(den1) < 0.001 ) || (fabs(den2) < 0.001) ) continue; 
-                        
-                    const float depthP2 = num/den1;
-                    const float depthQ2 = num/den2;
-
-                    if( (depthP2 >= minZ ) && (depthQ2 >= minZ) && (depthP2 <= maxZ) && (depthQ2 <= maxZ) )
-                    {
-                        const Eigen::Vector3f x3DSc( (p2[0]-cx2)*invfx2*depthP2, (p2[1]-cy2)*invfy2*depthP2, depthP2 ); // depthP2 * K2.inv()*p2;
-                        x3DS = Rwc2*x3DSc;
-
-                        const Eigen::Vector3f x3DEc( (q2[0]-cx2)*invfx2*depthQ2, (q2[1]-cy2)*invfy2*depthQ2, depthQ2 ); // depthQ2 * K2.inv()*q2;
-                        x3DE = Rwc2*x3DEc;
-
-                        Eigen::Vector3f camRay = x3DSc.normalized();
-                        Eigen::Vector3f lineES = x3DSc-x3DEc;  
-                        const double lineLength = lineES.norm();
-                        if(lineLength >= Frame::skMinLineLength3D)
-                        {        
-                            lineES /= lineLength;
-                            const float cosViewAngle = fabs((float)camRay.dot(lineES));
-                            if(cosViewAngle<=Frame::kCosViewZAngleMax)
-                            {             
-            #if ASSIGN_VIRTUAL_DISPARITY_WHEN_TRIANGULATING_LINES
-                                if(!bStereo2 && !pKF2->mpCamera2)
-                                {
-                                    // assign depth and (virtual) disparity to left line end points 
-                                    pKF2->mvDepthLineStart[idx2] = depthP2;
-                                    const double disparity_p2 = pKF2->mbf/depthP2;                                
-                                    pKF2->mvuRightLineStart[idx2] =  p2(0) - disparity_p2; // this does not make sense with fisheye cameras
-
-                                    pKF2->mvDepthLineEnd[idx2] = depthQ2;
-                                    const double disparity_q2 = pKF2->mbf/depthQ2;                         
-                                    pKF2->mvuRightLineEnd[idx2] = q2(0) - disparity_q2; // this does not make sense with fisheye cameras
-                                }
-            #endif                         
-                                bLineTriangulatedByIntersection = true; 
-                                //std::cout << "  +triangulated line : " << x3DS.transpose() << " , " << x3DE.transpose() << std::endl; 
-                            }
-                        }
-                    }
-#endif                     
+                    }    
                 }
+
+#if 0
+                if(if(mpCurrentKeyFrame->mpCamera2 && bLineTriangulatedByIntersection)
+                {
+                    // Just for debugging 
+                    Sophus::SE3<float> Tcw1 = mpCurrentKeyFrame->GetPose();
+                    const auto projectedX3DS = mpCurrentKeyFrame->mpCamera->project(Tcw1*x3DS);
+                    const auto projectedX3DE = mpCurrentKeyFrame->mpCamera->project(Tcw1*x3DE);
+                    const auto diffS = (projectedX3DS - p1.head<2>()).norm();
+                    const auto diffE = (projectedX3DE - q1.head<2>()).norm();
+                    if(diffS>1.0f || diffE>1.0f)
+                    {
+                        std::cout << "Warning: triangulated line is not close to line end points - diffS: " << diffS << " diffE: " << diffE << std::endl;
+                    }
+                }
+#endif 
 
                 if(!bLineTriangulatedByIntersection)
                 {
@@ -1154,7 +1199,7 @@ void LocalMapping::CreateNewMapFeatures()
                     //(given the backprojection of the points p2 q2 from frame 2 on the plane corresponding to l1)
 
                     const Eigen::Vector3f x3DSt = x3DS.transpose();
-                    const Eigen::Vector3f x3DEt = x3DE.transpose();
+                    const Eigen::Vector3f x3DEt = x3DE.transpose(); 
 
                     //Check triangulation in front of cameras
                     const float sz1 = Rcw1.row(2).dot(x3DSt)+tcw1[2];
@@ -1466,8 +1511,8 @@ void LocalMapping::ComputeH12(KeyFramePtr& pKF1, KeyFramePtr& pKF2, Eigen::Matri
     const Eigen::Matrix3f R12 =  R1w*R2w.transpose();
     const Eigen::Vector3f t12 = -R12*t2w+t1w;
 
-    const Eigen::Matrix3f K1 = bRight1 ? pKF1->mpCamera2->toK_() : pKF1->mpCamera->toK_();
-    const Eigen::Matrix3f K2 = bRight2 ? pKF2->mpCamera2->toK_() : pKF2->mpCamera->toK_();
+    const Eigen::Matrix3f K1 = bRight1 ? pKF1->mpCamera2->toLinearK_() : pKF1->mpCamera->toLinearK_();
+    const Eigen::Matrix3f K2 = bRight2 ? pKF2->mpCamera2->toLinearK_() : pKF2->mpCamera->toLinearK_();
     
     Eigen::Matrix3f K2inv;
     K2inv <<  pKF2->invfx,           0,  -pKF2->cx*pKF2->invfx, 
@@ -1499,8 +1544,8 @@ void LocalMapping::ComputeH21(KeyFramePtr& pKF1, KeyFramePtr& pKF2, Eigen::Matri
     const Eigen::Matrix3f R21 =  R2w*R1w.transpose();
     const Eigen::Vector3f t21 = -R21*t1w+t2w;
 
-    const Eigen::Matrix3f K1 = bRight1 ? pKF1->mpCamera2->toK_() : pKF1->mpCamera->toK_();
-    const Eigen::Matrix3f K2 = bRight2 ? pKF2->mpCamera2->toK_() : pKF2->mpCamera->toK_();
+    const Eigen::Matrix3f K1 = bRight1 ? pKF1->mpCamera2->toLinearK_() : pKF1->mpCamera->toLinearK_();
+    const Eigen::Matrix3f K2 = bRight2 ? pKF2->mpCamera2->toLinearK_() : pKF2->mpCamera->toLinearK_();
 
     Eigen::Matrix3f K1inv;
     K1inv <<  pKF1->invfx,           0,  -pKF1->cx*pKF1->invfx, 
@@ -1526,8 +1571,8 @@ cv::Mat LocalMapping::ComputeF12(KeyFramePtr& pKF1, KeyFramePtr& pKF2)
 
     cv::Mat t12x = SkewSymmetricMatrix(t12);
 
-    const cv::Mat &K1 = pKF1->mpCamera->toK();
-    const cv::Mat &K2 = pKF2->mpCamera->toK();
+    const cv::Mat &K1 = pKF1->mpCamera->toLinearK();
+    const cv::Mat &K2 = pKF2->mpCamera->toLinearK();
 
 
     return K1.t().inv()*t12x*R12*K2.inv();
@@ -1545,8 +1590,8 @@ cv::Matx33f LocalMapping::ComputeF12_(KeyFramePtr& pKF1, KeyFramePtr& pKF2)
 
     auto t12x = SkewSymmetricMatrix_(t12);
 
-    const auto &K1 = pKF1->mpCamera->toK_();
-    const auto &K2 = pKF2->mpCamera->toK_();
+    const auto &K1 = pKF1->mpCamera->toLinearK_();
+    const auto &K2 = pKF2->mpCamera->toLinearK_();
 
 
     return K1.t().inv()*t12x*R12*K2.inv();
@@ -1564,8 +1609,8 @@ void LocalMapping::ComputeF12(KeyFramePtr& pKF1, KeyFramePtr& pKF2, cv::Mat& F12
 
     const cv::Mat t12x = SkewSymmetricMatrix(t12);
 
-    const cv::Mat &K1 = pKF1->mpCamera->toK();
-    const cv::Mat &K2 = pKF2->mpCamera->toK();
+    const cv::Mat &K1 = pKF1->mpCamera->toLinearK();
+    const cv::Mat &K2 = pKF2->mpCamera->toLinearK();
         
     /*const cv::Mat K1invT = (cv::Mat_<float>(3,3) <<           pKF1->invfx,                     0,   0., 
                                                                         0,           pKF1->invfy,   0., 
@@ -1595,7 +1640,7 @@ void LocalMapping::ComputeF12(KeyFramePtr& pKF1, KeyFramePtr& pKF2, cv::Mat& F12
 #endif
     
 #if 0    
-    const cv::Mat &K2 = pKF2->mpCamera->toK();    
+    const cv::Mat &K2 = pKF2->mpCamera->toLinearK();    
     cv::Mat F12_2 = K1.t().inv()*t12x*R12*K2.inv();
     std::cout << "dist: " << cv::norm(F12_2 - F12) << std::endl;    
 #endif
@@ -1614,8 +1659,8 @@ void LocalMapping::ComputeF12_(KeyFramePtr& pKF1, KeyFramePtr& pKF2, cv::Matx33f
 
     const auto t12x = SkewSymmetricMatrix_(t12);
 
-    const auto &K1 = pKF1->mpCamera->toK_();
-    const auto &K2 = pKF2->mpCamera->toK_();
+    const auto &K1 = pKF1->mpCamera->toLinearK_();
+    const auto &K2 = pKF2->mpCamera->toLinearK_();
         
     /*const cv::Mat K1invT = (cv::Mat_<float>(3,3) <<           pKF1->invfx,                     0,   0., 
                                                                         0,           pKF1->invfy,   0., 
@@ -1645,7 +1690,7 @@ void LocalMapping::ComputeF12_(KeyFramePtr& pKF1, KeyFramePtr& pKF2, cv::Matx33f
 #endif
     
 #if 0    
-    const auto &K2 = pKF2->mpCamera->toK_();    
+    const auto &K2 = pKF2->mpCamera->toLinearK_();    
     auto F12_2 = K1.t().inv()*t12x*R12*K2.inv();
     std::cout << "dist: " << cv::norm(F12_2 - F12) << std::endl;    
 #endif

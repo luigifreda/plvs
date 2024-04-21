@@ -64,25 +64,28 @@ namespace PLVS2 {
             ar & mnId;
             ar & mnType;
             ar & mvParameters;
+            ar & mvLinearParameters;
+            ar & mfLinearFovScale;
         }
 
-
     public:
-        GeometricCamera() {}
-        GeometricCamera(const std::vector<float> &_vParameters, const float _linearFovScale=1.0) 
-            : mvParameters(_vParameters), mfLinearFovScale(_linearFovScale) 
-            {
-                assert(_vParameters.size() >= 4); // at least fx,fy,cx,cy
-                mvLinearParameters = _vParameters;
-                mvLinearParameters[0] *= _linearFovScale; // fx 
-                mvLinearParameters[1] *= _linearFovScale; // fy
-            }
+        GeometricCamera(const float linearFovScale=1.0) : mfLinearFovScale(linearFovScale) 
+        {
+            mvLinearParameters.resize(4);
+        }
+        GeometricCamera(const std::vector<float> &vParameters, const float linearFovScale=1.0) 
+          : mvParameters(vParameters), mfLinearFovScale(linearFovScale) 
+        {
+            setLinearParameters(vParameters, linearFovScale);
+        }
         ~GeometricCamera() {}
 
         virtual cv::Point2f project(const cv::Point3f &p3D) const = 0;
         virtual Eigen::Vector2d project(const Eigen::Vector3d & v3D) const = 0;
         virtual Eigen::Vector2f project(const Eigen::Vector3f & v3D) const = 0;
         virtual Eigen::Vector2f projectMat(const cv::Point3f& p3D) const = 0;
+
+        virtual cv::Mat getDistortionParams() const { return cv::Mat(); }
 
         // project without distortion model 
         Eigen::Vector2d projectLinear(const Eigen::Vector3d & v3D) const;
@@ -111,24 +114,35 @@ namespace PLVS2 {
 
         virtual cv::Mat toK() const = 0;
         virtual Eigen::Matrix3f toK_() const = 0;
+        cv::Mat toLinearK() const;
+        Eigen::Matrix3f toLinearK_() const;        
 
         virtual bool epipolarConstrain(GeometricCamera* otherCamera, const cv::KeyPoint& kp1, const cv::KeyPoint& kp2, const Eigen::Matrix3f& R12, const Eigen::Vector3f& t12, const float sigmaLevel, const float unc) = 0;
 
         float getParameter(const int i) const {return mvParameters[i];}
         void setParameter(const float p, const size_t i){mvParameters[i] = p;}
-        void setParameters(const std::vector<float>& vParameters)
+        void setParameters(const std::vector<float>& vParameters, const float linearFovScale=1.0)
         {
             assert(this->size()>0);
             assert(vParameters.size() == this->size());
             mvParameters = vParameters;
+            setLinearParameters(mvParameters, linearFovScale);
         }
 
+        void updateLinearParameters(const float linearFovScale=1.0) {setLinearParameters(mvParameters, linearFovScale);}
+        
+        float getLinearFovScale() const {return mfLinearFovScale;}
         float getLinearParameter(const int i) const {return mvLinearParameters[i];}
         void setLinearParameter(const float p, const size_t i){mvLinearParameters[i] = p;}
-        void setLinearParameters(const std::vector<float>& vParameters)
+        void setLinearParameters(const std::vector<float>& vParameters, const float linearFovScale=1.0)
         {
-            if(mvLinearParameters.size()>0) assert(mvParameters.size() == mvLinearParameters.size());
-            mvLinearParameters = vParameters;
+            assert(vParameters.size() >= 4); // at least fx,fy,cx,cy
+            mvLinearParameters.resize(4);
+            mfLinearFovScale = linearFovScale; 
+            mvLinearParameters[0] = linearFovScale * vParameters[0]; // fx 
+            mvLinearParameters[1] = linearFovScale * vParameters[1]; // fy
+            mvLinearParameters[2] = vParameters[2]; // cx
+            mvLinearParameters[3] = vParameters[3]; // cy
         }
 
         size_t size() const {return mvParameters.size();}
@@ -149,37 +163,49 @@ namespace PLVS2 {
 
     protected:
         std::vector<float> mvParameters;
-        std::vector<float> mvLinearParameters;  // corresponding undistorted PinHole camera model      
+        std::vector<float> mvLinearParameters;  // Corresponding undistorted PinHole camera model with modified FOV (see setLinearParameters())
+                                                // NOTE: With Pinhole camera model, we set mfLinearFovScale and mvLinearParameters is equal to mvParameters     
 
         unsigned int mnId;
 
         unsigned int mnType;
 
-        float mfLinearFovScale = 1.0f; // this acts on the linear projection model, which represents a corresponding undistorted PinHole camera model
+        float mfLinearFovScale = 1.0f; // This acts on the linear projection model, which represents a corresponding undistorted PinHole camera model
     };
 
-    // TODO: replace mvParameters with mvLinearParameters in all the followint *Linear* functions 
+    inline cv::Mat GeometricCamera::toLinearK() const {
+        cv::Mat K = (cv::Mat_<float>(3, 3)
+            << mvLinearParameters[0], 0.f, mvLinearParameters[2], 0.f, mvLinearParameters[1], mvLinearParameters[3], 0.f, 0.f, 1.f);
+        return K;
+    }
+
+    inline Eigen::Matrix3f GeometricCamera::toLinearK_() const {
+        Eigen::Matrix3f K;
+        K << mvLinearParameters[0], 0.f, mvLinearParameters[2], 0.f, mvLinearParameters[1], mvLinearParameters[3], 0.f, 0.f, 1.f;
+        return K;
+    }
+
     inline Eigen::Vector2d GeometricCamera::projectLinear(const Eigen::Vector3d & v3D) const
     {
         Eigen::Vector2d res;
-        res[0] = mvParameters[0] * v3D[0] / v3D[2] + mvParameters[2];
-        res[1] = mvParameters[1] * v3D[1] / v3D[2] + mvParameters[3];
+        res[0] = mvLinearParameters[0] * v3D[0] / v3D[2] + mvLinearParameters[2];
+        res[1] = mvLinearParameters[1] * v3D[1] / v3D[2] + mvLinearParameters[3];
         return res;
     }
 
     inline Eigen::Vector2f GeometricCamera::projectLinear(const Eigen::Vector3f & v3D) const
     {
         Eigen::Vector2f res;
-        res[0] = mvParameters[0] * v3D[0] / v3D[2] + mvParameters[2];
-        res[1] = mvParameters[1] * v3D[1] / v3D[2] + mvParameters[3];
+        res[0] = mvLinearParameters[0] * v3D[0] / v3D[2] + mvLinearParameters[2];
+        res[1] = mvLinearParameters[1] * v3D[1] / v3D[2] + mvLinearParameters[3];
         return res;
     }
 
     inline Eigen::Vector3d GeometricCamera::projectLinear3(const Eigen::Vector3d & v3D) const
     {
         Eigen::Vector3d res;
-        res[0] = mvParameters[0] * v3D[0] / v3D[2] + mvParameters[2];
-        res[1] = mvParameters[1] * v3D[1] / v3D[2] + mvParameters[3];
+        res[0] = mvLinearParameters[0] * v3D[0] / v3D[2] + mvLinearParameters[2];
+        res[1] = mvLinearParameters[1] * v3D[1] / v3D[2] + mvLinearParameters[3];
         res[2] = 1;
         return res;
     }    
@@ -187,8 +213,8 @@ namespace PLVS2 {
     inline Eigen::Vector3f GeometricCamera::unprojectEigLinear(const float& u, const float& v) const
     {
         Eigen::Vector3f res;
-        res[0] = (u - mvParameters[2]) / mvParameters[0];
-        res[1] = (v - mvParameters[3]) / mvParameters[1];
+        res[0] = (u - mvLinearParameters[2]) / mvLinearParameters[0];
+        res[1] = (v - mvLinearParameters[3]) / mvLinearParameters[1];
         res[2] = 1;
         return res;
     }
@@ -196,12 +222,12 @@ namespace PLVS2 {
     inline Eigen::Matrix<double, 2, 3> GeometricCamera::projectJacLinear(const Eigen::Vector3d &v3D) const {
         Eigen::Matrix<double, 2, 3> Jac;
         const double v3Dz2 = (v3D[2] * v3D[2]);
-        Jac(0, 0) = mvParameters[0] / v3D[2];
+        Jac(0, 0) = mvLinearParameters[0] / v3D[2];
         Jac(0, 1) = 0.f;
-        Jac(0, 2) = -mvParameters[0] * v3D[0] / v3Dz2;
+        Jac(0, 2) = -mvLinearParameters[0] * v3D[0] / v3Dz2;
         Jac(1, 0) = 0.f;
-        Jac(1, 1) = mvParameters[1] / v3D[2];
-        Jac(1, 2) = -mvParameters[1] * v3D[1] / v3Dz2;
+        Jac(1, 1) = mvLinearParameters[1] / v3D[2];
+        Jac(1, 2) = -mvLinearParameters[1] * v3D[1] / v3Dz2;
         return Jac;
     }    
 }

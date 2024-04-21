@@ -56,8 +56,8 @@ Eigen::Matrix3f GeometricTools::ComputeF12(KeyFrame* &pKF1, KeyFrame* &pKF2)
 
     Eigen::Matrix3f tc1c2x = Sophus::SO3f::hat(tc1c2);
 
-    const Eigen::Matrix3f K1 = pKF1->mpCamera->toK_();
-    const Eigen::Matrix3f K2 = pKF2->mpCamera->toK_();
+    const Eigen::Matrix3f K1 = pKF1->mpCamera->toLinearK_();
+    const Eigen::Matrix3f K2 = pKF2->mpCamera->toLinearK_();
 
     return K1.transpose().inverse() * tc1c2x * Rc1c2 * K2.inverse();
 }

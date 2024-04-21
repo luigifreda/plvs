@@ -57,8 +57,6 @@ namespace PLVS2
     const int ORBmatcher::TH_HIGH = 100;
     const int ORBmatcher::TH_LOW = 50;
 
-#define USE_NEW_HISTOGRAM_FACTOR 1 
-
 #if USE_NEW_HISTOGRAM_FACTOR
     const int ORBmatcher::HISTO_LENGTH = 12; // NOTE: with 12 bins => new factor = 12/360 equals to old factor = 1/30 
 #else     

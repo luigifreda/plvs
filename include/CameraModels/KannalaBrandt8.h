@@ -68,13 +68,13 @@ namespace PLVS2 {
     }
 
     public:
-        KannalaBrandt8() : precision(1e-6) {
+        KannalaBrandt8(const float linearFovScale=0.7) : GeometricCamera(linearFovScale), precision(1e-6) {
             mvParameters.resize(8);
             mnId=nNextId++;
             mnType = CAM_FISHEYE;
         }
-        KannalaBrandt8(const std::vector<float> _vParameters, const float _linearFovScale=0.7) 
-            : GeometricCamera(_vParameters, _linearFovScale), precision(1e-6), mvLappingArea(2,0) ,tvr(nullptr) {
+        KannalaBrandt8(const std::vector<float> vParameters, const float linearFovScale=0.7) 
+            : GeometricCamera(vParameters, linearFovScale), precision(1e-6), mvLappingArea(2,0) ,tvr(nullptr) {
             MSG_ASSERT(mvParameters.size() == 8,"KannalaBrandt8::KannalaBrandt8: mvParameters.size() != 8");
             mnId=nNextId++;
             mnType = CAM_FISHEYE;
@@ -98,6 +98,8 @@ namespace PLVS2 {
         Eigen::Vector2d project(const Eigen::Vector3d & v3D) const;
         Eigen::Vector2f project(const Eigen::Vector3f & v3D) const;
         Eigen::Vector2f projectMat(const cv::Point3f& p3D) const;
+
+        cv::Mat getDistortionParams() const { return (cv::Mat_<float>(4,1) << getParameter(4), getParameter(5), getParameter(6), getParameter(7)); }
 
         float uncertainty2(const Eigen::Matrix<double,2,1> &p2D) const;
 

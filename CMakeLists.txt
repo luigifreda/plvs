@@ -348,7 +348,7 @@ endif()
 
 if(WITH_RERUN)
     # rerun_sdk
-    add_definitions(-DRERUN_ENABLE) 
+    add_definitions(-DRERUN_ENABLED) 
     set(CMAKE_PREFIX_PATH ${PROJECT_SOURCE_DIR}/Thirdparty/rerun/install/lib/cmake/rerun_sdk/)
     set(Rerun_DIR ${PROJECT_SOURCE_DIR}/Thirdparty/rerun/install/)
     message(STATUS "set custom rerun folder: ${Rerun_DIR}")
