@@ -347,7 +347,7 @@ void PointCloudMapVoxelGridFilterActive<pcl::PointSurfelSegment>::OnMapChange()
             // check if the transformation is "big" enough otherwise do not re-transform the cloud 
             //double norm = cv::norm(Twnwo - identity);
             double norm = (Twnwo.matrix3x4() - Sophus::SE3f().matrix3x4()).norm();
-            std::cout << "norm: " << norm << std::endl; 
+            std::cout << "kfid: " << kfid << ", norm: " << norm << std::endl;  
             if( norm > kNormThresholdForEqualMatrices)
             {            
                 this->TransformCameraCloudInWorldFrame(kfCloudWorld, Converter::toIsometry3d(Twnwo), kfCloudWorldNew);   

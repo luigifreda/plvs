@@ -156,11 +156,11 @@ Depth.sigmaZfactor: 6
 #--------------------------------------------------------------------------------------------
 
 # PointCloudMapping.on: 1 is ON, 0 is OFF
-PointCloudMapping.on: 1
+PointCloudMapping.on: 0
 
 #PointCloudMapping.type: voxelgrid, octomap, octree_point, chisel, fastfusion, voxblox
 # NOTE: chisel and fastfusion require rectified images if you do not use pointcloud generation 
-PointCloudMapping.type: "fastfusion"
+PointCloudMapping.type: "voxblox"
 
 PointCloudMapping.resolution: 0.01
 PointCloudMapping.numKeyframesToQueueBeforeProcessing: 1

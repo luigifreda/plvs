@@ -998,7 +998,7 @@ void LocalMapping::CreateNewMapFeatures()
                 const float sigma1 = sqrt( mpCurrentKeyFrame->mvLineLevelSigma2[kl1.octave] );  
 
                 // NOTE: With fisheye cameras, mvuRightLineStart and mvuRightLineEnd values cannot be directly used, however if >0 they signal the availability of the depths.  
-                const bool bStereo1 = (mpCurrentKeyFrame->mvuRightLineStart[idx1]>=0) && (mpCurrentKeyFrame->mvuRightLineEnd[idx1]>=0);                
+                const bool bStereo1 = (!mpCurrentKeyFrame->mvuRightLineStart.empty()) && (mpCurrentKeyFrame->mvuRightLineStart[idx1]>=0) && (mpCurrentKeyFrame->mvuRightLineEnd[idx1]>=0);                
 
                 const bool bRight1 = (mpCurrentKeyFrame->NlinesLeft == -1 || idx1 < mpCurrentKeyFrame->NlinesLeft) ? false : true;             
                 const auto& K1 = bRight1 ? K1R : K1L; 
@@ -1013,7 +1013,7 @@ void LocalMapping::CreateNewMapFeatures()
                 const float sigma2 = sqrt( pKF2->mvLineLevelSigma2[kl2.octave] );       
                 
                 // NOTE: With fisheye cameras, mvuRightLineStart and mvuRightLineEnd values cannot be directly used, however if >0 they signal the availability of the depths.  
-                const bool bStereo2 = (pKF2->mvuRightLineStart[idx2]>=0) && (pKF2->mvuRightLineEnd[idx2]>=0);  
+                const bool bStereo2 = (!pKF2->mvuRightLineStart.empty()) && (pKF2->mvuRightLineStart[idx2]>=0) && (pKF2->mvuRightLineEnd[idx2]>=0);  
                 
                 const bool bRight2 = (pKF2->NlinesLeft == -1 || idx2 < pKF2->NlinesLeft) ? false : true;
                 const auto& K2 = bRight2 ? K2R : K2L;
@@ -1912,6 +1912,7 @@ void LocalMapping::KeyFrameCulling()
                         {
                             // if line is too far or is not stereo then continue
                             if( 
+                                (pKF->mvDepthLineStart.empty()) ||
                                 (pKF->mvDepthLineStart[i] > pKF->mThDepth || pKF->mvDepthLineStart[i] < 0) || 
                                 (pKF->mvDepthLineEnd[i] > pKF->mThDepth || pKF->mvDepthLineEnd[i] < 0)
                               )

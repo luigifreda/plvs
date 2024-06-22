@@ -877,7 +877,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
             const int leftIndex = get<0>(mit->second);
             float uRightLineStart = -1;
             float uRightLineEnd = -1;
-            if(leftIndex != -1) 
+            if(leftIndex != -1 && !pKF->mvuRightLineStart.empty()) 
             {
                 uRightLineStart = pKF->mvuRightLineStart[leftIndex];
                 uRightLineEnd = pKF->mvuRightLineEnd[leftIndex];
@@ -1921,7 +1921,7 @@ void Optimizer::FullInertialBA(Map *pMap, int its, const bool bFixLocal, const l
             const int leftIndex = get<0>(mit->second);
             float uRightLineStart = -1;
             float uRightLineEnd = -1;
-            if(leftIndex != -1) 
+            if(leftIndex != -1 && !pKFi->mvuRightLineStart.empty()) 
             {
                 uRightLineStart = pKFi->mvuRightLineStart[leftIndex];
                 uRightLineEnd = pKFi->mvuRightLineEnd[leftIndex];
@@ -2670,7 +2670,7 @@ int Optimizer::PoseOptimization(Frame *pFrame)
             {
                 // Monocular observation
         #if USE_LINE_STEREO            
-                if( (pFrame->mvuRightLineStart[i]<0) || (pFrame->mvuRightLineEnd[i]<0) )
+                if( (pFrame->mvuRightLineStart.empty()) || (pFrame->mvuRightLineStart[i]<0) || (pFrame->mvuRightLineEnd[i]<0) )
         #endif
                 {
                     nInitialLineCorrespondences++;
@@ -3781,7 +3781,7 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pKF, bool* pbStopFlag, Map* pM
                     Geom2DUtils::GetLine2dRepresentationNoTheta(klUn.startPointX,klUn.startPointY,klUn.endPointX,klUn.endPointY, lineRepresentation);
 
     #if USE_LINE_STEREO                
-                    if( (pKFi->mvuRightLineStart[leftIndex]<0) || (pKFi->mvuRightLineEnd[leftIndex]<0) )
+                    if( (pKFi->mvuRightLineStart.empty()) || (pKFi->mvuRightLineStart[leftIndex]<0) || (pKFi->mvuRightLineEnd[leftIndex]<0) )
     #endif
                     {
                         Eigen::Matrix<double,3,1> obs;
@@ -4779,6 +4779,7 @@ void Optimizer::OptimizeEssentialGraph(Map* pMap, KeyFramePtr pLoopKF, KeyFrameP
         else
         {
             KeyFramePtr pRefKF = pMP->GetReferenceKeyFrame();
+            if(!pRefKF) continue;             
             nIDr = pRefKF->mnId;
         }
 
@@ -4810,6 +4811,7 @@ void Optimizer::OptimizeEssentialGraph(Map* pMap, KeyFramePtr pLoopKF, KeyFrameP
         else
         {
             KeyFramePtr pRefKF = pML->GetReferenceKeyFrame();
+            if(!pRefKF) continue; 
             nIDr = pRefKF->mnId;
         }
 
@@ -4852,6 +4854,7 @@ void Optimizer::OptimizeEssentialGraph(Map* pMap, KeyFramePtr pLoopKF, KeyFrameP
         else
         {
             KeyFramePtr pRefKF = pMO->GetReferenceKeyFrame();
+            if(!pRefKF) continue; 
             nIDr = pRefKF->mnId;
         }
 
@@ -6197,7 +6200,7 @@ void Optimizer::LocalInertialBA(KeyFramePtr pKF, bool *pbStopFlag, Map *pMap, in
                 const int leftIndex = get<0>(mit->second);
                 float uRightLineStart = -1;
                 float uRightLineEnd = -1;
-                if(leftIndex != -1) 
+                if(leftIndex != -1 && !pKFi->mvuRightLineStart.empty()) 
                 {
                     uRightLineStart = pKFi->mvuRightLineStart[leftIndex];
                     uRightLineEnd = pKFi->mvuRightLineEnd[leftIndex];
@@ -7649,7 +7652,7 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pMainKF, vector<KeyFramePtr> v
             Geom2DUtils::GetLine2dRepresentationNoTheta(klUn.startPointX,klUn.startPointY,klUn.endPointX,klUn.endPointY, lineRepresentation);
 
 #if USE_LINE_STEREO                
-            if( (pKF->mvuRightLineStart[leftIndex]<0) || (pKF->mvuRightLineEnd[leftIndex]<0) ) //Monocular
+            if( (!pKF->mvuRightLineStart.empty()) && (pKF->mvuRightLineStart[leftIndex]<0) || (pKF->mvuRightLineEnd[leftIndex]<0) ) //Monocular
 #endif                
             {
                 mpObsMLs[pMLi]++;
@@ -8287,11 +8290,11 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pMainKF, vector<KeyFramePtr> v
 
             const cv::line_descriptor_c::KeyLine &klUn = pKF->mvKeyLinesUn[leftIndex];
 
-            if( (pKF->mvuRightLineStart[leftIndex]<0) || (pKF->mvuRightLineEnd[leftIndex]<0) ) //Monocular    
-            {
-                mpLineObsFinalKFs[pKF]++;
-            }
-            else // RGBD or Stereo
+            // if( (pKF->mvuRightLineStart[leftIndex]<0) || (pKF->mvuRightLineEnd[leftIndex]<0) ) //Monocular    
+            // {
+            //     mpLineObsFinalKFs[pKF]++;
+            // }
+            // else // RGBD or Stereo
             {
                 mpLineObsFinalKFs[pKF]++;
             }
@@ -9041,8 +9044,13 @@ void Optimizer::MergeInertialBA(KeyFramePtr pCurrKF, KeyFramePtr pMergeKF, bool 
                     continue;    
                 const ImuCamPose& imuCamPose = VP->estimate();
 
-                const float uRightLineStart = pKFi->mvuRightLineStart[leftIndex];
-                const float uRightLineEnd = pKFi->mvuRightLineEnd[leftIndex];
+                const float uRightLineStart = -1; 
+                const float uRightLineEnd = -1; 
+                if(!pKFi->mvuRightLineStart.empty() && (leftIndex < pKFi->mvuRightLineStart.size()))
+                {
+                    pKFi->mvuRightLineStart[leftIndex];
+                    pKFi->mvuRightLineEnd[leftIndex];
+                }
 
                 const cv::line_descriptor_c::KeyLine &klUn = pKFi->mvKeyLinesUn[leftIndex];
                 Line2DRepresentation lineRepresentation;
@@ -9569,7 +9577,7 @@ int Optimizer::PoseInertialOptimizationLastKeyFrame(Frame *pFrame, bool bRecInit
                 {
                     // Monocular observation
             #if USE_LINE_STEREO            
-                    if( (pFrame->mvuRightLineStart[i]<0) || (pFrame->mvuRightLineEnd[i]<0) )
+                    if( (pFrame->mvuRightLineStart.empty()) || (pFrame->mvuRightLineStart[i]<0) || (pFrame->mvuRightLineEnd[i]<0) )
             #endif
                     {                    
                         nInitialLineCorrespondences++;
@@ -10328,7 +10336,7 @@ int Optimizer::PoseInertialOptimizationLastFrame(Frame *pFrame, bool bRecInit)
                 {
                     // Monocular observation
             #if USE_LINE_STEREO            
-                    if( (pFrame->mvuRightLineStart[i]<0) || (pFrame->mvuRightLineEnd[i]<0) )
+                    if( (pFrame->mvuRightLineStart.empty()) || (pFrame->mvuRightLineStart[i]<0) || (pFrame->mvuRightLineEnd[i]<0) )
             #endif
                     {                    
                         nInitialLineCorrespondences++;

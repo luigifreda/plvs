@@ -44,10 +44,11 @@ class KeyFrame;
 class Map;
 class Atlas; 
 class LocalMapping; 
+class Tracking; 
 
 template<typename PointT>
 class PointCloudMap;
-class CameraModelParams;
+class PointCloudCamParams;
 
 template<typename PointT>
 class PointCloudMapInput;
@@ -108,7 +109,7 @@ public:
     
 public:
 
-    PointCloudMapping(const std::string &strSettingPath, Atlas* atlas, LocalMapping* localMap);
+    PointCloudMapping(const std::string &strSettingPath, Atlas* atlas, Tracking* tracking, LocalMapping* localMap);
 
     void InsertKeyFrame(PointCloudKeyFrame<PointT>::Ptr pcKeyFrame);    
 
@@ -150,7 +151,7 @@ protected:
     
     void UpdatePointCloudTimestamp();
 
-    void InitCamGridPoints(KeyFramePtr& kf, cv::Mat& depth);
+    void InitCamGridPoints(const KeyFramePtr& kf, const cv::Size& depthSize);
 
     //void PrepareNewKeyFramesOld();
     void PrepareNewKeyFrames();    
@@ -189,16 +190,18 @@ protected:
 
     std::shared_ptr<PointCloudMap<PointT> > pPointCloudMap_;
     std::recursive_timed_mutex pointCloudMutex_;
-    std::shared_ptr<CameraModelParams> pCameraParams_;
+    std::shared_ptr<PointCloudCamParams> pCameraParams_;
 
     std::uint64_t pointCloudTimestamp_;
     std::mutex pointCloudTimestampMutex_;
 
     std::shared_ptr<PointCloudMapParameters> pPointCloudMapParameters_;
+    bool bIsNewSettings_;
     
-    Atlas* mpAtlas;
+    Atlas* mpAtlas = nullptr;
     //Map* mpMap;
-    LocalMapping* mpLocalMapping;
+    LocalMapping* mpLocalMapping = nullptr;
+    Tracking* mpTracking = nullptr;
     std::shared_ptr<PointCloudAtlas<PointT> >  mpPointCloudAtlas;
 
     cv::Mat matCamGridPoints_;

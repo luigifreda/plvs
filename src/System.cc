@@ -332,17 +332,6 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     //Create Drawers. These are used by the Viewer
     mpFrameDrawer = new FrameDrawer(mpAtlas);
     mpMapDrawer = new MapDrawer(mpAtlas, strSettingsFile, settings_);
-
-    bool bPointCloudMappingActive = static_cast<int> (Utils::GetParam(fsSettings, "PointCloudMapping.on", 0, false)) != 0;
-    if( bPointCloudMappingActive )
-    {
-        mpPointCloudMapping = make_shared<PointCloudMapping>(strSettingsFile, mpAtlas, mpLocalMapper);
-        //mpPointCloudMapping->setDepthFactor(fsSettings["DepthMapFactor"]);
-
-        mpPointCloudDrawer = make_shared<PointCloudDrawer>();
-        mpPointCloudDrawer->SetPointCloudMapping(mpPointCloudMapping);
-    }
-
     
     //Initialize the Tracking thread
     //(it will live in the main thread of execution, the one that called this constructor)
@@ -350,6 +339,17 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     mpTracker = new Tracking(this, mpVocabulary, mpFrameDrawer, mpMapDrawer,
                              mpAtlas, mpKeyFrameDatabase, strSettingsFile, mSensor, settings_, strSequence);
 
+
+    bool bPointCloudMappingActive = static_cast<int> (Utils::GetParam(fsSettings, "PointCloudMapping.on", 0, false)) != 0;
+    if( bPointCloudMappingActive )
+    {
+        mpPointCloudMapping = make_shared<PointCloudMapping>(strSettingsFile, mpAtlas, mpTracker, mpLocalMapper);
+        //mpPointCloudMapping->setDepthFactor(fsSettings["DepthMapFactor"]);
+
+        mpPointCloudDrawer = make_shared<PointCloudDrawer>();
+        mpPointCloudDrawer->SetPointCloudMapping(mpPointCloudMapping);
+    }
+    
     if( bMapLoaded && bForceRelocalizationInMap )
     {
         mpTracker->mState = Tracking::RELOCALIZE_IN_LOADED_MAP; // force relocalization in the loaded map         
@@ -472,17 +472,21 @@ Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, 
 
     cv::Mat imLeftToFeed, imRightToFeed;
     if(settings_ && settings_->needToRectify()){
-        cv::Mat M1l = settings_->M1l();
-        cv::Mat M2l = settings_->M2l();
-        cv::Mat M1r = settings_->M1r();
-        cv::Mat M2r = settings_->M2r();
+        const cv::Mat& M1l = settings_->M1l();
+        const cv::Mat& M2l = settings_->M2l();
+        const cv::Mat& M1r = settings_->M1r();
+        const cv::Mat& M2r = settings_->M2r();
 
-        cv::remap(imLeft, imLeftToFeed, M1l, M2l, cv::INTER_LINEAR);
-        cv::remap(imRight, imRightToFeed, M1r, M2r, cv::INTER_LINEAR);
+        std::thread t1([&](){cv::remap(imLeft, imLeftToFeed, M1l, M2l, cv::INTER_LINEAR);});
+        std::thread t2([&](){cv::remap(imRight, imRightToFeed, M1r, M2r, cv::INTER_LINEAR);});
+        t1.join();
+        t2.join();
     }
     else if(settings_ && settings_->needToResize()){
-        cv::resize(imLeft,imLeftToFeed,settings_->newImSize());
-        cv::resize(imRight,imRightToFeed,settings_->newImSize());
+        std::thread t1([&](){cv::resize(imLeft,imLeftToFeed,settings_->newImSize());});
+        std::thread t2([&](){cv::resize(imRight,imRightToFeed,settings_->newImSize());});
+        t1.join();
+        t2.join();
     }
     else{
         imLeftToFeed = imLeft.clone();

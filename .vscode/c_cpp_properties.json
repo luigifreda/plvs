@@ -4,6 +4,7 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/include/**",
+                "${workspaceFolder}/src/**",
                 "${workspaceFolder}/Thirdparty/chisel_server/**",    
                 "${workspaceFolder}/Thirdparty/open_chisel/**",    
                 "${workspaceFolder}/Thirdparty/voxblox/**",    
@@ -18,7 +19,7 @@
                 "${workspaceFolder}/Thirdparty/g2o/**",     
                 "${workspaceFolder}/Thirdparty/g2o_new/**",   
                 "${workspaceFolder}/Thirdparty/Sophus/**",
-                "${workspaceFolder}/Thirdparty/Pangolin/include/**",
+                "${workspaceFolder}/Thirdparty/Pangolin/install/include/**",
                 "${workspaceFolder}/Thirdparty/Pangolin/components/**",
                 "${workspaceFolder}/Thirdparty/opencv/install/include/**",                
                 "/usr/include/pcl-1.10/",                
@@ -26,7 +27,9 @@
                 "/opt/ros/noetic/include",
             ],
             "defines": [
-                "RERUN_ENABLE=1",
+                "RERUN_ENABLED=1",
+                "USE_LIBELAS=1",
+                "USE_LIBSGM=1"
             ],
             "compilerPath": "/usr/bin/g++",
             "cStandard": "c11",

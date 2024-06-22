@@ -116,6 +116,18 @@ BinaryDescriptor::Params::Params()
   scaleFactor_ = 1.2; 
 }
 
+BinaryDescriptor::EDLineParam::EDLineParam()
+{
+    // default values taken from EDLineDetector constructor
+    ksize = 15;
+    sigma = 30.0;
+    gradientThreshold = 80;
+    anchorThreshold = 8;
+    scanIntervals = 2;
+    minLineLen = 15;
+    lineFitErrThreshold = 1.6;
+}
+
 /* setters and getters */
 int BinaryDescriptor::getNumOfOctaves()
 {
@@ -209,13 +221,18 @@ Ptr<BinaryDescriptor> BinaryDescriptor::createBinaryDescriptor()
   return Ptr < BinaryDescriptor > ( new BinaryDescriptor() );
 }
 
-Ptr<BinaryDescriptor> BinaryDescriptor::createBinaryDescriptor( Params parameters )
+Ptr<BinaryDescriptor> BinaryDescriptor::createBinaryDescriptor( const Params& parameters )
 {
   return Ptr < BinaryDescriptor > ( new BinaryDescriptor( parameters ) );
 }
 
+Ptr<BinaryDescriptor> BinaryDescriptor::createBinaryDescriptor( const Params& parameters, const EDLineParam& edLineParameters)
+{
+  return Ptr < BinaryDescriptor > ( new BinaryDescriptor( parameters, edLineParameters ) );
+}
+
 /* construct a BinaryDescrptor object and compute external private parameters */
-BinaryDescriptor::BinaryDescriptor( const BinaryDescriptor::Params &parameters ) :
+BinaryDescriptor::BinaryDescriptor( const BinaryDescriptor::Params &parameters, const EDLineParam& edLineParameters) :
     params( parameters )
 {
   /* reserve enough space for EDLine objects and images in Gaussian pyramid */
@@ -223,7 +240,7 @@ BinaryDescriptor::BinaryDescriptor( const BinaryDescriptor::Params &parameters )
   images_sizes.resize( params.numOfOctave_ );
 
   for ( int i = 0; i < params.numOfOctave_; i++ )
-    edLineVec_[i] = Ptr < EDLineDetector > ( new EDLineDetector() );
+    edLineVec_[i] = Ptr < EDLineDetector > ( new EDLineDetector(edLineParameters) );
 
   /* prepare a vector to host local weights F_l*/
   gaussCoefL_.resize( params.widthOfBand_ * 3 );
@@ -1528,7 +1545,7 @@ BinaryDescriptor::EDLineDetector::EDLineDetector()
   lineFitErrThreshold_ = 1.6;  //1.4
   InitEDLine_();
 }
-BinaryDescriptor::EDLineDetector::EDLineDetector( EDLineParam param )
+BinaryDescriptor::EDLineDetector::EDLineDetector( const EDLineParam& param )
 {
   //set parameters for line segment detection
   ksize_ = param.ksize;

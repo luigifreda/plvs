@@ -61,13 +61,13 @@ PointCloudMapChisel<PointT>::PointCloudMapChisel(Map* pMap, const std::shared_pt
 }
 
 template<typename PointT>
-void PointCloudMapChisel<PointT>::SetDepthCameraModel(const CameraModelParams& params)
+void PointCloudMapChisel<PointT>::SetDepthCameraModel(const PointCloudCamParams& params)
 {
     this->pChiselServer_->SetDepthCameraInfo(params.fx, params.fy, params.cx, params.cy, params.width, params.height);
 }
 
 template<typename PointT>
-void PointCloudMapChisel<PointT>::SetColorCameraModel(const CameraModelParams& params)
+void PointCloudMapChisel<PointT>::SetColorCameraModel(const PointCloudCamParams& params)
 {
     this->pChiselServer_->SetColorCameraInfo(params.fx, params.fy, params.cx, params.cy, params.width, params.height);
 }

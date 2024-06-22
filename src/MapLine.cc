@@ -249,8 +249,10 @@ void MapLine::AddObservation(const KeyFramePtr& pKF, int idx)
 
     mObservations[pKF]=indexes;
 
+
+    const bool bLineDepthAvailable = (!pKF->mvuRightLineStart.empty()) ;// && (!pKF->mvuRightLineEnd.empty());
     //if( !pKF->mpCamera2 && ((pKF->mvuRightLineStart[idx]>=0) && (pKF->mvuRightLineEnd[idx]>=0)) )
-    if((pKF->mvuRightLineStart[idx]>=0) && (pKF->mvuRightLineEnd[idx]>=0)) // NOTE: With fisheye cameras, mvuRightLineStart and mvuRightLineEnd values cannot be directly used, however if >0 they signal the availability of the depths.  
+    if(bLineDepthAvailable && (pKF->mvuRightLineStart[idx]>=0) && (pKF->mvuRightLineEnd[idx]>=0)) // NOTE: With fisheye cameras, mvuRightLineStart and mvuRightLineEnd values cannot be directly used, however if >0 they signal the availability of the depths.  
     {
         nObs+=2;
     }

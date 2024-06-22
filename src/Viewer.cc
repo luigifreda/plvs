@@ -285,8 +285,8 @@ void Viewer::Run()
     bool bLinesActive = mpTracker->IsLineTracking();
     bool bObjectTracking = mpTracker->IsObjectTracking();
 
-    const cv::Mat& K = mpTracker->getMatK();
-    const cv::Mat& DistCoef = mpTracker->getMatDistCoef();
+    const cv::Mat& K = mpTracker->GetMatK();
+    const cv::Mat& DistCoef = mpTracker->GetMatDistCoef();
 
     glfwInit();
     GLFWmonitor* monitor = glfwGetPrimaryMonitor();
@@ -392,7 +392,7 @@ void Viewer::Run()
     pangolin::Var<bool> menuStop("menu.Stop",false,false);
     pangolin::Var<bool> menuSave("menu.Save", false, false);
     pangolin::Var<bool> menuBA("menu.Bundle Adjust", false, false);
-    pangolin::Var<int> menuParamGlPointSize("menu.Point Size", 3, 1, 10);
+    pangolin::Var<int> menuParamGlPointSize("menu.Point Size", 2, 1, 10);
     pangolin::Var<int> menuDisplayMode("menu.Display Mode", 1, 1, 3);
     pangolin::Var<int> menuParamLabelConfidenceTh("menu.Label Conf Th", 5, 0, 20);
 

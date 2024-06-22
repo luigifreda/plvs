@@ -119,7 +119,7 @@ SparseMapping.forceRelocalization: 1
 #--------------------------------------------------------------------------------------------
 
 # Line.on: 1 is ON, 0 is OFF
-Line.on: 0
+Line.on: 1
 
 # set to 0 if keeping all lines   
 Line.nfeatures: 100
@@ -134,9 +134,63 @@ Line.minLineLength: 0.02
 # weighting of lines w.r.t. points in success/failure tracking conditions 
 Line.lineTrackWeigth: 2
 # min. line length 3D (meters)
-Line.minLineLength3D: 0.01
+Line.minLineLength3D: 0.1  # increased to 0.1 with KB camera
 # mu weight for endpoint-endpoint dist in line 3D dist
-Line.muWeightForLine3dDist: 0.3
+Line.muWeightForLine3dDist: 0.3 
+# The threshold of line fit error: If lineFitErr is large than this threshold, then the pixel chain is not accepted as a single line segment.
+Line.lineFitErrThreshold: 2.0  # NOTE: increased to 2.0 (from default 1.6) with KB camera
 
 # for using LSD extractor (much slower) instead of EDLine lines extractor
 Line.LSD.on: 0
+
+
+#--------------------------------------------------------------------------------------------
+# KeyFrame Generation 
+#--------------------------------------------------------------------------------------------
+
+# on: 1 is ON, 0 is OFF
+KeyFrame.fovCentersBasedGeneration.on: 0
+KeyFrame.maxFovCentersDistance: 0.4
+
+#--------------------------------------------------------------------------------------------
+# Stereo Dense
+#--------------------------------------------------------------------------------------------
+
+# StereoDense.type: libelas, libsgm, opencv, opencvcuda(this needs tuning and improvements) 
+# (library used in combination with volumetric mapping to compute depth from stereo images)
+StereoDense.type: "libelas"
+StereoDense.needRectification: 1  # only with KannalaBrandt8
+
+#--------------------------------------------------------------------------------------------
+# PointCloud Mapping
+#--------------------------------------------------------------------------------------------
+
+# PointCloudMapping.on: 1 is ON, 0 is OFF
+PointCloudMapping.on: 0
+
+#PointCloudMapping.type: voxelgrid, octomap, octree_point, chisel, fastfusion, voxblox
+# NOTE: chisel and fastfusion require rectified images if you do not use pointcloud generation 
+PointCloudMapping.type: "octree_point"
+
+PointCloudMapping.resolution: 0.03
+PointCloudMapping.numKeyframesToQueueBeforeProcessing: 1
+PointCloudMapping.downSampleStep: 2
+PointCloudMapping.minDepth: 0.2
+PointCloudMapping.maxDepth: 8
+PointCloudMapping.removeUnstablePoints: 1
+PointCloudMapping.resetOnSparseMapChange: 1
+PointCloudMapping.cloudDeformationOnSparseMapChange: 0
+
+# [octree_point] specific params
+PointCloudMapping.pointCounterThreshold: 4
+
+# [octree_point, chisel, voxblox] specific params 
+# PointCloudMapping.useCarving: 1 is ON, 0 is OFF
+PointCloudMapping.useCarving: 1
+
+# depth filtering 
+PointCloudMapping.filterDepth.on: 1
+PointCloudMapping.filterDepth.diameter: 7
+PointCloudMapping.filterDepth.sigmaDepth: 0.02
+PointCloudMapping.filterDepth.sigmaSpace: 5
+

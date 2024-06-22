@@ -30,6 +30,7 @@ export USE_LOCAL_OPENCV=1   # use a local installation of OpenCV
 # or you can set manullay OpenCV_DIR
 # export OpenCV_DIR="path to my OpenCV folder"
 # export OpenCV_DIR  # here not set 
+# export OpenCV_DIR="/home/slam_wss/plvs2/Thirdparty/opencv/install/lib/cmake/opencv4"
 
 export OPENCV_VERSION=4
 

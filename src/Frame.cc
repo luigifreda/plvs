@@ -3007,6 +3007,22 @@ void Frame::ComputeStereoFishEyeLineMatches()
     MSG_ASSERT(mpCamera2, "No second camera");
     MSG_ASSERT(NlinesLeft==mLineDescriptors.rows && NlinesRight==mLineDescriptorsRight.rows, "Line descriptors must be concatenated in Frame::ComputeStereoFishEyeLineMatches()");
 
+    if(NlinesLeft>0)
+    {
+        mvDepthLineStart = vector<float>(NlinesLeft,-1.0f);
+        mvDepthLineEnd = vector<float>(NlinesLeft,-1.0f);    
+        mvLeftToRightLinesMatch = vector<int>(NlinesLeft,-1);
+
+        // NOTE: We store in mvuRightLineStart/End fake positive values (+1) where depths are available (for both left and right lines). 
+        //       We need to enable stereo backprojection error in Optimization.cc when we have fisheye cameras. We can't really use this info though. 
+        mvuRightLineStart = vector<float>(Nlines,-1); // Nlines = NlinesLeft + NlinesRight
+        mvuRightLineEnd = vector<float>(Nlines,-1);   // Nlines = NlinesLeft + NlinesRight
+    }
+    if(NlinesRight>0)
+    {
+        mvRightToLeftLinesMatch = vector<int>(NlinesRight,-1);
+    }
+
     if(NlinesLeft == 0 || NlinesRight == 0)
     {
         MSG_WARN_STREAM("No lines detected in frame " << mnId);
@@ -3016,16 +3032,6 @@ void Frame::ComputeStereoFishEyeLineMatches()
     // NOTE: here, we assume we haven't vconcatenated the descriptors yet!
     cv::Mat stereoDescLinesLeft = mLineDescriptors.rowRange(monoLinesLeft, mLineDescriptors.rows); 
     cv::Mat stereoDescLinesRight = mLineDescriptorsRight.rowRange(monoLinesRight, mLineDescriptorsRight.rows);
-
-    mvLeftToRightLinesMatch = vector<int>(NlinesLeft,-1);
-    mvRightToLeftLinesMatch = vector<int>(NlinesRight,-1);
-    mvDepthLineStart = vector<float>(NlinesLeft,-1.0f);
-    mvDepthLineEnd = vector<float>(NlinesLeft,-1.0f);    
-
-    // NOTE: We store in mvuRightLineStart/End fake positive values (+1) where depths are available (for both left and right lines). 
-    //       We need to enable stereo backprojection error in Optimization.cc when we have fisheye cameras. We can't really use this info though. 
-    mvuRightLineStart = vector<float>(Nlines,-1); // Nlines = NlinesLeft + NlinesRight
-    mvuRightLineEnd = vector<float>(Nlines,-1);   // Nlines = NlinesLeft + NlinesRight
     
     mvStereo3DLineStartPoints = vector<Eigen::Vector3f>(NlinesLeft);
     mvStereo3DLineEndPoints = vector<Eigen::Vector3f>(NlinesLeft);    

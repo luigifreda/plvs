@@ -16,15 +16,16 @@
 * If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include<iostream>
-#include<algorithm>
-#include<fstream>
-#include<chrono>
+#include <iostream>
+#include <algorithm>
+#include <fstream>
+#include <chrono>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-#include<System.h>
+#include "System.h"
+#include "Utils.h"
 
 using namespace std;
 
@@ -59,8 +60,11 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    cv::FileStorage fSettings(argv[2], cv::FileStorage::READ);
+    bool bUseViewer = static_cast<int> (PLVS2::Utils::GetParam(fSettings, "Viewer.on", 1)) != 0;
+
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
-    PLVS2::System SLAM(argv[1],argv[2],PLVS2::System::RGBD,true);
+    PLVS2::System SLAM(argv[1],argv[2],PLVS2::System::RGBD,bUseViewer);
     float imageScale = SLAM.GetImageScale();
 
     // Vector for tracking time statistics
@@ -123,6 +127,14 @@ int main(int argc, char **argv)
 
         if(ttrack<T)
             usleep((T-ttrack)*1e6);
+    }
+
+    if(bUseViewer)
+    {
+        std::cout << "\n******************\n" << std::endl;
+        std::cout << "press a key to end" << std::endl;
+        std::cout << "\n******************\n" << std::endl;
+        getchar();
     }
 
     // Stop all threads

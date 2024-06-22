@@ -79,13 +79,13 @@ void PointCloudMapFastFusion<PointT>::Init()
 }
 
 template<typename PointT>
-void PointCloudMapFastFusion<PointT>::SetDepthCameraModel(const CameraModelParams& params)
+void PointCloudMapFastFusion<PointT>::SetDepthCameraModel(const PointCloudCamParams& params)
 {
     depthCameraModel_ = params;
 }
 
 template<typename PointT>
-void PointCloudMapFastFusion<PointT>::SetColorCameraModel(const CameraModelParams& params)
+void PointCloudMapFastFusion<PointT>::SetColorCameraModel(const PointCloudCamParams& params)
 {
     colorCameraModel_ = params;
 }

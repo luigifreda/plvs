@@ -134,8 +134,9 @@ public:
     bool IsLineTracking() const {return mbLineTrackerOn; }
     bool IsObjectTracking() const {return mbObjectTrackerOn; }    
 
-    cv::Mat& getMatK() { return mK; }
-    cv::Mat& getMatDistCoef() { return mDistCoef; }
+    const cv::Mat& GetMatK() const { return mK; }
+    const cv::Mat& GetMatDistCoef() const { return mDistCoef; }
+    const float GetBf() const { return mbf; }
 
     void UpdateFrameIMU(const float s, const IMU::Bias &b, KeyFramePtr pCurrentKeyFrame);
     KeyFramePtr GetLastKeyFrame()
@@ -155,7 +156,7 @@ public:
     void SaveSubTrajectory(string strNameFile_frames, string strNameFile_kf, string strFolder="");
     void SaveSubTrajectory(string strNameFile_frames, string strNameFile_kf, Map* pMap);
 
-    float GetImageScale();
+    const float GetImageScale() const;
 
 #ifdef REGISTER_LOOP
     void RequestStop();

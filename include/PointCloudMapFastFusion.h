@@ -54,8 +54,8 @@ public:
 
     void Init();
         
-    void SetDepthCameraModel(const CameraModelParams& params);
-    void SetColorCameraModel(const CameraModelParams& params);
+    void SetDepthCameraModel(const PointCloudCamParams& params);
+    void SetColorCameraModel(const PointCloudCamParams& params);
             
     void InsertData(typename PointCloudMapInput<PointT>::Ptr pData);
 
@@ -73,8 +73,8 @@ public:
     
 protected:
 
-    CameraModelParams depthCameraModel_;
-    CameraModelParams colorCameraModel_;
+    PointCloudCamParams depthCameraModel_;
+    PointCloudCamParams colorCameraModel_;
 
 #ifdef USE_FASTFUSION    
     std::shared_ptr<FusionMipMapCPU> pFusion_; 

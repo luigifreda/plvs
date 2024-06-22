@@ -129,7 +129,8 @@ namespace PLVS2 {
             setLinearParameters(mvParameters, linearFovScale);
         }
 
-        void updateLinearParameters(const float linearFovScale=1.0) {setLinearParameters(mvParameters, linearFovScale);}
+        void updateLinearParameters() {setLinearParameters(mvParameters, getLinearFovScale());}
+        void updateLinearParameters(const float linearFovScale) {setLinearParameters(mvParameters, linearFovScale);}
         
         float getLinearFovScale() const {return mfLinearFovScale;}
         float getLinearParameter(const int i) const {return mvLinearParameters[i];}
@@ -164,7 +165,7 @@ namespace PLVS2 {
     protected:
         std::vector<float> mvParameters;
         std::vector<float> mvLinearParameters;  // Corresponding undistorted PinHole camera model with modified FOV (see setLinearParameters())
-                                                // NOTE: With Pinhole camera model, we set mfLinearFovScale and mvLinearParameters is equal to mvParameters     
+                                                // NOTE: With Pinhole camera model, we set mfLinearFovScale=1.0 and mvLinearParameters is equal to mvParameters     
 
         unsigned int mnId;
 

@@ -47,27 +47,6 @@ class Map;
 class PointCloudMapping;
 
 
-///	\class CameraModelParams
-///	\author Luigi Freda
-///	\brief Abstract class for managing camera parameters  
-///	\note
-///	\date
-///	\warning
-struct CameraModelParams
-{
-    double fx;
-    double fy;
-    double cx;
-    double cy;
-    
-    int width;
-    int height;
-    
-    double minDist;
-    double maxDist; 
-};
-
-
 ///	\class PointCloudMapping
 ///	\author Luigi Freda
 ///	\brief Abstract class for merging/managing point clouds 
@@ -109,8 +88,8 @@ public:
 
     void SetPointCloudMapParameters(const std::shared_ptr<PointCloudMapParameters>& params) { pPointCloudMapParameters_ = params; }
     
-    virtual void SetDepthCameraModel(const CameraModelParams& params) {}
-    virtual void SetColorCameraModel(const CameraModelParams& params) {}
+    virtual void SetDepthCameraModel(const PointCloudCamParams& params) {}
+    virtual void SetColorCameraModel(const PointCloudCamParams& params) {}
         
     virtual void InsertData(typename PointCloudMapInput<PointT>::Ptr pData) = 0; 
 

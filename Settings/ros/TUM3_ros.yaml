@@ -156,7 +156,7 @@ PointCloudMapping.minDepth: 0.1
 PointCloudMapping.maxDepth: 5
 PointCloudMapping.removeUnstablePoints: 1
 PointCloudMapping.resetOnSparseMapChange: 1
-PointCloudMapping.cloudDeformationOnSparseMapChange: 1
+PointCloudMapping.cloudDeformationOnSparseMapChange: 0
 
 # [octree_point] specific params
 PointCloudMapping.pointCounterThreshold: 3

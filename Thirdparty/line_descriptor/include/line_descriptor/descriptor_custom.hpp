@@ -181,7 +181,6 @@ stored in line_descriptor::KeyLine objects.
  */
 class CV_EXPORTS BinaryDescriptor : public Algorithm
 {
-
  public:
   /** @brief List of BinaryDescriptor parameters:
   */
@@ -214,6 +213,19 @@ class CV_EXPORTS BinaryDescriptor : public Algorithm
 
   };
 
+  struct EDLineParam
+  {
+    EDLineParam();
+
+    int ksize;
+    float sigma;
+    float gradientThreshold;
+    float anchorThreshold;
+    int scanIntervals;
+    int minLineLen;
+    double lineFitErrThreshold;
+  };
+
   /** @brief Constructor
 
   @param parameters configuration parameters BinaryDescriptor::Params
@@ -221,13 +233,14 @@ class CV_EXPORTS BinaryDescriptor : public Algorithm
   If no argument is provided, constructor sets default values (see comments in the code snippet in
   previous section). Default values are strongly recommended.
   */
-  BinaryDescriptor( const BinaryDescriptor::Params &parameters = BinaryDescriptor::Params() );
+  BinaryDescriptor( const BinaryDescriptor::Params &parameters = BinaryDescriptor::Params(), const EDLineParam& edLineParameters = BinaryDescriptor::EDLineParam());
 
   /** @brief Create a BinaryDescriptor object with default parameters (or with the ones provided)
   and return a smart pointer to it
      */
   static Ptr<BinaryDescriptor> createBinaryDescriptor();
-  static Ptr<BinaryDescriptor> createBinaryDescriptor( Params parameters );
+  static Ptr<BinaryDescriptor> createBinaryDescriptor( const Params& parameters );
+  static Ptr<BinaryDescriptor> createBinaryDescriptor( const Params& parameters, const EDLineParam& edLineParameters);
 
   /** destructor */
   ~BinaryDescriptor();
@@ -444,16 +457,6 @@ class CV_EXPORTS BinaryDescriptor : public Algorithm
 
   typedef std::list<Pixel> PixelChain;  //each edge is a pixel chain
 
-  struct EDLineParam
-  {
-    int ksize;
-    float sigma;
-    float gradientThreshold;
-    float anchorThreshold;
-    int scanIntervals;
-    int minLineLen;
-    double lineFitErrThreshold;
-  };
 
   #define RELATIVE_ERROR_FACTOR   100.0
   #define MLN10   2.30258509299404568402
@@ -471,7 +474,7 @@ class CV_EXPORTS BinaryDescriptor : public Algorithm
   {
    public:
     EDLineDetector();
-    EDLineDetector( EDLineParam param );
+    EDLineDetector( const EDLineParam& param );
     ~EDLineDetector();
 
     /*extract edges from image
@@ -934,7 +937,8 @@ struct LSDOptions{
         log_eps(0), 
         density_th(0.7),
         n_bins(1024),
-        min_length()
+        min_length(0.025),
+        lineFitErrThreshold(1.6) // default value taken from EDLineDetector class constructor 
     {}
 
     int    numOctaves;
@@ -947,6 +951,8 @@ struct LSDOptions{
     double density_th;
     int    n_bins;
     double min_length;
+
+    double lineFitErrThreshold; // used in EDLineDetector
 };    
     
 /* constructor */

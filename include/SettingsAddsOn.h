@@ -37,6 +37,8 @@ namespace PLVS2 {
         double density_th = 0.7;
         int    n_bins = 1024;
         double min_length = 0.025;
+        
+        double lineFitErrThreshold = 1.6; // used in EDLineDetector
     };    
 
     class SettingsLines {

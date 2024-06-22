@@ -64,6 +64,31 @@ namespace PLVS2
 class KeyFrame;
 class StereoDisparity;
 
+///	\class PointCloudCamParams
+///	\author Luigi Freda
+///	\brief Abstract class for managing camera parameters  
+///	\note
+///	\date
+///	\warning
+struct PointCloudCamParams
+{
+    double fx;
+    double fy;
+    double cx;
+    double cy;
+    
+    double bf;
+
+    int width;
+    int height;
+    
+    double minDist;
+    double maxDist; 
+
+    cv::Mat mDistCoef;
+    cv::Mat mK; 
+};
+
 
 ///	\class PointCloudKeyframe
 ///	\author Luigi Freda
@@ -84,7 +109,8 @@ public:
     
     enum StereoLibrary {kLibelas=0, kLibsgm, kLibOpenCV, kLibOpenCVCuda };
     
-    static StereoLibrary ksStereoLibrary; 
+    static StereoLibrary skStereoLibrary; 
+    static bool skbNeedRectification; 
     
 public: 
         
@@ -95,7 +121,7 @@ public:
     
     ~PointCloudKeyFrame();
 
-    void Init(); 
+    void Init(PointCloudCamParams* camParams=nullptr); 
     void PreProcess(); 
     
     // set point colored point cloud w.r.t. camera frame and release color and depth   
@@ -152,6 +178,8 @@ public:
     bool bInMap;
     bool bIsValid;
     bool bStereo;
+
+    PointCloudCamParams* pCamParams = nullptr;
    
 #ifdef USE_LIBELAS    
     static std::shared_ptr<libelas::ElasInterface> pElas;

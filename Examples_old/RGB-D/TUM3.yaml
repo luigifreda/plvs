@@ -155,11 +155,11 @@ Depth.sigmaZfactor: 6
 #--------------------------------------------------------------------------------------------
 
 # PointCloudMapping.on: 1 is ON, 0 is OFF
-PointCloudMapping.on: 0
+PointCloudMapping.on: 1
 
 #PointCloudMapping.type: voxelgrid, octomap, octree_point, chisel, fastfusion, voxblox
 # NOTE: chisel and fastfusion require rectified images if you do not use pointcloud generation 
-PointCloudMapping.type: "fastfusion"
+PointCloudMapping.type: "octree_point"
 
 PointCloudMapping.resolution: 0.01
 PointCloudMapping.numKeyframesToQueueBeforeProcessing: 1
@@ -199,7 +199,7 @@ PointCloudMapping.loadFilename: "volumetric_map_0.ply"
 
 # Segmentation.on: 1 is ON, 0 is OFF
 # working only with [octree_point] 
-Segmentation.on: 0
+Segmentation.on: 1
 
 Segmentation.maxDepth: 2
 

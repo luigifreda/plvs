@@ -3594,7 +3594,8 @@ void LoopClosing::RunGlobalBundleAdjustment(Map* pActiveMap, unsigned long nLoop
                 {
                     // Update according to the correction of its reference keyframe
                     KeyFramePtr pRefKF = pMP->GetReferenceKeyFrame();
-
+                    if(!pRefKF) continue;
+                    
                     if(pRefKF->mnBAGlobalForKF!=nLoopKF)
                         continue;
 
@@ -3633,6 +3634,7 @@ void LoopClosing::RunGlobalBundleAdjustment(Map* pActiveMap, unsigned long nLoop
                     {
                         // Update according to the correction of its reference keyframe
                         KeyFramePtr pRefKF = pML->GetReferenceKeyFrame();
+                        if(!pRefKF) continue; 
 
                         if(pRefKF->mnBAGlobalForKF!=nLoopKF)
                             continue;

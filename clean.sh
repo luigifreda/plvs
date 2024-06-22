@@ -29,7 +29,7 @@ echo "cleaning Thirdparty/rerun ..."
 if [[ -d Thirdparty/rerun ]]; then 
 	cd Thirdparty/rerun
 	if [[ -d build ]]; then 	
-		rm -R build install 
+		rm -Rf build install 
 	fi 
 	cd $SCRIPT_DIR
 fi 

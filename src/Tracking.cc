@@ -893,7 +893,6 @@ bool Tracking::ParseCamParamFile(cv::FileStorage &fSettings)
 
         mpCamera = new Pinhole(vCamCalib);
 
-
         mpCamera = mpAtlas->AddCamera(mpCamera);
 
         std::cout << "- Camera: Pinhole" << std::endl;
@@ -904,7 +903,6 @@ bool Tracking::ParseCamParamFile(cv::FileStorage &fSettings)
         std::cout << "- cy: " << cy << std::endl;
         std::cout << "- k1: " << mDistCoef.at<float>(0) << std::endl;
         std::cout << "- k2: " << mDistCoef.at<float>(1) << std::endl;
-
 
         std::cout << "- p1: " << mDistCoef.at<float>(2) << std::endl;
         std::cout << "- p2: " << mDistCoef.at<float>(3) << std::endl;
@@ -1484,6 +1482,7 @@ bool Tracking::ParseFeaturesParamFile(cv::FileStorage &fSettings)
     lsdOptions.density_th = Utils::GetParam(fSettings, "Line.LSD.densityTh", 0.6);
     lsdOptions.n_bins = Utils::GetParam(fSettings, "Line.LSD.nbins", 1024);
     lsdOptions.min_length = Utils::GetParam(fSettings, "Line.minLineLength", 0.025);
+    lsdOptions.lineFitErrThreshold = Utils::GetParam(fSettings, "Line.lineFitErrThreshold", lsdOptions.lineFitErrThreshold);
         
     Tracking::sknLineTrackWeigth = 0;
     if(mbLineTrackerOn) 
@@ -5440,7 +5439,7 @@ void Tracking::SaveSubTrajectory(string strNameFile_frames, string strNameFile_k
         mpSystem->SaveKeyFrameTrajectoryEuRoC(strNameFile_kf, pMap);
 }
 
-float Tracking::GetImageScale()
+const float Tracking::GetImageScale() const
 {
     return mImageScale;
 }

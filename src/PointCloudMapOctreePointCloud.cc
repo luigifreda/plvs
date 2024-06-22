@@ -75,7 +75,7 @@ PointCloudMapOctreePointCloud<PointT>::PointCloudMapOctreePointCloud(Map* pMap, 
 }
 
 template<typename PointT>
-void PointCloudMapOctreePointCloud<PointT>::SetDepthCameraModel(const CameraModelParams& params)
+void PointCloudMapOctreePointCloud<PointT>::SetDepthCameraModel(const PointCloudCamParams& params)
 {
     pDepthCameraModel_ = std::make_shared<chisel::PinholeCamera>();
     *pDepthCameraModel_ = chisel_server::ToChiselCamera(params.fx, params.fy, params.cx, params.cy, params.width, params.height);
@@ -1107,7 +1107,7 @@ void PointCloudMapOctreePointCloud<pcl::PointSurfelSegment>::OnMapChange()
         std::cout << "PointCloudMapVoxelGridFilterActive<PointT>::OnMapChange() - point cloud KF adjustment" << std::endl;
         
         this->UpdateMap(); // update the pointcloud 
-                
+
         // KF Adjustment of the map 
         //      * iterate over all points of the map:
         //          - group them in pairs (KFID, vector of points with kfid==KFID)  (?couldn't we maintain this when we integrate the new sensed cloud in AM?)        
@@ -1120,11 +1120,11 @@ void PointCloudMapOctreePointCloud<pcl::PointSurfelSegment>::OnMapChange()
             const pcl::PointSurfelSegment& point = this->pPointCloud_->points[ii];
             mapKfidToPointCloud[point.kfid].points.push_back(point); 
         }
-        
+
         // once recollected all the points, let's clear the map 
         PointCloudMap<PointT>::Clear();
         octree_ = OctreeType(this->pPointCloudMapParameters_->resolution);
-                
+
         PointCloudT::Ptr pkfCloudWorldNew( new PointCloudT );
         PointCloudT& kfCloudWorldNew = *pkfCloudWorldNew;
         //const cv::Mat identity = cv::Mat::eye(4,4,CV_32F);
@@ -1133,16 +1133,16 @@ void PointCloudMapOctreePointCloud<pcl::PointSurfelSegment>::OnMapChange()
         {
             const uint32_t kfid = itc->first;
             PointCloudT& kfCloudWorld = itc->second; 
-            
+
             typename PointCloudKeyFrameT::Ptr pcKF = mapKfidPointCloudKeyFrame_[kfid];
             if(!pcKF->bIsValid) continue; 
-            
+
             KeyFramePtr pKF = pcKF->pKF;
             if(pKF->isBad()) continue;
             
             // let's correct the cloud 
             const Sophus::SE3f& TwcIntegration = pcKF->TwcIntegration; // pose at the last time of integration 
-            
+
             // cv::Mat TcwIntegration = cv::Mat::eye(4,4,CV_32F);
             // // invert by taking into account the structure of the homogeneous transformation matrix
             // cv::Mat RcwIntegration =  TwcIntegration.rowRange(0,3).colRange(0,3).t();
@@ -1156,11 +1156,11 @@ void PointCloudMapOctreePointCloud<pcl::PointSurfelSegment>::OnMapChange()
             // let's compute the correction transformation 
             //cv::Mat Twnwo= TwcNew * TwcIntegration.inv(); // from world old to world new             
             Sophus::SE3f Twnwo= TwcNew * TcwIntegration; // from world old to world new 
-            
+
             // check if the transformation is "big" enough otherwise do not re-transform the cloud 
             //double norm = cv::norm(Twnwo - identity);
             double norm = (Twnwo.matrix3x4() - Sophus::SE3f().matrix3x4()).norm();
-            std::cout << "norm: " << norm << std::endl; 
+            std::cout << "kfid: " << kfid << ", norm: " << norm << std::endl; 
             if( norm > kNormThresholdForEqualMatrices)
             {            
                 this->TransformCameraCloudInWorldFrame(kfCloudWorld, Converter::toIsometry3d(Twnwo), kfCloudWorldNew);   
@@ -1177,7 +1177,7 @@ void PointCloudMapOctreePointCloud<pcl::PointSurfelSegment>::OnMapChange()
             //*(this->pPointCloud_) += kfCloudWorldNew; // push the corrected cloud             
             this->ReinsertCloud(pkfCloudWorldNew);
         }
-                
+
         // set the counters of all the inserted points at the minimum threshold 
         typename OctreeType::LeafNodeIterator it, itEnd;
         for (it = octree_.leaf_begin(), itEnd=octree_.leaf_end(); it != itEnd; it++)
@@ -1193,7 +1193,7 @@ void PointCloudMapOctreePointCloud<pcl::PointSurfelSegment>::OnMapChange()
            
                 this->pPointCloud_->push_back(mapPoint);                
             }
-        }        
+        }           
         
         //this->UpdateMap(); // filter and update timestamp 
         

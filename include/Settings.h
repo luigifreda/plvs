@@ -86,7 +86,7 @@ namespace PLVS2 {
         /*
         * Singleton method to get the settings
         */
-        static const Settings* instance(){ return instance_; }
+        static Settings* instance(){ return instance_; }
 
         /*
          * Ostream operator overloading to dump settings to the terminal
@@ -112,6 +112,7 @@ namespace PLVS2 {
         bool needToUndistort() const {return bNeedToUndistort_;}
 
         cv::Size newImSize() const {return newImSize_;}
+        float imageScale() const {return imageScale_;}
         float fps() const {return fps_;}
         bool rgb() const {return bRGB_;}
         bool needToResize() const {return bNeedToResize1_;}
@@ -154,10 +155,18 @@ namespace PLVS2 {
 
         float thFarPoints() const {return thFarPoints_;}
 
-        cv::Mat M1l() const {return M1l_;}
-        cv::Mat M2l() const {return M2l_;}
-        cv::Mat M1r() const {return M1r_;}
-        cv::Mat M2r() const {return M2r_;}
+        const cv::Mat& M1l() const {return M1l_;}
+        const cv::Mat& M2l() const {return M2l_;}
+        const cv::Mat& M1r() const {return M1r_;}
+        const cv::Mat& M2r() const {return M2r_;}
+
+        const cv::Mat& P1Rect() const {return P1_;}
+        const cv::Mat& P2Rect() const {return P2_;}        
+
+        const cv::Mat& R_r1_u1() const { return R_r1_u1_; }
+        const Sophus::SE3f& T_r1_u1() const { return T_r1_u1_; }
+
+        void precomputeRectificationMaps(bool bUpdateCalibration=true);
 
     private:
         template<typename T>
@@ -194,8 +203,6 @@ namespace PLVS2 {
         void readLoadAndSave(cv::FileStorage& fSettings);
         void readOtherParameters(cv::FileStorage& fSettings);
 
-        void precomputeRectificationMaps(cv::FileStorage& fSettings);
-
         int sensor_;
         CameraType cameraType_;     //Camera type
 
@@ -208,13 +215,15 @@ namespace PLVS2 {
         std::vector<float> vFisheyeDistorsion1_, vFisheyeDistorsion2_;        
 
         cv::Size originalImSize_, newImSize_;
+        float imageScale_ = 1.0f; 
         float fps_;
         bool bRGB_;
 
         bool bNeedToUndistort_;
         bool bNeedToRectify_;
         bool bNeedToResize1_, bNeedToResize2_;
-        bool bNeedToRectifyFishEye_;
+
+        float linearCameraFovScale_ = 1.0;
 
         Sophus::SE3f Tlr_;
         float thDepth_;
@@ -225,6 +234,9 @@ namespace PLVS2 {
          */
         cv::Mat M1l_, M2l_;
         cv::Mat M1r_, M2r_;
+        cv::Mat P1_, P2_, Q_;
+        cv::Mat R_r1_u1_, R_r2_u2_;   
+        Sophus::SE3f T_r1_u1_;
 
         /*
          * Inertial stuff

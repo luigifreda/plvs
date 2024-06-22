@@ -85,6 +85,9 @@
         "tensor": "cpp",
         "geometry": "cpp",
         "numericaldiff": "cpp",
-        "specialfunctions": "cpp"
+        "specialfunctions": "cpp",
+        "*.txx": "cpp",
+        "*.def": "cpp",
+        "*.inc": "cpp"
     }
 }

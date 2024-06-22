@@ -55,8 +55,8 @@ public:
 
     PointCloudMapChisel(Map* pMap, const std::shared_ptr<PointCloudMapParameters>& params);
 
-    void SetDepthCameraModel(const CameraModelParams& params);
-    void SetColorCameraModel(const CameraModelParams& params);
+    void SetDepthCameraModel(const PointCloudCamParams& params);
+    void SetColorCameraModel(const PointCloudCamParams& params);
         
     void InsertCloud(typename PointCloudT::ConstPtr cloud_camera, const Sophus::SE3f& Twc, double max_range);
     

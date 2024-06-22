@@ -133,8 +133,11 @@ LineExtractor::LineExtractor(int numLinefeatures_in, cv::line_descriptor_c::LSDD
     params.ksize_ = kGaussianFilterSize;
     params.scaleFactor_ = opts_in.scale;//kScaleFactorDefault;
     //params.widthOfBand_ = 7; // default value in Thirdparty/line_descriptor/src/binary_descriptor_custom.cpp
+
+    cv::line_descriptor_c::BinaryDescriptor::EDLineParam edlineParams;
+    edlineParams.lineFitErrThreshold = opts_in.lineFitErrThreshold;
         
-    mLbd = cv::line_descriptor_c::BinaryDescriptor::createBinaryDescriptor(params);
+    mLbd = cv::line_descriptor_c::BinaryDescriptor::createBinaryDescriptor(params, edlineParams);
     if(skUseLsdExtractor)   mLsd = cv::line_descriptor_c::LSDDetectorC::createLSDDetectorC(opts_in);    
     
 }

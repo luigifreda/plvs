@@ -65,7 +65,7 @@ public:
 
     PointCloudMapOctreePointCloud(Map* pMap, const std::shared_ptr<PointCloudMapParameters>& params);
     
-    void SetDepthCameraModel(const CameraModelParams& params);
+    void SetDepthCameraModel(const PointCloudCamParams& params);
     
     // this integrates the input cloud in the octree by suitably averaging point fields (e.g. color, normals, label, etc...)
     void InsertCloud(typename PointCloudT::ConstPtr cloud_world);

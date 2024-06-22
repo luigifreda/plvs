@@ -152,7 +152,7 @@ namespace PLVS2 {
     }
 
     Settings::Settings(const std::string &configFile, const int& sensor) :
-    bNeedToUndistort_(false), bNeedToRectify_(false), bNeedToResize1_(false), bNeedToResize2_(false), bNeedToRectifyFishEye_(false) {
+    bNeedToUndistort_(false), bNeedToRectify_(false), bNeedToResize1_(false), bNeedToResize2_(false) {
         sensor_ = sensor;
 
         //Open settings file
@@ -203,7 +203,7 @@ namespace PLVS2 {
         cout << "\t-Loaded misc parameters" << endl;
 
         if(bNeedToRectify_){
-            precomputeRectificationMaps(fSettings);
+            precomputeRectificationMaps(true /*update calibration*/);
             cout << "\t-Computed rectification maps" << endl;
         }
 
@@ -277,7 +277,8 @@ namespace PLVS2 {
         }
         else if(cameraModel == "KannalaBrandt8"){
             cameraType_ = KannalaBrandt;
-            bNeedToRectify_ = bNeedToRectifyFishEye_ = (bool)readParameter<int>(fSettings,"Camera.needRectification",found,false);  
+            bNeedToRectify_ = (bool)readParameter<int>(fSettings,"Camera.needRectification",found,false);  
+            linearCameraFovScale_ = Utils::GetParam(fSettings, "Camera.fovScale", 0.7);
 
             //Read intrinsic parameters
             float fx = readParameter<float>(fSettings,"Camera1.fx",found);
@@ -290,20 +291,21 @@ namespace PLVS2 {
             float k2 = readParameter<float>(fSettings,"Camera1.k3",found);
             float k3 = readParameter<float>(fSettings,"Camera1.k4",found);
 
+            vFisheyeDistorsion1_ = {k0,k1,k2,k3}; 
+
             if(bNeedToRectify_){
 
                 //Rectified images are assumed to be ideal PinHole images (no distortion)      
                 vCalibration = {fx, fy, cx, cy};                    
-                calibration1_ = new Pinhole(vCalibration);
-                originalCalib1_ = new KannalaBrandt8({fx,fy,cx,cy,k0,k1,k2,k3});      
+                calibration1_ = new Pinhole(vCalibration); // the linearCameraFovScale_ is used below in the fisheye rectification process to get the adjusted P1
+                originalCalib1_ = new KannalaBrandt8({fx,fy,cx,cy,k0,k1,k2,k3},linearCameraFovScale_);      
 
-                vFisheyeDistorsion1_ = {k0,k1,k2,k3}; // Luigi: TODO improperly used as pin-hole distortion       
             } else {
 
                 vCalibration = {fx,fy,cx,cy,k0,k1,k2,k3};
 
-                calibration1_ = new KannalaBrandt8(vCalibration);
-                originalCalib1_ = new KannalaBrandt8(vCalibration);                
+                calibration1_ = new KannalaBrandt8(vCalibration,linearCameraFovScale_);
+                originalCalib1_ = new KannalaBrandt8(vCalibration,linearCameraFovScale_);                
 
                 if(sensor_ == System::STEREO || sensor_ == System::IMU_STEREO){
                     int colBegin = readParameter<int>(fSettings,"Camera1.overlappingBegin",found);
@@ -367,21 +369,22 @@ namespace PLVS2 {
             float k2 = readParameter<float>(fSettings,"Camera2.k3",found);
             float k3 = readParameter<float>(fSettings,"Camera2.k4",found);
 
+            vFisheyeDistorsion2_ = {k0,k1,k2,k3};   
+
             if(bNeedToRectify_){
 
                 //Rectified images are assumed to be ideal PinHole images (no distortion)      
                 vCalibration = {fx, fy, cx, cy};  
 
-                calibration2_ = new Pinhole(vCalibration);
-                originalCalib2_ = new KannalaBrandt8({fx,fy,cx,cy,k0,k1,k2,k3});      
+                calibration2_ = new Pinhole(vCalibration); // the linearCameraFovScale_ is used below in the fisheye rectification process to get the adjusted P2 
+                originalCalib2_ = new KannalaBrandt8({fx,fy,cx,cy,k0,k1,k2,k3},linearCameraFovScale_);      
 
-                vFisheyeDistorsion2_ = {k0,k1,k2,k3};  // Luigi: TODO improperly used as pin-hole distortion          
             } else {
 
                 vCalibration = {fx,fy,cx,cy,k0,k1,k2,k3};
                 
-                calibration2_ = new KannalaBrandt8(vCalibration);
-                originalCalib2_ = new KannalaBrandt8(vCalibration);                
+                calibration2_ = new KannalaBrandt8(vCalibration,linearCameraFovScale_);
+                originalCalib2_ = new KannalaBrandt8(vCalibration,linearCameraFovScale_);                
 
                 int colBegin = readParameter<int>(fSettings,"Camera2.overlappingBegin",found);
                 int colEnd = readParameter<int>(fSettings,"Camera2.overlappingEnd",found);
@@ -429,7 +432,8 @@ namespace PLVS2 {
 
             if(!bNeedToRectify_){
                 //Update calibration
-                float scaleRowFactor = (float)newImSize_.height / (float)originalImSize_.height;
+                const float scaleRowFactor = (float)newImSize_.height / (float)originalImSize_.height;
+                imageScale_ = scaleRowFactor;
                 calibration1_->setParameter(calibration1_->getParameter(1) * scaleRowFactor, 1);
                 calibration1_->setParameter(calibration1_->getParameter(3) * scaleRowFactor, 3);
                 calibration1_->updateLinearParameters();
@@ -449,7 +453,8 @@ namespace PLVS2 {
 
             if(!bNeedToRectify_){
                 //Update calibration
-                float scaleColFactor = (float)newImSize_.width /(float) originalImSize_.width;
+                const float scaleColFactor = (float)newImSize_.width /(float) originalImSize_.width;
+                MSG_ASSERT( fabs(scaleColFactor-imageScale_)<1e-6, "Image scale factors (on width and height) do not match!");
                 calibration1_->setParameter(calibration1_->getParameter(0) * scaleColFactor, 0);
                 calibration1_->setParameter(calibration1_->getParameter(2) * scaleColFactor, 2);
                 calibration1_->updateLinearParameters();
@@ -459,7 +464,7 @@ namespace PLVS2 {
                     calibration2_->setParameter(calibration2_->getParameter(2) * scaleColFactor, 2);
                     calibration2_->updateLinearParameters();
 
-                    if(cameraType_ == KannalaBrandt && !bNeedToRectifyFishEye_){
+                    if(cameraType_ == KannalaBrandt){
                         static_cast<KannalaBrandt8*>(calibration1_)->mvLappingArea[0] *= scaleColFactor;
                         static_cast<KannalaBrandt8*>(calibration1_)->mvLappingArea[1] *= scaleColFactor;
 
@@ -549,11 +554,22 @@ namespace PLVS2 {
         thFarPoints_ = readParameter<float>(fSettings,"System.thFarPoints",found,false);
     }
 
-    void Settings::precomputeRectificationMaps(cv::FileStorage& fSettings) {
+    void Settings::precomputeRectificationMaps(bool bUpdateCalibration) {
+
         //Precompute rectification maps, new calibrations, ...
-        cv::Mat K1 = calibration1_->toLinearK();
+        cv::Mat K1, K2; 
+        std::vector<float> param1, param2; 
+        // get the calibrations params without linear FOV scaling
+        param1 = {calibration1_->getParameter(0), calibration1_->getParameter(1), calibration1_->getParameter(2), calibration1_->getParameter(3)}; // {fx1, fy1, cx1, cy1}
+        param2 = {calibration2_->getParameter(0), calibration2_->getParameter(1), calibration2_->getParameter(2), calibration2_->getParameter(3)}; // {fx2, fy2, cx2, cy2}
+        Pinhole cal1(param1);
+        Pinhole cal2(param2);
+
+        //K1 = calibration1_->toLinearK(); // here we get the original calibration 
+        K1 = cal1.toLinearK();
         K1.convertTo(K1,CV_64F);
-        cv::Mat K2 = calibration2_->toLinearK();
+        //K2 = calibration2_->toLinearK();
+        K2 = cal2.toLinearK();
         K2.convertTo(K2,CV_64F);
 
         cv::Mat cvTlr;
@@ -563,63 +579,80 @@ namespace PLVS2 {
         cv::Mat t12 = cvTlr.rowRange(0,3).col(3);
         t12.convertTo(t12,CV_64F);
 
-        cv::Mat R_r1_u1, R_r2_u2;
-        cv::Mat P1, P2, Q;
-
-        if(bNeedToRectifyFishEye_){
-            bool found = false; 
-            float balance = 1.0; 
-            float cameraFovScale = readParameter<float>(fSettings,"Camera.fovScale",found);
-            if(!found) cameraFovScale = 1.0;       
-            std::cout << "Unistorting and rectifying stereo fish-eye camera" << std::endl; 
+        if(cameraType_ == KannalaBrandt)
+        {
+            const float balance = 1.0; 
+            const float& cameraFovScale = linearCameraFovScale_;       
+            std::cout << "Unistorting and rectifying stereo fish-eye camera with fov scale: " << cameraFovScale << "" << std::endl; 
             cv::fisheye::stereoRectify(K1,camera1FisheyeDistortionCoef(),K2,camera2FisheyeDistortionCoef(),newImSize_,
                                     R12, t12,
-                                    R_r1_u1,R_r2_u2,P1,P2,Q,
+                                    R_r1_u1_, R_r2_u2_, P1_, P2_, Q_,
                                     cv::CALIB_ZERO_DISPARITY,newImSize_,balance,cameraFovScale);        
-            cv::fisheye::initUndistortRectifyMap(K1, camera1FisheyeDistortionCoef(), R_r1_u1, P1, newImSize_, CV_32F, M1l_, M2l_);
-            cv::fisheye::initUndistortRectifyMap(K2, camera2FisheyeDistortionCoef(), R_r2_u2, P2, newImSize_, CV_32F, M1r_, M2r_);        
+            cv::fisheye::initUndistortRectifyMap(K1, camera1FisheyeDistortionCoef(), R_r1_u1_, P1_, newImSize_, CV_32F, M1l_, M2l_);
+            cv::fisheye::initUndistortRectifyMap(K2, camera2FisheyeDistortionCoef(), R_r2_u2_, P2_, newImSize_, CV_32F, M1r_, M2r_);        
 
-            // NOTE: at this point we can safely set that the camera type is Rectified, that is, the camera models are simple pin-hole
-            cameraType_ = PinHole;
+            std::cout << "============================================================" << std::endl; 
+            std::cout << "Settings::precomputeRectificationMaps()" << std::endl;
+            std::cout << "K1" << std::endl << K1 << std::endl;
+            std::cout << "K2" << std::endl << K2 << std::endl;
+            std::cout << "cameraFovScale: " << cameraFovScale << std::endl;
+            std::cout << "M1l(0:3,0:3)" << std::endl << M1l_.rowRange(0,3).colRange(0,3) << std::endl;
+            std::cout << "M2l(0:3,0:3)" << std::endl << M2l_.rowRange(0,3).colRange(0,3) << std::endl;
+            std::cout << "M1r(0:3,0:3)" << std::endl << M1r_.rowRange(0,3).colRange(0,3) << std::endl;       
+            std::cout << "M2r(0:3,0:3)" << std::endl << M2r_.rowRange(0,3).colRange(0,3) << std::endl;
+            std::cout << "============================================================" << std::endl;             
         } 
-        else {
-            std::cout << "Unistording and rectifying stereo pin-hole camera" << std::endl;             
+        else if (cameraType_ == PinHole)
+        {
+
+            std::cout << "Unistorting and rectifying stereo pin-hole camera" << std::endl;             
             cv::stereoRectify(K1,camera1DistortionCoef(),K2,camera2DistortionCoef(),newImSize_,
                             R12, t12,
-                            R_r1_u1,R_r2_u2,P1,P2,Q,
+                            R_r1_u1_, R_r2_u2_, P1_, P2_, Q_,
                             cv::CALIB_ZERO_DISPARITY,-1,newImSize_);
-            cv::initUndistortRectifyMap(K1, camera1DistortionCoef(), R_r1_u1, P1.rowRange(0, 3).colRange(0, 3),
+            cv::initUndistortRectifyMap(K1, camera1DistortionCoef(), R_r1_u1_, P1_.rowRange(0, 3).colRange(0, 3),
                                         newImSize_, CV_32F, M1l_, M2l_);
-            cv::initUndistortRectifyMap(K2, camera2DistortionCoef(), R_r2_u2, P2.rowRange(0, 3).colRange(0, 3),
+            cv::initUndistortRectifyMap(K2, camera2DistortionCoef(), R_r2_u2_, P2_.rowRange(0, 3).colRange(0, 3),
                                         newImSize_, CV_32F, M1r_, M2r_);
-
-            MSG_ASSERT(cameraType_ == PinHole,"We should not have to rectify here!");
+        } 
+        else 
+        {
+            MSG_ASSERT(false,"Unexpected camera type: " << cameraType_);
         }
         
-        //Update calibration
-        calibration1_->setParameter(P1.at<double>(0,0), 0);
-        calibration1_->setParameter(P1.at<double>(1,1), 1);
-        calibration1_->setParameter(P1.at<double>(0,2), 2);
-        calibration1_->setParameter(P1.at<double>(1,2), 3);
-        calibration1_->updateLinearParameters();
+        //Compute relative pose between camera rectified and raw
+        // R_r1_u1: from points given in the unrectified first camera's coordinate system to points in the rectified first camera's coordinate system
+        Eigen::Matrix3f eigenR_r1_u1;
+        cv::cv2eigen(R_r1_u1_, eigenR_r1_u1);
+        T_r1_u1_ = Sophus::SE3f(eigenR_r1_u1,Eigen::Vector3f::Zero());
 
-        calibration2_->setParameter(P2.at<double>(0,0), 0);
-        calibration2_->setParameter(P2.at<double>(1,1), 1);
-        calibration2_->setParameter(P2.at<double>(0,2), 2);
-        calibration2_->setParameter(P2.at<double>(1,2), 3);
-        calibration2_->updateLinearParameters();        
+        if(bUpdateCalibration)
+        {
+            //Update calibration
+            calibration1_->setParameter(P1_.at<double>(0,0), 0);
+            calibration1_->setParameter(P1_.at<double>(1,1), 1);
+            calibration1_->setParameter(P1_.at<double>(0,2), 2);
+            calibration1_->setParameter(P1_.at<double>(1,2), 3);
+            calibration1_->updateLinearParameters(1.0f); // We use 1.0 instead of linearCameraFovScale_ since P1_ was computed by using the above "cameraFovScale"
 
-        MSG_ASSERT(bNeedToUndistort_==false,"We should not have to undistort here!"); // in Tracking this guides to consider the vector of dist coefficient as zeros
+            calibration2_->setParameter(P2_.at<double>(0,0), 0);
+            calibration2_->setParameter(P2_.at<double>(1,1), 1);
+            calibration2_->setParameter(P2_.at<double>(0,2), 2);
+            calibration2_->setParameter(P2_.at<double>(1,2), 3);
+            calibration2_->updateLinearParameters(1.0f); // We use 1.0 instead of linearCameraFovScale_ since P2_ was computed by using the above "cameraFovScale"        
 
-        //Update bf
-        bf_ = b_ * P1.at<double>(0,0);
+            MSG_ASSERT(bNeedToUndistort_==false,"We should not have to undistort here!"); // in Tracking class, this guides to consider the vector of dist coefficient as zeros
 
-        //Update relative pose between camera 1 and IMU if necessary
-        if(sensor_ == System::STEREO || sensor_ == System::IMU_STEREO){
-            Eigen::Matrix3f eigenR_r1_u1;
-            cv::cv2eigen(R_r1_u1,eigenR_r1_u1);
-            Sophus::SE3f T_r1_u1(eigenR_r1_u1,Eigen::Vector3f::Zero());
-            Tbc_ = Tbc_ * T_r1_u1.inverse();
+            //Update bf
+            bf_ = b_ * P1_.at<double>(0,0);
+
+            //Update relative pose between camera 1 and IMU if necessary
+            if(sensor_ == System::STEREO || sensor_ == System::IMU_STEREO){
+                Tbc_ = Tbc_ * T_r1_u1_.inverse();
+            }
+
+            // NOTE: at this point we can safely set that the camera type is Rectified, that is, the camera models are simple pin-hole
+            cameraType_ = PinHole;            
         }
     }
 
@@ -650,7 +683,8 @@ namespace PLVS2 {
         lines_.lsdOptions.density_th = Utils::GetParam(fSettings, "Line.LSD.densityTh", 0.6);
         lines_.lsdOptions.n_bins = Utils::GetParam(fSettings, "Line.LSD.nbins", 1024);
         lines_.lsdOptions.min_length = Utils::GetParam(fSettings, "Line.minLineLength", 0.025);
-        
+        lines_.lsdOptions.lineFitErrThreshold = Utils::GetParam(fSettings, "Line.lineFitErrThreshold", lines_.lsdOptions.lineFitErrThreshold);
+
         // Luigi: TODO remove the static global params 
         
         Tracking::sknLineTrackWeigth = 0;
@@ -834,7 +868,7 @@ namespace PLVS2 {
             output << "\t-Stereo baseline: " << settings.b_ << endl;
             output << "\t-Stereo depth threshold : " << settings.thDepth_ << endl;
 
-            if(settings.cameraType_ == Settings::KannalaBrandt && !settings.bNeedToRectifyFishEye_){
+            if(settings.cameraType_ == Settings::KannalaBrandt && !settings.bNeedToRectify_){
                 auto vOverlapping1 = static_cast<KannalaBrandt8*>(settings.calibration1_)->mvLappingArea;
                 auto vOverlapping2 = static_cast<KannalaBrandt8*>(settings.calibration2_)->mvLappingArea;
                 output << "\t-Camera 1 overlapping area: [ " << vOverlapping1[0] << " , " << vOverlapping1[1] << " ]" << endl;

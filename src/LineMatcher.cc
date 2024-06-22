@@ -95,6 +95,9 @@ const float kChiSquareSegSegLarger = 5.024; // value of the inverse cumulative c
 const float kChiSquareLineMonoProj = 5.991;        // chi-square 2 2D-perpendicular-line-distances = 2 DOFs for alpha=0.95  (Hartley-Zisserman pg 119)
 const float kChiSquareLineMonoProjLarger = 7.378;  // chi-square 2 2D-perpendicular-line-distances = 2 DOFs for alpha=0.975  
     
+const float kChiSquareLinePointProj = 3.84;        // value of the inverse cumulative chi-square with 1 DOF for alpha=0.95 (Hartley-Zisserman pag 567) 
+const float kChiSquareLinePointProjLarger = 5.024; // value of the inverse cumulative chi-square with 1 DOF for alpha=0.975
+
 template <typename T>    // T can be a std container: list<int> or vector<int> 
 void ComputeThreeMaxima(T* histo, const int L, int &ind1, int &ind2, int &ind3)
 {
@@ -652,7 +655,7 @@ int LineMatcher::SearchForTriangulation(KeyFramePtr& pKF1, KeyFramePtr& pKF2, ve
             continue;
         
         // NOTE: With fisheye cameras, mvuRightLineStart and mvuRightLineEnd values cannot be directly used, however if > 0 they signal the availability of the depths.  
-        const bool bStereo1 = (pKF1->mvuRightLineStart[idx1]>=0) && (pKF1->mvuRightLineEnd[idx1]>=0);
+        const bool bStereo1 = (!pKF1->mvuRightLineStart.empty()) && (pKF1->mvuRightLineStart[idx1]>=0) && (pKF1->mvuRightLineEnd[idx1]>=0);
         vbStereo1[idx1] = bStereo1; 
 
         if(bOnlyStereo)
@@ -691,7 +694,7 @@ int LineMatcher::SearchForTriangulation(KeyFramePtr& pKF1, KeyFramePtr& pKF2, ve
             continue;
 
         // NOTE: With fisheye cameras, mvuRightLineStart and mvuRightLineEnd values cannot be directly used, however if >0 they signal the availability of the depths.  
-        const bool bStereo2 = (pKF2->mvuRightLineStart[idx2]>=0) && (pKF2->mvuRightLineEnd[idx2]>=0);
+        const bool bStereo2 = (!pKF2->mvuRightLineStart.empty()) && (pKF2->mvuRightLineStart[idx2]>=0) && (pKF2->mvuRightLineEnd[idx2]>=0);
 
         if(bOnlyStereo)
             if(!bStereo2)
@@ -719,12 +722,16 @@ int LineMatcher::SearchForTriangulation(KeyFramePtr& pKF1, KeyFramePtr& pKF2, ve
 
             //const cv::line_descriptor_c::KeyLine& kl2 = pKF2->mvKeyLinesUn[idx2];      
                                        
-            const float xm = 0.5*(kl2.startPointX + kl2.endPointX);
-            const float ym = 0.5*(kl2.startPointY + kl2.endPointY);
-            const float distex = ex-xm;
-            const float distey = ey-ym;
+            //const float xm = 0.5*(kl2.startPointX + kl2.endPointX);
+            //const float ym = 0.5*(kl2.startPointY + kl2.endPointY);
+            const float disteSx = ex-kl2.startPointX;
+            const float disteSy = ey-kl2.startPointY;
 
-            if(distex*distex+distey*distey<100*pKF2->mvLineScaleFactors[kl2.octave])
+            const float disteEx = ex-kl2.endPointX;
+            const float disteEy = ey-kl2.endPointY;
+
+            const float disteTh = 100*pKF2->mvLineScaleFactors[kl2.octave];
+            if( (disteSx*disteSx+disteSy*disteSy<disteTh) || (disteEx*disteEx+disteEy*disteEy<disteTh) )
                 continue;
         }        
                     
@@ -833,6 +840,7 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
 
     const float thChiSquareLineMonoProj = bLargerSearch ? kChiSquareLineMonoProjLarger : kChiSquareLineMonoProj; 
     const float thChiSquareSegSeg = bLargerSearch ? kChiSquareSegSegLarger : kChiSquareSegSeg;
+    const float thChiSquareLinePointProj = bLargerSearch ? kChiSquareLinePointProjLarger : kChiSquareLinePointProj;
 
     // Rotation Histogram (to check rotation consistency)
     vector<int> rotHist[HISTO_LENGTH];
@@ -986,9 +994,13 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
                     // constraint: 0 = l1*u1 + l2*v1 + l3  
                     const float distS = projLineRepresentation.nx*currentFrameLine.startPointX + projLineRepresentation.ny*currentFrameLine.startPointY - projLineRepresentation.d;
                     const float distE = projLineRepresentation.nx*currentFrameLine.endPointX + projLineRepresentation.ny*currentFrameLine.endPointY - projLineRepresentation.d;
-                    const float err2 = distS*distS + distE*distE; 
+                    //const float err2 = distS*distS + distE*distE; 
+                    const float distS2 = distS*distS;
+                    const float distE2 = distE*distE;
 
-                    if(err2*(CurrentFrame.mvLineInvLevelSigma2[nLastOctave])>thChiSquareLineMonoProj)  
+                    //if(err2*(CurrentFrame.mvLineInvLevelSigma2[nLastOctave])>thChiSquareLineMonoProj)  
+                    if(distS2*(CurrentFrame.mvLineInvLevelSigma2[nLastOctave])>thChiSquareLinePointProj 
+                    || distE2*(CurrentFrame.mvLineInvLevelSigma2[nLastOctave])>thChiSquareLinePointProj)
                     {
                         continue;
                     }                                                         
@@ -996,7 +1008,7 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
 
 #if USE_STEREO_PROJECTION_CHECK
                     // fast stereo projection check with rectified images 
-                    if(!CurrentFrame.mpCamera2 && CurrentFrame.mvuRightLineStart[i2]>=0 && CurrentFrame.mvuRightLineEnd[i2]>=0)
+                    if(!CurrentFrame.mpCamera2 && (!CurrentFrame.mvuRightLineStart.empty()) && CurrentFrame.mvuRightLineStart[i2]>=0 && CurrentFrame.mvuRightLineEnd[i2]>=0)
                     {
                         // we assume left and right images are rectified 
 
@@ -1021,9 +1033,13 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
                         // constraint: 0 = l1*u1 + l2*v1 + l3  
                         const float distSr = projRightLineRepresentation.nx*uSr + projRightLineRepresentation.ny*vSr - projRightLineRepresentation.d;
                         const float distEr = projRightLineRepresentation.nx*uEr + projRightLineRepresentation.ny*vEr - projRightLineRepresentation.d;
-                        const float err2r = distSr*distSr + distEr*distEr; 
+                        //const float err2r = distSr*distSr + distEr*distEr; 
+                        const float distSr2 = distSr*distSr;
+                        const float distEr2 = distEr*distEr;
 
-                        if(err2r*(CurrentFrame.mvLineInvLevelSigma2[nLastOctave])>thChiSquareLineMonoProj)  
+                        //if(err2r*(CurrentFrame.mvLineInvLevelSigma2[nLastOctave])>thChiSquareLineMonoProj)  
+                        if(distSr2*(CurrentFrame.mvLineInvLevelSigma2[nLastOctave])>thChiSquareLinePointProj 
+                        || distEr2*(CurrentFrame.mvLineInvLevelSigma2[nLastOctave])>thChiSquareLinePointProj)
                         {
                             continue;
                         }                
@@ -1124,9 +1140,13 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
                         // constraint: 0 = l1*u1 + l2*v1 + l3  
                         const float distS = projLineRepresentation.nx*currentFrameLine.startPointX + projLineRepresentation.ny*currentFrameLine.startPointY - projLineRepresentation.d;
                         const float distE = projLineRepresentation.nx*currentFrameLine.endPointX + projLineRepresentation.ny*currentFrameLine.endPointY - projLineRepresentation.d;
-                        const float err2 = distS*distS + distE*distE; 
+                        //const float err2 = distS*distS + distE*distE; 
+                        const float distS2 = distS*distS;
+                        const float distE2 = distE*distE;
 
-                        if(err2*(CurrentFrame.mvLineInvLevelSigma2[nLastOctave])>thChiSquareLineMonoProj)  
+                        //if(err2*(CurrentFrame.mvLineInvLevelSigma2[nLastOctave])>thChiSquareLineMonoProj)  
+                        if(distS2*(CurrentFrame.mvLineInvLevelSigma2[nLastOctave])>thChiSquareLinePointProj || 
+                           distE2*(CurrentFrame.mvLineInvLevelSigma2[nLastOctave])>thChiSquareLinePointProj)
                         {
                             continue;
                         }                                                         
@@ -1267,6 +1287,7 @@ int LineMatcher::SearchByProjection(Frame &F, const std::vector<MapLinePtr> &vpM
 {
     const float thChiSquareLineMonoProj = bLargerSearch ? kChiSquareLineMonoProjLarger : kChiSquareLineMonoProj; 
     const float thChiSquareSegSeg = bLargerSearch ? kChiSquareSegSegLarger : kChiSquareSegSeg;
+    const float thChiSquareLinePointProj = bLargerSearch ? kChiSquareLinePointProjLarger : kChiSquareLinePointProj;
 
     int nmatches=0;
 
@@ -1353,9 +1374,13 @@ int LineMatcher::SearchByProjection(Frame &F, const std::vector<MapLinePtr> &vpM
                 // constraint: 0 = l1*u1 + l2*v1 + l3  
                 const float distS = projLineRepresentation.nx*kl.startPointX + projLineRepresentation.ny*kl.startPointY - projLineRepresentation.d;
                 const float distE = projLineRepresentation.nx*kl.endPointX + projLineRepresentation.ny*kl.endPointY - projLineRepresentation.d;
-                const float err2 = distS*distS + distE*distE; 
+                //const float err2 = distS*distS + distE*distE; 
+                const float distS2 = distS*distS;
+                const float distE2 = distE*distE;
 
-                if(err2*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareLineMonoProj)  
+                //if(err2*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareLineMonoProj)  
+                if(distS2*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareLinePointProj || 
+                   distE2*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareLinePointProj)
                 {
                     continue;
                 }    
@@ -1364,7 +1389,7 @@ int LineMatcher::SearchByProjection(Frame &F, const std::vector<MapLinePtr> &vpM
 
     #if USE_STEREO_PROJECTION_CHECK
                 // fast stereo projection check with rectified images    
-                if(!F.mpCamera2 && F.mvuRightLineStart[idx]>=0 && F.mvuRightLineEnd[idx]>=0)
+                if(!F.mpCamera2 && (!F.mvuRightLineStart.empty()) &&F.mvuRightLineStart[idx]>=0 && F.mvuRightLineEnd[idx]>=0)
                 {
                     // we assume left and right images are rectified 
 
@@ -1389,9 +1414,13 @@ int LineMatcher::SearchByProjection(Frame &F, const std::vector<MapLinePtr> &vpM
                     // constraint: 0 = l1*u1 + l2*v1 + l3  
                     const float distSr = projRightLineRepresentation.nx*uSr + projRightLineRepresentation.ny*vSr - projRightLineRepresentation.d;
                     const float distEr = projRightLineRepresentation.nx*uEr + projRightLineRepresentation.ny*vEr - projRightLineRepresentation.d;
-                    const float err2r = distSr*distSr + distEr*distEr; 
+                    //const float err2r = distSr*distSr + distEr*distEr; 
+                    const float distSr2 = distSr*distSr;
+                    const float distEr2 = distEr*distEr;
 
-                    if(err2r*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareLineMonoProj)  
+                    //if(err2r*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareLineMonoProj)  
+                    if(distSr2*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareLinePointProj || 
+                       distEr2*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareLinePointProj)
                     {
                         continue;
                     }                
@@ -1493,9 +1522,14 @@ int LineMatcher::SearchByProjection(Frame &F, const std::vector<MapLinePtr> &vpM
                 // constraint: 0 = l1*u1 + l2*v1 + l3  
                 const float distS = projLineRepresentation.nx*kl.startPointX + projLineRepresentation.ny*kl.startPointY - projLineRepresentation.d;
                 const float distE = projLineRepresentation.nx*kl.endPointX + projLineRepresentation.ny*kl.endPointY - projLineRepresentation.d;
-                const float err2 = distS*distS + distE*distE; 
+                //const float err2 = distS*distS + distE*distE; 
+                const float distS2 = distS*distS;
+                const float distE2 = distE*distE;
 
-                if(err2*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareLineMonoProj)  
+                //if(err2*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareLineMonoProj)  
+                if(distS2*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareLinePointProj || 
+                   distE2*(F.mvLineInvLevelSigma2[nPredictedLevel])>thChiSquareLinePointProj)
+
                 {
                     continue;
                 }    
@@ -2163,9 +2197,13 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
             // constraint: 0 = l1*u1 + l2*v1 + l3  
             const float distS = projLineRepresentation.nx*kl.startPointX + projLineRepresentation.ny*kl.startPointY - projLineRepresentation.d;
             const float distE = projLineRepresentation.nx*kl.endPointX + projLineRepresentation.ny*kl.endPointY - projLineRepresentation.d;
-            const float err2 = distS*distS + distE*distE; 
+            //const float err2 = distS*distS + distE*distE; 
+            const float distS2 = distS*distS;
+            const float distE2 = distE*distE;
 
-            if(err2*(pKF->mvLineInvLevelSigma2[klLevel])>kChiSquareLineMonoProj)  
+            //if(err2*(pKF->mvLineInvLevelSigma2[klLevel])>kChiSquareLineMonoProj)  
+            if(distS2*(pKF->mvLineInvLevelSigma2[klLevel])>kChiSquareLinePointProj || 
+               distE2*(pKF->mvLineInvLevelSigma2[klLevel])>kChiSquareLinePointProj)
             {
                 continue;
             } 
@@ -2174,7 +2212,7 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
 
 #if USE_STEREO_PROJECTION_CHECK
             // fast stereo projection check with rectified images
-            if(!pKF->mpCamera2 && pKF->mvuRightLineStart[idx]>=0 && pKF->mvuRightLineEnd[idx]>=0)
+            if(!pKF->mpCamera2 && (!pKF->mvuRightLineStart.empty()) && pKF->mvuRightLineStart[idx]>=0 && pKF->mvuRightLineEnd[idx]>=0)
             {
                 // we assume left and right images are rectified 
 
@@ -2199,9 +2237,13 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
                 // constraint: 0 = l1*u1 + l2*v1 + l3  
                 const float distSr = projRightLineRepresentation.nx*uSr + projRightLineRepresentation.ny*vSr - projRightLineRepresentation.d;
                 const float distEr = projRightLineRepresentation.nx*uEr + projRightLineRepresentation.ny*vEr - projRightLineRepresentation.d;
-                const float err2r = distSr*distSr + distEr*distEr; 
+                //const float err2r = distSr*distSr + distEr*distEr; 
+                const float distSr2 = distSr*distSr;
+                const float distEr2 = distEr*distEr;
 
-                if(err2r*(pKF->mvLineInvLevelSigma2[klLevel])>kChiSquareLineMonoProj)  
+                //if(err2r*(pKF->mvLineInvLevelSigma2[klLevel])>kChiSquareLineMonoProj)  
+                if(distSr2*(pKF->mvLineInvLevelSigma2[klLevel])>kChiSquareLinePointProj || 
+                   distEr2*(pKF->mvLineInvLevelSigma2[klLevel])>kChiSquareLinePointProj)
                 {
                     continue;
                 }                
@@ -2413,9 +2455,13 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const std::vec
             // constraint: 0 = l1*u1 + l2*v1 + l3  
             const float distS = projLineRepresentation.nx*kl.startPointX + projLineRepresentation.ny*kl.startPointY - projLineRepresentation.d;
             const float distE = projLineRepresentation.nx*kl.endPointX + projLineRepresentation.ny*kl.endPointY - projLineRepresentation.d;
-            const float err2 = distS*distS + distE*distE; 
+            //const float err2 = distS*distS + distE*distE; 
+            const float distS2 = distS*distS;
+            const float distE2 = distE*distE;
 
-            if(err2*(pKF->mvLineInvLevelSigma2[nPredictedLevel])>kChiSquareLineMonoProj)  
+            //if(err2*(pKF->mvLineInvLevelSigma2[nPredictedLevel])>kChiSquareLineMonoProj)  
+            if( distS2*(pKF->mvLineInvLevelSigma2[nPredictedLevel])>kChiSquareLinePointProj || 
+                distE2*(pKF->mvLineInvLevelSigma2[nPredictedLevel])>kChiSquareLinePointProj)
             {
                 continue;
             } 
@@ -2423,7 +2469,7 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const std::vec
 
 
 #if 0 //USE_STEREO_PROJECTION_CHECK  // disabled: it is not used in sim3 search and fuse for points
-            if(!pKF->mpCamera2 && pKF->mvuRightLineStart[idx]>=0 && pKF->mvuRightLineEnd[idx]>=0)
+            if(!pKF->mpCamera2 && (!pKF->mvuRightLineStart.empty()) && pKF->mvuRightLineStart[idx]>=0 && pKF->mvuRightLineEnd[idx]>=0)
             {
                 // we assume left and right images are rectified 
 

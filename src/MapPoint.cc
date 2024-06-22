@@ -195,7 +195,7 @@ void MapPoint::AddObservation(const KeyFramePtr& pKF, int idx)
 
     mObservations[pKF]=indexes;
 
-    if(!pKF->mpCamera2 && pKF->mvuRight[idx]>=0)
+    if(!pKF->mpCamera2 && !pKF->mvuRight.empty() && pKF->mvuRight[idx]>=0)
         nObs+=2;
     else
         nObs++;

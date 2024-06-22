@@ -27,6 +27,8 @@
 #include "Converter.h"
 #include "Stopwatch.h"
 #include "StereoDisparity.h"
+#include "Utils.h"
+#include "PointCloudUtils.h"
 
 #ifdef USE_LIBELAS  
 #include "ElasInterface.h"
@@ -36,13 +38,20 @@
 #include "libsgm.h"
 #endif
 
+#if RERUN_ENABLED
+#include "RerunSingleton.h" 
+#endif 
+
 
 namespace PLVS2
 {
 
+template<typename PointT>
+bool PointCloudKeyFrame<PointT>::skbNeedRectification = false;
+
 // default initialization 
 template<typename PointT>
-typename PointCloudKeyFrame<PointT>::StereoLibrary PointCloudKeyFrame<PointT>::ksStereoLibrary = 
+typename PointCloudKeyFrame<PointT>::StereoLibrary PointCloudKeyFrame<PointT>::skStereoLibrary = 
 #ifdef USE_LIBELAS 
         PointCloudKeyFrame<PointT>::StereoLibrary::kLibelas;
 #else
@@ -72,7 +81,7 @@ std::shared_ptr<StereoDisparity> PointCloudKeyFrame<PointT>::pSd = 0;
 
 template<typename PointT>
 PointCloudKeyFrame<PointT>::PointCloudKeyFrame()
-: pKF(0), bCloudReady(false), bInMap(false), bIsValid(true), bStereo(false)
+: pKF(nullptr), bCloudReady(false), bInMap(false), bIsValid(true), bStereo(false)
 {
 }
 
@@ -109,11 +118,13 @@ static void convertCloneGrayImagetoCV8U(cv::Mat& img)
 }
 
 template<typename PointT>
-void PointCloudKeyFrame<PointT>::Init()
+void PointCloudKeyFrame<PointT>::Init(PointCloudCamParams* camParams)
 {
     std::unique_lock<std::mutex> locker(keyframeMutex);
  
     if(bIsInitialized) return; 
+
+    if(camParams) pCamParams = camParams;
     
     if( !imgColor.empty() ) 
     {
@@ -152,7 +163,34 @@ void PointCloudKeyFrame<PointT>::PreProcess()
     
     if( bStereo && imgDepth.empty() )
     {
-        switch(ksStereoLibrary)
+        if(skbNeedRectification)
+        {
+            std::cout << "PointCloudKeyFrame<PointT>::PreProcess() - performing rectification on-the-fly" << std::endl;
+            const Settings* settings = Settings::instance();
+            MSG_ASSERT(settings, "Settings not initialized");
+
+            const cv::Mat& M1l = settings->M1l();
+            const cv::Mat& M2l = settings->M2l();
+            const cv::Mat& M1r = settings->M1r();
+            const cv::Mat& M2r = settings->M2r();
+
+            cv::Mat imgLeftRect, imgRightRect;
+
+            std::thread t1([&](){cv::remap(imgLeft, imgLeftRect, M1l, M2l, cv::INTER_LINEAR);});
+            std::thread t2([&](){cv::remap(imgRight, imgRightRect, M1r, M2r, cv::INTER_LINEAR);});
+            t1.join();
+            t2.join();
+
+#if 0 && RERUN_ENABLED
+            auto& rec = RerunSingleton::instance();
+            rec.log("debug/PCKF/image", rerun::Image(tensor_shape(imgLeft), rerun::TensorBuffer::u8(imgLeft)));                 
+            rec.log("debug/PCKF/image_rectified", rerun::Image(tensor_shape(imgLeftRect), rerun::TensorBuffer::u8(imgLeftRect)));     
+#endif            
+            cv::swap(imgLeft, imgLeftRect);
+            cv::swap(imgRight, imgRightRect);
+        }
+
+        switch(skStereoLibrary)
         {
             
         case kLibelas: 
@@ -303,6 +341,8 @@ void PointCloudKeyFrame<PointT>::ProcessStereoLibelas()
     
     TICKLIBELAS("Libelas");     
   
+    const float bf = pCamParams? pCamParams->bf : pKF->mbf;
+
     if(!pElas)
     {
         libelas::Elas::Parameters param;
@@ -355,7 +395,6 @@ void PointCloudKeyFrame<PointT>::ProcessStereoLibelas()
     //void process (uint8_t* I1,uint8_t* I2,float* D1,float* D2,const int32_t* dims);    
     pElas->process( (uint8_t*)imgLeft.data, (uint8_t*)imgRight.data, (float*)imgD1.data, (float*)imgD2.data, dims);   
     
-    const float bf = pKF->mbf;
     const int subsamplingStep = PointCloudMapping::skDownsampleStep;
     if(param.subsampling )
     {        
@@ -387,7 +426,6 @@ void PointCloudKeyFrame<PointT>::ProcessStereoLibelas()
     
     SENDALLLIBELAS;        
         
-    
 #endif
     
 }
@@ -400,6 +438,8 @@ void PointCloudKeyFrame<PointT>::ProcessStereoLibsgm()
 
     std::cout << "stereo processing (libsgm)" << std::endl;         
     
+    const float bf = pCamParams? pCamParams->bf : pKF->mbf;
+
 #ifdef USE_LIBSGM    
     
     int bits = 8;
@@ -429,8 +469,7 @@ void PointCloudKeyFrame<PointT>::ProcessStereoLibsgm()
     pSgm->execute(imgLeft.data, imgRight.data, imgDisp.data);
     
     imgDisp.convertTo(imgDisp, CV_32F);//, 1.f/16.0f);
-    
-    const float bf = pKF->mbf;    
+     
     imgDepth = bf/imgDisp;
        
 #endif
@@ -448,6 +487,8 @@ void PointCloudKeyFrame<PointT>::ProcessStereo()
 
     std::cout << "stereo processing (opencv)" << std::endl;         
     
+    const float bf = pCamParams? pCamParams->bf : pKF->mbf;
+
     if(!pSd)
     {
         const bool bDownScale = ((PointCloudMapping::skDownsampleStep % 2) == 0);  
@@ -465,7 +506,6 @@ void PointCloudKeyFrame<PointT>::ProcessStereo()
     
     imgDisp.convertTo(imgDisp, CV_32F, 1.f/16.0f);
     
-    const float bf = pKF->mbf;    
     imgDepth = bf/imgDisp;
      
     // once done release left and right images
@@ -479,6 +519,8 @@ void PointCloudKeyFrame<PointT>::ProcessStereoCuda()
 {
     //std::unique_lock<std::mutex> locker(keyframeMutex);    // already locked from Init() 
         
+    const float bf = pCamParams? pCamParams->bf : pKF->mbf;
+
 #ifdef USE_CUDA
  
     std::cout << "stereo processing cv::cuda - need improvements" << std::endl;    
@@ -500,7 +542,6 @@ void PointCloudKeyFrame<PointT>::ProcessStereoCuda()
     
     imgDisp.convertTo(imgDisp, CV_32F);    
     
-    const float bf = pKF->mbf;
     imgDepth = bf/imgDisp;
         
 #endif  
@@ -517,11 +558,16 @@ void PointCloudKeyFrame<PointT>::GetTransformedCloud(const cv::Mat& Twc, typenam
     
     Eigen::Isometry3d T = PLVS2::Converter::toSE3Quat(Twc);
 
-#if !USE_NORMALS
-    pcl::transformPointCloud(*pCloudCamera, *pCloudOut, T.matrix());
-#else
-    pcl::transformPointCloudWithNormals(*pCloudCamera, *pCloudOut, T.matrix());
-#endif
+// #if !USE_NORMALS
+//     pcl::transformPointCloud(*pCloudCamera, *pCloudOut, T.matrix());
+// #else
+//     pcl::transformPointCloudWithNormals(*pCloudCamera, *pCloudOut, T.matrix());
+// #endif
+#if 0
+    PointCloudUtils::transformCloud<PointT, PointT, Eigen::Isometry3d, double>(*pCloudCamera, *pCloudOut, T);
+#else 
+    PointCloudUtils::transformCloud<PointT, PointT, Eigen::Isometry3f, float>(*pCloudCamera, *pCloudOut, T.cast<float>());
+#endif  
 }
 
 }

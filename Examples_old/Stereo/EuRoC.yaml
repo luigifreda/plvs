@@ -217,7 +217,7 @@ SparseMapping.forceRelocalization: 1
 
 # StereoDense.type: libelas, libsgm, opencv, opencvcuda(this needs tuning and improvements) 
 # (library used in combination with volumetric mapping to compute depth from stereo images)
-StereoDense.type: "libelas"
+StereoDense.type: "opencv"
 
 #--------------------------------------------------------------------------------------------
 # Depth Noise Model
@@ -231,7 +231,7 @@ Depth.sigmaZfactor: 6
 #--------------------------------------------------------------------------------------------
 
 # PointCloudMapping.on: 1 is ON, 0 is OFF
-PointCloudMapping.on: 0
+PointCloudMapping.on: 1
 
 #PointCloudMapping.type: voxelgrid, octomap, octree_point, chisel, fastfusion, voxblox
 # NOTE: chisel and fastfusion require rectified images if you do not use pointcloud generation 

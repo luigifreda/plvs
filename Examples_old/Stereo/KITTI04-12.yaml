@@ -133,13 +133,13 @@ StereoDense.type: "libelas"
 #--------------------------------------------------------------------------------------------
 
 # PointCloudMapping.on: 1 is ON, 0 is OFF
-PointCloudMapping.on: 0
+PointCloudMapping.on: 1
 
 #PointCloudMapping.type: voxelgrid, octomap, octree_point, chisel, fastfusion, voxblox
 # NOTE: chisel and fastfusion require rectified images if you do not use pointcloud generation 
 PointCloudMapping.type: "chisel"
 
-PointCloudMapping.resolution: 0.3
+PointCloudMapping.resolution: 0.1
 PointCloudMapping.numKeyframesToQueueBeforeProcessing: 1
 PointCloudMapping.downSampleStep: 2
 PointCloudMapping.minDepth: 0.2

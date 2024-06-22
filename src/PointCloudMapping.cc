@@ -28,12 +28,16 @@
 
 #include <opencv2/highgui/highgui.hpp>
 
+#include <Eigen/Dense>
+#include <opencv2/core/eigen.hpp>
+
 #include "KeyFrame.h"
 #include "Converter.h"
 
 #include "PointCloudMapping.h"
 #include "Map.h"
 #include "LocalMapping.h"
+#include "Tracking.h"
 #include "PointCloudMap.h"
 #include "PointCloudAtlas.h"
 #include "ColorOctomapServer.h"
@@ -47,6 +51,7 @@
 #include "Utils.h"  
 #include "Stopwatch.h"
 #include "PointUtils.h"
+#include "PointCloudUtils.h"
 #include "Neighborhood.h"
 
 
@@ -96,19 +101,34 @@ typedef EigthNeighborhoodIndicesFast NeighborhoodT;
 
 
 
-PointCloudMapping::PointCloudMapping(const string &strSettingPath, Atlas* atlas, LocalMapping* localMap): 
-mpAtlas(atlas), mpLocalMapping(localMap), bInitCamGridPoints_(false),bFinished_(true),mnSaveMapCount_(0)
+PointCloudMapping::PointCloudMapping(const string &strSettingPath, Atlas* atlas, Tracking* tracking, LocalMapping* localMap): 
+mpAtlas(atlas), mpTracking(tracking), mpLocalMapping(localMap), bInitCamGridPoints_(false),bFinished_(true),mnSaveMapCount_(0)
 {
     cv::FileStorage fsSettings(strSettingPath, cv::FileStorage::READ);
     
+    auto nodeVersion = fsSettings["File.version"];
+    bIsNewSettings_ = (!nodeVersion.empty() && nodeVersion.isString() && nodeVersion.string() == "1.0");
+
     // < StereoDense
     std::cout << std::endl  << "StereoDense Parameters: " << std::endl; 
     std::string stereoDenseStringType = Utils::GetParam(fsSettings, "StereoDense.type", std::string("libelas")); 
-    if (stereoDenseStringType == "libelas") PointCloudKeyFrame<PointT>::ksStereoLibrary = PointCloudKeyFrame<PointT>::StereoLibrary::kLibelas;
-    if (stereoDenseStringType == "libsgm") PointCloudKeyFrame<PointT>::ksStereoLibrary = PointCloudKeyFrame<PointT>::StereoLibrary::kLibsgm;  
-    if (stereoDenseStringType == "opencv") PointCloudKeyFrame<PointT>::ksStereoLibrary = PointCloudKeyFrame<PointT>::StereoLibrary::kLibOpenCV; 
-    if (stereoDenseStringType == "opencvcuda") PointCloudKeyFrame<PointT>::ksStereoLibrary = PointCloudKeyFrame<PointT>::StereoLibrary::kLibOpenCVCuda;  
+    if (stereoDenseStringType == "libelas") PointCloudKeyFrame<PointT>::skStereoLibrary = PointCloudKeyFrame<PointT>::StereoLibrary::kLibelas;
+    if (stereoDenseStringType == "libsgm") PointCloudKeyFrame<PointT>::skStereoLibrary = PointCloudKeyFrame<PointT>::StereoLibrary::kLibsgm;  
+    if (stereoDenseStringType == "opencv") PointCloudKeyFrame<PointT>::skStereoLibrary = PointCloudKeyFrame<PointT>::StereoLibrary::kLibOpenCV; 
+    if (stereoDenseStringType == "opencvcuda") PointCloudKeyFrame<PointT>::skStereoLibrary = PointCloudKeyFrame<PointT>::StereoLibrary::kLibOpenCVCuda;  
     
+    PointCloudKeyFrame<PointT>::skbNeedRectification = Utils::GetParam(fsSettings, "StereoDense.needRectification", false);
+    if(PointCloudKeyFrame<PointT>::skbNeedRectification){
+        std::cout << "PointCloudMapping need rectification" << std::endl;
+        // check we are using KB cameras 
+        const auto& settings = Settings::instance();
+        MSG_ASSERT(settings,"Settings not initialized, you must use the new examples in order to init Settings!");
+        MSG_ASSERT(settings->cameraType() == Settings::CameraType::KannalaBrandt,"Only KB cameras are supported for now!");
+
+        settings->precomputeRectificationMaps(false /*update calibration*/);
+    }
+    
+
     // < PointCloudMapping
     std::cout << std::endl  << "PointCloudMapping Parameters: " << std::endl;   
     bActive_ = static_cast<int> (Utils::GetParam(fsSettings, "PointCloudMapping.on", 0)) != 0;
@@ -126,8 +146,8 @@ mpAtlas(atlas), mpLocalMapping(localMap), bInitCamGridPoints_(false),bFinished_(
     
     std::cout << "PointCloudMapping::PointCloudMapping() - resolution: " <<  resolution << std::endl;
 
-    double maxDepthDistance = Utils::GetParam(fsSettings, "PointCloudMapping.maxDepth", kMaxDepthDistance);
-    double minDepthDistance = Utils::GetParam(fsSettings, "PointCloudMapping.minDepth", kMinDepthDistance);
+    const double maxDepthDistance = Utils::GetParam(fsSettings, "PointCloudMapping.maxDepth", kMaxDepthDistance);
+    const double minDepthDistance = Utils::GetParam(fsSettings, "PointCloudMapping.minDepth", kMinDepthDistance);
     
     KeyFrame::skFovCenterDistance = 0.5*(minDepthDistance + maxDepthDistance);
     
@@ -148,37 +168,55 @@ mpAtlas(atlas), mpLocalMapping(localMap), bInitCamGridPoints_(false),bFinished_(
 
     /// < NOTE: here we manage a simple model (without distortion) which is used for projecting point clouds;
     /// <       it assumes input rectified images; in particular chisel framework works under these assumptions
-    pCameraParams_ = std::make_shared<CameraModelParams>();
-    pCameraParams_->fx = fsSettings["Camera.fx"];
-    pCameraParams_->fy = fsSettings["Camera.fy"];
-    pCameraParams_->cx = fsSettings["Camera.cx"];
-    pCameraParams_->cy = fsSettings["Camera.cy"];
-    pCameraParams_->width = fsSettings["Camera.width"];
-    pCameraParams_->height = fsSettings["Camera.height"];
+    pCameraParams_ = std::make_shared<PointCloudCamParams>();
     pCameraParams_->minDist = minDepthDistance;
     pCameraParams_->maxDist = maxDepthDistance;
-    
-    float imageScale = 1.f;
-    auto node = fsSettings["Camera.imageScale"];
-    if(!node.empty() && node.isReal())
+    // Let's reuse the parsing we have in Tracking class 
+    pCameraParams_->mK = mpTracking->GetMatK().clone();
+    pCameraParams_->mDistCoef = mpTracking->GetMatDistCoef().clone();
+    pCameraParams_->fx = pCameraParams_->mK.at<float>(0,0);
+    pCameraParams_->fy = pCameraParams_->mK.at<float>(1,1);
+    pCameraParams_->cx = pCameraParams_->mK.at<float>(0,2);
+    pCameraParams_->cy = pCameraParams_->mK.at<float>(1,2);
+    pCameraParams_->bf= mpTracking->GetBf();
+    const float imageScale = mpTracking->GetImageScale();
+
+    if(!bIsNewSettings_)
     {
-        imageScale = node.real();
+        pCameraParams_->width = fsSettings["Camera.width"];
+        pCameraParams_->height = fsSettings["Camera.height"];
+        if(imageScale != 1.f)
+        {
+            pCameraParams_->width  *= imageScale;
+            pCameraParams_->height *= imageScale;
+        }
+    }
+    else 
+    {
+        const Settings* settings = Settings::instance();
+        const auto camera1 = settings->camera1();
+        const auto imageSize = settings->newImSize();
+        pCameraParams_->width = imageSize.width;
+        pCameraParams_->height = imageSize.height;
+
+        if(PointCloudKeyFrame<PointT>::skbNeedRectification){
+            // update point cloud camera calibration parameters
+            const cv::Mat& P1Rect = settings->P1Rect();
+            pCameraParams_->fx = P1Rect.at<double>(0,0);
+            pCameraParams_->fy = P1Rect.at<double>(1,1);
+            pCameraParams_->cx = P1Rect.at<double>(0,2);
+            pCameraParams_->cy = P1Rect.at<double>(1,2);
+            pCameraParams_->bf = settings->b() * P1Rect.at<double>(0,0);     
+
+            pCameraParams_->mDistCoef = cv::Mat::zeros(4,1,CV_32F);
+            pCameraParams_->mK = cv::Mat::eye(3,3,CV_32F);
+            pCameraParams_->mK.at<float>(0,0) = pCameraParams_->fx;
+            pCameraParams_->mK.at<float>(1,1) = pCameraParams_->fy;
+            pCameraParams_->mK.at<float>(0,2) = pCameraParams_->cx;
+            pCameraParams_->mK.at<float>(1,2) = pCameraParams_->cy;            
+        }
     }
 
-    if(imageScale != 1.f)
-    {
-        // K matrix parameters must be scaled.
-        pCameraParams_->fx *= imageScale;
-        pCameraParams_->fy *= imageScale;
-        pCameraParams_->cx *= imageScale;
-        pCameraParams_->cy *= imageScale;
-        pCameraParams_->width  *= imageScale;
-        pCameraParams_->height *= imageScale;
-    }
-
-//    /// < NOTE: we assume frames are already rectified and depth camera and rgb camera have the same projection models 
-//    pPointCloudMap_->SetColorCameraModel(*pCameraParams_);
-//    pPointCloudMap_->SetDepthCameraModel(*pCameraParams_);
     
     pointCloudTimestamp_ = 0;
 
@@ -348,7 +386,7 @@ void PointCloudMapping::InsertKeyFrame(PointCloudKeyFrame<PointT>::Ptr pcKeyFram
     if(baseKeyframeId_< 0) baseKeyframeId_ = pcKeyFrame->pKF->mnId; 
      
 #if INIT_PCKF_ON_INSERT    
-    pcKeyFrame->Init(); // N.B.: no memory sharing for color and depth  
+    pcKeyFrame->Init(pCameraParams_.get()); // N.B.: no memory sharing for color and depth  
 #endif 
     
     pcKeyframesIn_.push_back(pcKeyFrame);
@@ -403,7 +441,7 @@ void PointCloudMapping::PrepareNewKeyFrames()
         cout << "Preparing keyframe, id = " << pcKeyframe->pKF->mnId << " (Bad: " << (int)pcKeyframe->pKF->isBad() << ", LBA count: " << pcKeyframe->pKF->mnLBACount <<  ") (#queued: " << pcKeyframesIn_.size() << ")" << endl;
         
 #if !INIT_PCKF_ON_INSERT          
-        pcKeyframe->Init(); // N.B.: no memory sharing for color and depth  
+        pcKeyframe->Init(pCameraParams_.get()); // N.B.: no memory sharing for color and depth  
 #endif 
         
         pcKeyframe->PreProcess();
@@ -755,41 +793,66 @@ void PointCloudMapping::RebuildMap()
 
 /// < here we assume the camera calibration matrix is fixed (all the keyframes must share the same kf->mK, kf->mDistCoef)
 // this is just computed once!
-void PointCloudMapping::InitCamGridPoints(KeyFramePtr& kf, cv::Mat& depth)
+void PointCloudMapping::InitCamGridPoints(const KeyFramePtr& kf, const cv::Size& depthSize)
 {
     if (bInitCamGridPoints_) return;
     bInitCamGridPoints_ = true;
 
-    //std::cout << "PointCloudMapping::initCamGridPoints() ***************" << std::endl;
+    auto checkFloatEqual = [](float a, float b) -> bool { return fabs(a - b) < 1e-3; };
+
+    const double fx = pCameraParams_->fx;
+    const double fy = pCameraParams_->fy;
+    const double cx = pCameraParams_->cx;
+    const double cy = pCameraParams_->cy;
+    const double bf = pCameraParams_->bf;
+    const cv::Mat& K = pCameraParams_->mK;
+    const cv::Mat& distCoef = pCameraParams_->mDistCoef;
+
+#if 1
+    if(!PointCloudKeyFrame<PointT>::skbNeedRectification){
+        MSG_ASSERT( checkFloatEqual(kf->fx,pCameraParams_->fx) && checkFloatEqual(kf->fy,pCameraParams_->fy) && 
+                    checkFloatEqual(kf->cx,pCameraParams_->cx) && checkFloatEqual(kf->cy,pCameraParams_->cy) && 
+                    checkFloatEqual(kf->mbf,pCameraParams_->bf), 
+                    "Camera parameters are not the same for all the keyframes \n" 
+                    << "kf params: " << kf->fx << " " << kf->fy << " " << kf->cx << " " << kf->cy << ", bf: " << kf->mbf << "\n" 
+                    << "cam params: " << pCameraParams_->fx << " " << pCameraParams_->fy << " " << pCameraParams_->cx << " " << pCameraParams_->cy << ", bf: " << pCameraParams_->bf);
+        MSG_ASSERT( checkFloatEqual(cv::norm(kf->mK - pCameraParams_->mK), 0) && 
+                    checkFloatEqual(cv::norm(kf->mDistCoef - pCameraParams_->mDistCoef), 0), 
+                    "Camera parameters are not the same for all the keyframes \n" 
+                    << "kf mK: " << kf->mK << "\n"
+                    << "kf mDistCoef: " << kf->mDistCoef << "\n"
+                    << "cam mK: " << pCameraParams_->mK << "\n"
+                    << "cam mDistCoef: " << pCameraParams_->mDistCoef);
+    }
+#endif 
 
     // Fill matrix with matrix grid points
-    int N = (int) ceil( float(depth.rows * depth.cols)/skDownsampleStep);
+    int N = (int) ceil( float(depthSize.height * depthSize.width)/skDownsampleStep);
     matCamGridPoints_ = cv::Mat(N, 2, CV_32F);
 
     // Fill matrix with indices of points. -1 means invalid
-    cv::Mat matPointIdxs = cv::Mat_<int>(depth.rows, depth.cols, -1); 
+    cv::Mat matPointIdxs = cv::Mat_<int>(depthSize.height, depthSize.width, -1); 
     
     // generate points on the image plane 
     int ii = 0;
-    for (int m = 0; m < depth.rows; m += skDownsampleStep)
+    for (int m = 0; m < depthSize.height; m += skDownsampleStep)
     {
-        for (int n = 0; n < depth.cols; n += skDownsampleStep, ii++)
+        for (int n = 0; n < depthSize.width; n += skDownsampleStep, ii++)
         {
             matCamGridPoints_.at<float>(ii, 0) = n; // x
             matCamGridPoints_.at<float>(ii, 1) = m; // y
-            
             matPointIdxs.at<int>(m,n) = ii;   
         }
     }
 
 #if 1
     // undistort grid points: these are used for backprojections while 'distorted'(original) coordinates are used to read color and registered depth 
-    if (kf->mDistCoef.at<float>(0) != 0.0)
+    if (distCoef.at<float>(0) != 0.0)
     {
         cout << "undistorting grid points" << endl;
         // Undistort grid points
         matCamGridPoints_ = matCamGridPoints_.reshape(2);
-        cv::undistortPoints(matCamGridPoints_, matCamGridPoints_, kf->mK, kf->mDistCoef, cv::Mat(), kf->mK);
+        cv::undistortPoints(matCamGridPoints_, matCamGridPoints_, K, distCoef, cv::Mat(), K);
         matCamGridPoints_ = matCamGridPoints_.reshape(1);
     }
 #endif
@@ -797,24 +860,34 @@ void PointCloudMapping::InitCamGridPoints(KeyFramePtr& kf, cv::Mat& depth)
     // vector of neighbors indexes
     vCamGridPointsNeighborsIdxs_.resize(N);
     
-    // define neighborhood deltas 
-    //int dm[4]={-1, 0, 1, 0};
-    //int dn[4]={ 0,-1, 0, 1};
-    
+    const Settings* settings = Settings::instance();
+    Eigen::Matrix3f R_u1_r1; // from rectified to unrectified 
+    if(PointCloudKeyFrame<PointT>::skbNeedRectification){    
+        cv::cv2eigen(settings->R_r1_u1().t(), R_u1_r1);    
+    }
+
+    const bool bNeedRectification = PointCloudKeyFrame<PointT>::skbNeedRectification;
+
     // back project the points on the camera plane z=1
     ii = 0;
-    for (int m = 0; m < depth.rows; m += skDownsampleStep)
+    for (int m = 0; m < depthSize.height; m += skDownsampleStep)
     {
-        for (int n = 0; n < depth.cols; n += skDownsampleStep, ii++)
+        for (int n = 0; n < depthSize.width; n += skDownsampleStep, ii++)
         {
-            matCamGridPoints_.at<float>(ii, 0) = (matCamGridPoints_.at<float>(ii, 0) - kf->cx) / kf->fx;
-            matCamGridPoints_.at<float>(ii, 1) = (matCamGridPoints_.at<float>(ii, 1) - kf->cy) / kf->fy;
+            Eigen::Vector3f p((matCamGridPoints_.at<float>(ii, 0) - cx) / fx, (matCamGridPoints_.at<float>(ii, 1) - cy) / fy, 1);
+
+            if(bNeedRectification){
+                p = R_u1_r1 * p;
+                p /= p.z();
+            }
+            matCamGridPoints_.at<float>(ii, 0) = p.x();
+            matCamGridPoints_.at<float>(ii, 1) = p.y();
             
             for(int q=0;q<NeighborhoodT::kSize;q++)
             {
                 int elem_m = m + NeighborhoodT::dm[q]*skDownsampleStep;
                 int elem_n = n + NeighborhoodT::dn[q]*skDownsampleStep; 
-                if( (elem_m >=0) && (elem_m < depth.rows) && (elem_n>=0) && (elem_n<depth.cols) )
+                if( (elem_m >=0) && (elem_m < depthSize.height) && (elem_n>=0) && (elem_n<depthSize.width) )
                 {   
                     vCamGridPointsNeighborsIdxs_[ii].push_back(matPointIdxs.at<int>(elem_m,elem_n));
                 }
@@ -858,7 +931,7 @@ PointCloudMapping::PointCloudT::Ptr PointCloudMapping::GeneratePointCloudInCamer
 {
     PointCloudT::Ptr cloud_camera(new PointCloudT());
 
-    InitCamGridPoints(kf, depth);
+    InitCamGridPoints(kf, depth.size());
     
     int kfid = kf->mnId; 
     
@@ -1176,7 +1249,12 @@ PointCloudMapping::PointCloudT::Ptr PointCloudMapping::GeneratePointCloudInWorld
     Eigen::Isometry3d T = PLVS2::Converter::toSE3Quat(pcKeyframe->pKF->GetPose());
 
     PointCloudT::Ptr p_cloud_world(new PointCloudT);
-    pcl::transformPointCloud(*(pcKeyframe->pCloudCamera), *p_cloud_world, T.inverse().matrix());
+    //pcl::transformPointCloud(*(pcKeyframe->pCloudCamera), *p_cloud_world, T.inverse().matrix());
+#if 0
+    PointCloudUtils::transformCloud<PointT, PointT, Eigen::Isometry3d, double>(*(pcKeyframe->pCloudCamera), *p_cloud_world, T.inverse());
+#else 
+    PointCloudUtils::transformCloud<PointT, PointT, Eigen::Isometry3f, float>(*(pcKeyframe->pCloudCamera), *p_cloud_world, T.inverse().cast<float>());
+#endif     
     p_cloud_world->is_dense = false;
 
     cout << "generate point cloud for kf " << pcKeyframe->pKF->mnId << ", size=" << p_cloud_world->points.size() << endl;
