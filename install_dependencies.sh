@@ -12,6 +12,7 @@ sudo apt-get install -y libopenni-dev libopenni2-dev libpcl-dev
 sudo apt-get install -y curl software-properties-common
 sudo apt-get install -y lsb-core
 sudo apt-get install -y libboost-all-dev
+sudo apt-get install -y xterm
 
 #sudo apt-get install -y libzstd-devel 
 

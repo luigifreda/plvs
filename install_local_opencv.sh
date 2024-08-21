@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: Luigi Freda 
 
 # ====================================================
 
@@ -26,6 +27,20 @@ function check_package(){
     fi
 }
 
+function install_package(){
+    do_install=$(check_package $1)
+    if [ $do_install -eq 1 ] ; then
+        sudo apt-get install -y $1
+    fi 
+}
+
+function install_packages(){
+    for var in "$@"
+    do
+        install_package "$var"
+    done
+}
+
 function get_usable_cuda_version(){
     version="$1"
     if [[ "$version" != *"cuda"* ]]; then
@@ -44,7 +59,7 @@ function get_usable_cuda_version(){
 
 export TARGET_FOLDER=Thirdparty
 
-export OPENCV_VERSION="4.8.0"   # 4.7.0 4.3.0 4.2.0 4.0.0 3.4.6 3.4.4 3.4.3 3.4.2 3.4.1 
+export OPENCV_VERSION="4.10.0"   # OpenCV version to download and install. See tags in https://github.com/opencv/opencv 
 
 # ====================================================
 print_blue  "Configuring and building $TARGET_FOLDER/opencv ..."
@@ -59,7 +74,7 @@ if [ ! -d $TARGET_FOLDER ]; then
 fi 
 
 # set CUDA 
-#export CUDA_VERSION="cuda-11.6"  # must be an installed CUDA path in /usr/local; 
+#export CUDA_VERSION="cuda-11.8"  # must be an installed CUDA path in /usr/local; 
                                   # if available, you can use the simple path "/usr/local/cuda" which should be a symbolic link to the last installed cuda version 
 CUDA_ON=ON
 if [[ -n "$CUDA_VERSION" ]]; then
@@ -84,20 +99,25 @@ export LD_LIBRARY_PATH=/usr/local/$CUDA_VERSION/lib64${LD_LIBRARY_PATH:+:${LD_LI
 
 # pre-installing some required packages 
 
-if [ ! -d $TARGET_FOLDER/opencv ]; then
+if [[ ! -d $TARGET_FOLDER/opencv ]]; then
 	sudo apt-get update
 	sudo apt-get install -y pkg-config libglew-dev libtiff5-dev zlib1g-dev libjpeg-dev libeigen3-dev libtbb-dev libgtk2.0-dev libopenblas-dev
     sudo apt-get install -y curl software-properties-common unzip
     sudo apt-get install -y build-essential cmake 
     if [[ "$CUDA_ON" == "ON" ]]; then 
-        sudo apt-get install -y libcudnn8 libcudnn8-dev
+        if [[ $version == *"24.04"* ]] ; then
+            install_packages libcudnn-dev
+        else 
+            install_packages libcudnn8 libcudnn8-dev  # check and install otherwise this is going to update to the latest version (and that's not we necessary want to do)
+        fi
     fi 
 
-    if [[ $version == *"22.04"* ]] ; then
+    if [[ $version == *"22.04"* || $version == *"24.04"* ]] ; then
         sudo apt install -y libtbb-dev libeigen3-dev 
         sudo apt install -y zlib1g-dev libjpeg-dev libwebp-dev libpng-dev libtiff5-dev 
-        sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
+        sudo add-apt-repository -y "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
         sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 3B4FE6ACC0B21F32 # for libjasper-dev 
+        sudo apt update
         sudo apt install -y libjasper-dev
         sudo apt install -y libv4l-dev libdc1394-dev libtheora-dev libvorbis-dev libxvidcore-dev libx264-dev yasm \
                                 libopencore-amrnb-dev libopencore-amrwb-dev libxine2-dev            
