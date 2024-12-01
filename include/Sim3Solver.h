@@ -93,10 +93,10 @@ protected:
     std::vector<MapPointPtr> mvpMapPoints2;
     std::vector<MapPointPtr> mvpMatches12;
     std::vector<size_t> mvnIndices1;
-    std::vector<size_t> mvSigmaSquare1;
-    std::vector<size_t> mvSigmaSquare2;
-    std::vector<size_t> mvnMaxError1;
-    std::vector<size_t> mvnMaxError2;
+    //std::vector<size_t> mvSigmaSquare1;
+    //std::vector<size_t> mvSigmaSquare2;
+    std::vector<float> mvnMaxError1;
+    std::vector<float> mvnMaxError2;
 
     int N;
     int mN1;

@@ -535,9 +535,6 @@ void PointCloudDrawer::DrawSegments(float pointSize)
 
     glPointSize(1.0);
 
-
-
-
 //    /// < debug
 //
 //    // 1rst attribute buffer : vertices
