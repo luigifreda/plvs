@@ -28,6 +28,7 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl/common/geometry.h>
 #include <pcl/filters/frustum_culling.h>
+#include <pcl/octree/octree_search.h>
 
 #include <chisel_server/ChiselServer.h>
 #include <chisel_server/Conversions.h>
@@ -896,7 +897,11 @@ int PointCloudMapOctreePointCloud<PointT>::UpdateMapNoSegmNoRemoveUnstable()
     const unsigned int threshold = std::max(this->pPointCloudMapParameters_->nPointCounterThreshold - 1, 0);    
     
     typename OctreeType::LeafNodeIterator it, itEnd;
+#if PCL_VERSION <= PCL_VERSION_CALC(1, 10, 0)  // pcl 1.10    
     for (it = octree_.leaf_begin(), itEnd = octree_.leaf_end(); it != itEnd; it++)
+#else
+    for (it = octree_.leaf_depth_begin(), itEnd = octree_.leaf_depth_end(); it != itEnd; ++it)
+#endif 
     {
         //if(it.getCurrentOctreeDepth() == octree_.getTreeDepth())
         {
@@ -946,7 +951,11 @@ int PointCloudMapOctreePointCloud<PointT>::UpdateMapNoSegm()
     const unsigned int threshold = std::max(this->pPointCloudMapParameters_->nPointCounterThreshold - 1, 0);    
 
     typename OctreeType::LeafNodeIterator it, itEnd;
+#if PCL_VERSION <= PCL_VERSION_CALC(1, 10, 0)  // pcl 1.10    
     for (it = octree_.leaf_begin(), itEnd = octree_.leaf_end(); it != itEnd; it++)
+#else
+    for (it = octree_.leaf_depth_begin(), itEnd = octree_.leaf_depth_end(); it != itEnd; ++it)
+#endif     
     {
         //if(it.getCurrentOctreeDepth() == octree_.getTreeDepth())
         {
@@ -1019,7 +1028,11 @@ int PointCloudMapOctreePointCloud<PointT>::UpdateMapSegm()
 #endif
 
     typename OctreeType::LeafNodeIterator it, itEnd;
+#if PCL_VERSION <= PCL_VERSION_CALC(1, 10, 0)  // pcl 1.10    
     for (it = octree_.leaf_begin(), itEnd = octree_.leaf_end(); it != itEnd; it++)
+#else
+    for (it = octree_.leaf_depth_begin(), itEnd = octree_.leaf_depth_end(); it != itEnd; ++it)
+#endif     
     {
         //if(it.getCurrentOctreeDepth() == octree_.getTreeDepth())
         {
@@ -1180,7 +1193,11 @@ void PointCloudMapOctreePointCloud<pcl::PointSurfelSegment>::OnMapChange()
 
         // set the counters of all the inserted points at the minimum threshold 
         typename OctreeType::LeafNodeIterator it, itEnd;
-        for (it = octree_.leaf_begin(), itEnd=octree_.leaf_end(); it != itEnd; it++)
+#if PCL_VERSION <= PCL_VERSION_CALC(1, 10, 0)  // pcl 1.10    
+        for (it = octree_.leaf_begin(), itEnd = octree_.leaf_end(); it != itEnd; it++)
+#else
+        for (it = octree_.leaf_depth_begin(), itEnd = octree_.leaf_depth_end(); it != itEnd; ++it)
+#endif         
         {
             //if(it.getCurrentOctreeDepth() == octree_.getTreeDepth())
             {
@@ -1230,7 +1247,11 @@ bool PointCloudMapOctreePointCloud<PointT>::LoadMap(const std::string& filename)
 
         // set the counters of all the inserted points at the minimum threshold 
         typename OctreeType::LeafNodeIterator it, itEnd;
-        for (it = octree_.leaf_begin(), itEnd = octree_.leaf_end(); it != itEnd ; it++)
+#if PCL_VERSION <= PCL_VERSION_CALC(1, 10, 0)  // pcl 1.10    
+        for (it = octree_.leaf_begin(), itEnd = octree_.leaf_end(); it != itEnd; it++)
+#else
+        for (it = octree_.leaf_depth_begin(), itEnd = octree_.leaf_depth_end(); it != itEnd; ++it)
+#endif          
         {
             //if(it.getCurrentOctreeDepth() == octree_.getTreeDepth())
             {

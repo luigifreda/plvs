@@ -1,10 +1,11 @@
 # PLVS II
-### v0.2
+
+### v0.2.1
 
 Author: [Luigi Freda](https://www.luigifreda.com)
 
 
-PLVS is a real-time system that leverages sparse SLAM, volumetric mapping, and 3D unsupervised incremental segmentation. PLVS stands for **Points**, **Lines**, **Volumetric mapping**, and **Segmentation**. 
+PLVS is a real-time system that combines sparse SLAM, volumetric mapping, and 3D unsupervised incremental segmentation. PLVS stands for **Points**, **Lines**, **Volumetric mapping**, and **Segmentation**. 
 
 <p align="center">
 <img src="Images/PLVS-lab.png"
@@ -21,8 +22,7 @@ PLVS is available in two different versions.
 - **PLVS I**: hosted in the branch `plvs1`. It is based on [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2), and supports mono, stereo, and RGB-D cameras.
 - **PLVS II**: hosted in the `master` branch. It is based on [ORB-SLAM3](https://github.com/UZ-SLAMLab/ORB_SLAM3), and also supports camera systems provided with IMUs. 
 
-
-[Here](./new_features.md) you can find a list of the **new features** provided by PLVS. You can find further information and videos on this [page](https://www.luigifreda.com/research/plvs-an-open-source-rgb-d-and-stereo-slam-for-volumetric-reconstruction-and-3d-incremental-segmentation/) and in the following **document**:
+This [document](./new_features.md) provides a list of the **new features** provided by PLVS. For more information and videos, please visit this research [page](https://www.luigifreda.com/research/plvs-an-open-source-rgb-d-and-stereo-slam-for-volumetric-reconstruction-and-3d-incremental-segmentation/) or refer to the following **document**:
 
 **[PLVS: A SLAM System with Points, Lines, Volumetric Mapping, and 3D Incremental Segmentation](https://arxiv.org/pdf/2309.10896.pdf)**         
 *Luigi Freda* 
@@ -32,7 +32,10 @@ PLVS is available in two different versions.
   
 ## Quick start 
 
-The following procedures were tested under **Ubuntu 20**. If you don't have it, check [rosdocker](https://github.com/luigifreda/rosdocker) and use the *noetic* or *noetic_cuda* containers.
+The following procedures were tested under **Ubuntu 20, 22, 24**. ROS support is provided only under **noetic** with **Ubuntu 20** (see [here](#ros-build)).  
+If you don't have Ubuntu 20 with noetic, check [rosdocker](https://github.com/luigifreda/rosdocker) and use the *noetic* or *noetic_cuda* containers.
+
+**NOTE**: At present, under Ubuntu 24.04, `BUILD_WITH_MARCH_NATIVE` is set to `OFF`. Enabling `--march=native` optimization brings some problems probably due to different default building options in the native `libpcl`.
 
 ### Build
 
@@ -43,13 +46,18 @@ The following procedures were tested under **Ubuntu 20**. If you don't have it, 
 3. Build the *PLVS* framework:       
   `$ ./build.sh`
 
-Under **ROS noetic** you can run:        
-`$ ./build_ros_catkin.sh`       
-to build the *PLVS* ROS workspace and deploy it into the `ros_ws` subfolder.
-
-It should be easy to adapt the above procedures if you have a different OS or ROS version. 
+It should be easy to adapt the above procedures if you have a different OS version. 
 
 If you want to skip step 2, you can set the variables `OpenCV_DIR` and `OPENCV_VERSION` in `config.sh` with your local *OpenCV* path and version, respectively. However, this is not recommended. 
+
+### ROS build
+
+Only under **ROS noetic** you can run:        
+`$ ./build_ros_catkin.sh`       
+
+This command builds the *PLVS* ROS workspace and deploys it in the `ros_ws` folder.
+
+
 
 ### Running the examples 
 
@@ -67,13 +75,13 @@ If you built the ROS workspace, you can use the scripts `ros_xterm*` to launch t
 
 ## Contributing
 
-You are welcome to contribute to the code base by using pull requests, reporting bugs, leaving comments, and proposing new features through issues. Feel free to get in touch: *luigifreda(at)gmail(dot)com*. Thank you!
+We welcome contributions to the codebase through pull requests, bug reports, comments, and feature proposals via issues. For any questions or feedback, please contact *luigifreda(at)gmail(dot)com*. Thank you!
 
 ## License 
 
-We release PLVS under [GPLv3 license](./LICENSE). PLVS contains some modified libraries, each one coming with its license. Where nothing is specified, a GPLv3 license applies to the software.
+PLVS is released under [GPLv3 license](./LICENSE). PLVS contains some modified libraries, each one coming with its license. Where nothing is specified, a GPLv3 license applies to the software.
 
-Please cite our work if you use PLVS in your projects.
+If you use PLVS in your projects, please cite our above-mentioned document.
 
 ## Credits  
 

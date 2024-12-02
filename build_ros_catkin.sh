@@ -25,6 +25,21 @@ if [[ -n "$EXTERNAL_OPTION" ]]; then
     echo "external option: $EXTERNAL_OPTION" 
 fi
 
+# check if we set a BUILD_TYPE
+if [[ -n "$BUILD_TYPE" ]]; then
+    echo "BUILD_TYPE: $BUILD_TYPE" 
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DCMAKE_BUILD_TYPE=$BUILD_TYPE"
+else
+    echo "setting BUILD_TYPE to Release by default"
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DCMAKE_BUILD_TYPE=Release"     
+fi
+
+# check if we set BUILD_WITH_MARCH_NATIVE
+if [[ -n "$BUILD_WITH_MARCH_NATIVE" ]]; then
+    echo "BUILD_WITH_MARCH_NATIVE: $BUILD_WITH_MARCH_NATIVE" 
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DBUILD_WITH_MARCH_NATIVE=$BUILD_WITH_MARCH_NATIVE"
+fi
+
 # check if we set a C++ standard
 if [[ -n "$CPP_STANDARD_VERSION" ]]; then
     echo "forcing C++$CPP_STANDARD_VERSION compilation"	
@@ -50,6 +65,11 @@ if [[ $OPENCV_VERSION == 4* ]]; then
     EXTERNAL_OPTION="$EXTERNAL_OPTION -DOPENCV_VERSION=4"
 fi
 
+if [[ $USE_LOCAL_PCL -eq 1 ]]; then
+    echo "USE_LOCAL_PCL: $USE_LOCAL_PCL" 
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DWITH_LOCAL_PCL=ON"
+fi
+
 # check the use of OAK
 if [ $USE_OAK -eq 1 ]; then
     export depthai_DIR="$SCRIPT_DIR/Thirdparty/depthai-core/build"
@@ -58,7 +78,7 @@ if [ $USE_OAK -eq 1 ]; then
 fi
 
 
-print_blue  "external option: $EXTERNAL_OPTION"
+print_blue  "external options: $EXTERNAL_OPTION"
 # ====================================================
 
 # create the ros workspace folder 

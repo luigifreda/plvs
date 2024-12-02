@@ -9,10 +9,27 @@ SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symboli
 cd $SCRIPT_DIR # this brings us in the actual used folder (not the possibly symbolic one)
 
 
-EXTERNAL_OPTION=$1
-if [[ -n "$EXTERNAL_OPTION" ]]; then
-    echo "external option: $EXTERNAL_OPTION" 
+EXTERNAL_OPTIONS=$1
+if [[ -n "$EXTERNAL_OPTIONS" ]]; then
+    echo "external options: $EXTERNAL_OPTIONS" 
 fi
+
+# check if we set a BUILD_TYPE
+if [[ -n "$BUILD_TYPE" ]]; then
+    echo "BUILD_TYPE: $BUILD_TYPE" 
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DCMAKE_BUILD_TYPE=$BUILD_TYPE"
+else
+    echo "setting BUILD_TYPE to Release by default"
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DCMAKE_BUILD_TYPE=Release" 
+fi
+
+# check if we set BUILD_WITH_MARCH_NATIVE
+if [[ -n "$BUILD_WITH_MARCH_NATIVE" ]]; then
+    echo "BUILD_WITH_MARCH_NATIVE: $BUILD_WITH_MARCH_NATIVE" 
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DBUILD_WITH_MARCH_NATIVE=$BUILD_WITH_MARCH_NATIVE"
+fi
+
+echo "external options: $EXTERNAL_OPTIONS"
 
 print_blue '================================================'
 print_blue "Configuring and building Thirdparty/g2o_new ..."
@@ -31,9 +48,10 @@ cd g2o_new
 make_buid_dir
 if [[ ! -f install/lib/libg2o_core.so ]]; then
 	cd build
-    G2O_OPTIONS="-DBUILD_WITH_MARCH_NATIVE=ON -DG2O_BUILD_EXAMPLES=OFF" 
-    echo "compiling with options: $G2O_OPTIONS $EXTERNAL_OPTION" 
-    cmake .. -DCMAKE_INSTALL_PREFIX="`pwd`/../install" -DCMAKE_BUILD_TYPE=Release $G2O_OPTIONS $EXTERNAL_OPTION
+    #G2O_OPTIONS="-DBUILD_WITH_MARCH_NATIVE=ON -DG2O_BUILD_EXAMPLES=OFF"  # march native controlled by the above option!
+    G2O_OPTIONS="-DG2O_BUILD_EXAMPLES=OFF" 
+    echo "compiling with options: $G2O_OPTIONS $EXTERNAL_OPTIONS" 
+    cmake .. -DCMAKE_INSTALL_PREFIX="`pwd`/../install" -DCMAKE_BUILD_TYPE=Release $G2O_OPTIONS $EXTERNAL_OPTIONS
 	make -j 8
     make install 
 fi 

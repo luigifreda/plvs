@@ -23,6 +23,9 @@
 
 #include "PointUtils.h"
 
+#include <boost/make_shared.hpp>
+
+#include <pcl/common/common.h>
 #include <pcl/io/ply_io.h>
 #include <pcl/filters/crop_box.h>
 #include <pcl/filters/extract_indices.h>
@@ -51,9 +54,13 @@ PointCloudMap<PointT>::PointCloudMap(Map* pMap, const std::shared_ptr<PointCloud
 mpMap(pMap), pPointCloudMapParameters_(params), lastTimestamp_(0), bMapUpdated_(false) 
 {
     MSG_ASSERT(mpMap!=NULL,"PointCloudMap should be initialized with a valid Map!");
-        
+#if PCL_VERSION <= PCL_VERSION_CALC(1, 10, 0)  // pcl 1.10        
     pPointCloud_ = boost::make_shared< PointCloudT >();
     pPointCloudUnstable_ = boost::make_shared< PointCloudT >();
+#else 
+    pPointCloud_ = std::make_shared< PointCloudT >();
+    pPointCloudUnstable_ = std::make_shared< PointCloudT >();
+#endif
 }
 
 template<typename PointT>

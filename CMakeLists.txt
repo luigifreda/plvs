@@ -16,7 +16,8 @@ set(WITH_LIBSGM         ON  CACHE BOOL "Add stereo libsgm support")  # for stere
 set(WITH_OPENMP         ON  CACHE BOOL "Add OpenMP support") # useful for PCL (since we use the macro PCL_NO_PRECOMPILE!)
 set(WITH_CUDA           OFF CACHE BOOL "Add CUDA support")
 set(WITH_TRACY_PROFILER OFF CACHE BOOL "Add Tracy profiler support.")
-set(WITH_RERUN          OFF  CACHE BOOL "Add Rerun support.")
+set(WITH_RERUN          OFF CACHE BOOL "Add Rerun support.")
+set(WITH_LOCAL_PCL      OFF  CACHE BOOL "Add local PCL support")
 
 #====================================
 # c++ standard 
@@ -206,7 +207,9 @@ message(STATUS "pangolin libs: ${Pangolin_LIBRARY}")
 find_package(realsense2)
 
 
-#set(CMAKE_PREFIX_PATH ${PROJECT_SOURCE_DIR}/Thirdparty/pcl/install/share/pcl-1.10)
+if(WITH_LOCAL_PCL)
+    set(CMAKE_PREFIX_PATH ${PROJECT_SOURCE_DIR}/Thirdparty/pcl/install/share/pcl)
+endif()
 find_package(PCL 1.7 REQUIRED)
 message(STATUS "pcl include: ${PCL_INCLUDE_DIRS}")
 message(STATUS "pcl libs: ${PCL_LIBRARY_DIRS}")

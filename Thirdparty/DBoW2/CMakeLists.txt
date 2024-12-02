@@ -7,13 +7,26 @@ endif()
 
 set(CPP_STANDARD_VERSION "17" CACHE STRING "Desired C++ standard version") 
 set(OPENCV_VERSION "3" CACHE STRING "Desired OpenCV version") # this is the first target version that is searched for 
+set(BUILD_WITH_MARCH_NATIVE ON  CACHE BOOL "Build with \"-march native\"")
 
 # Set the C++ standard 
 set(CMAKE_CXX_STANDARD ${CPP_STANDARD_VERSION})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3 -march=native -fPIC -DNDEBUG")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall  -O3 -march=native -fPIC -DNDEBUG")
+# This option allows the generations of a file compile_commands.json in our build folder: that file contains the full command line to compile individual source files
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -fPIC -DNDEBUG")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall  -O3 -fPIC -DNDEBUG")
+
+if(BUILD_WITH_MARCH_NATIVE)
+  set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -march=native") 
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")         
+endif()
 
 
 set(HDRS_DBOW2

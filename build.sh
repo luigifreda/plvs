@@ -2,9 +2,8 @@
 
 . config.sh  # source configuration file and utils 
 
-./gen_bin_vocabulary.sh
-
 ./build_thirdparty.sh "$@"
 
 ./build_plvs.sh "$@"
 
+./gen_bin_vocabulary.sh

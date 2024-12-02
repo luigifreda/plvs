@@ -26,6 +26,9 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/octree/octree_pointcloud.h>
 #include <pcl/octree/octree_pointcloud_singlepoint.h>
+
+#include <pcl/octree/octree2buf_base.h>
+#include <pcl/octree/octree_search.h>
 #include <pcl/octree/octree_impl.h>
 
 

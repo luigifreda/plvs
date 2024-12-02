@@ -4,8 +4,9 @@ project(plvs)
 set(CPP_STANDARD_VERSION "17" CACHE STRING "Desired C++ standard version") 
 set(OPENCV_VERSION "4" CACHE STRING "Desired OpenCV version") # this is the first target version that is searched for 
 set(BUILD_WITH_MARCH_NATIVE ON  CACHE BOOL "Build with \"-march native\"")
-set(WITH_OPENMP ON CACHE BOOL "Added OpenMP support") # useful for PCL (since we use the macro PCL_NO_PRECOMPILE!)
-set(WITH_CUDA OFF CACHE BOOL "Added CUDA support")
+set(WITH_OPENMP             ON CACHE BOOL "Added OpenMP support") # useful for PCL (since we use the macro PCL_NO_PRECOMPILE!)
+set(WITH_CUDA               OFF CACHE BOOL "Added CUDA support")
+set(WITH_LOCAL_PCL          OFF  CACHE BOOL "Add local PCL support")
 
 #====================================
 # c++ standard 
@@ -110,7 +111,15 @@ find_package(Pangolin REQUIRED)
 message(STATUS "pangolin include: ${Pangolin_INCLUDE_DIRS}")
 
 
+if(WITH_LOCAL_PCL)
+    set(CMAKE_PREFIX_PATH ${PROJECT_SOURCE_DIR}/../../../Thirdparty/pcl/install/share/pcl)
+endif()
 find_package(PCL 1.7 REQUIRED )
+message(STATUS "pcl include: ${PCL_INCLUDE_DIRS}")
+message(STATUS "pcl libs: ${PCL_LIBRARY_DIRS}")
+message(STATUS "pcl definitions: ${PCL_DEFINITIONS}")
+#add_definitions( ${PCL_DEFINITIONS} )     # added below
+#link_directories( ${PCL_LIBRARY_DIRS})    # added below
 
 message(STATUS "Desired OpenCV version: ${OPENCV_VERSION}")
 find_package(OpenCV ${OPENCV_VERSION} REQUIRED)

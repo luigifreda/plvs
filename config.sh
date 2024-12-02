@@ -7,7 +7,18 @@ CONFIG_DIR=$(readlink -f $CONFIG_DIR)  # this reads the actual path if a symboli
 cd $CONFIG_DIR # this brings us in the actual folder of this config script (not the symbolic one)
 #echo "current dir: $CONFIG_DIR"
 
-version=$(lsb_release -a 2>&1)  # ubuntu version 
+UBUNTU_VERSION=$(lsb_release -a 2>&1)  # ubuntu version 
+
+# ====================================================
+# BUILD_TYPE 
+# ====================================================
+
+export BUILD_TYPE=Release            # control the build type of all the projects
+export BUILD_WITH_MARCH_NATIVE=ON    # enable/disable building with --march=native in all the projects
+
+if [[ "$UBUNTU_VERSION" == *"24.04"* ]] ; then
+	BUILD_WITH_MARCH_NATIVE=OFF  # At present, building with --march=native does not work under Ubuntu 24.04 (probably due to different default building options in the native libpcl)
+fi 
 
 # ====================================================
 # C++ standard  
@@ -15,9 +26,14 @@ version=$(lsb_release -a 2>&1)  # ubuntu version
 
 export CPP_STANDARD_VERSION=17   # we need c++17 since nvcc does not support c++20 yet (probably we can try mixing c++ standards and just let nvcc use c++17 ... not sure this is the best choice)
 
-if [[ $version == *"18.04"* ]] ; then
+# if [[ "$UBUNTU_VERSION" == *"24.04"* ]] ; then
+# 	export CPP_STANDARD_VERSION=20
+# 	echo "Forcing C++ $CPP_STANDARD_VERSION standard under Ubuntu 20.04 (OPTIONAL)"
+# fi
+
+if [[ $UBUNTU_VERSION == *"18.04"* ]] ; then
 	export CPP_STANDARD_VERSION=11
-	echo "Forcing C++11 standard under Ubuntu 18.04"
+	echo "Forcing C++11 standard under Ubuntu 18.04 (REQUIRED)"
 fi 
 
 # ====================================================
@@ -54,11 +70,18 @@ export LD_LIBRARY_PATH=/usr/local/$CUDA_VERSION/lib64${LD_LIBRARY_PATH:+:${LD_LI
 export CUDADIR=/usr/local/$CUDA_VERSION
 
 # ====================================================
-# Dataset Settings 
+# PCL
 # ====================================================
 
-# to be used in run/xterm scripts
-export DATASETS_FOLDER="~/Work/datasets/rgbd_datasets/tum/"
+# NOTE: Use a local pcl version IF AND ONLY IF:
+# - You are not using or don't want to use ROS otherwise you need to manually build from source and link all ROS libraries that depends on libpcl!
+# If you don't respect this warning you are going to link two different libpcl libs version and get undefined behaviors!
+# TO INSTALL A LOCAL PCL version: use the script `install_local_pcl.sh`
+export USE_LOCAL_PCL=0
+
+if [[ $USE_LOCAL_PCL -eq 1 ]]; then
+	echo "!!!You are going to use a local PCL version. If you want to use ROS then you need to manually build from source and link all ROS libraries that depends on libpcl!!!" 
+fi
 
 # ====================================================
 # ROS Settings 

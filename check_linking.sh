@@ -39,3 +39,13 @@ print_blue '================================================'
 cd $PROJECT_DIR
 echo "Check you are getting the local g2o libs"
 ldd lib/libplvs.so | grep g2o
+
+
+
+print_blue '================================================'
+
+# check correct linking of libpcl libs: you should see the libs  
+cd $PROJECT_DIR
+echo "Check you are getting the local pcl libs"
+ldd lib/libplvs.so | grep pcl
+

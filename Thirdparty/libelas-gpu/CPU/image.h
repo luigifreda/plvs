@@ -28,6 +28,7 @@ Street, Fifth Floor, Boston, MA 02110-1301, USA
 #include <climits>
 #include <cstring>
 #include <fstream>
+#include <iostream>
 
 // use imRef to access image data.
 #define imRef(im, x, y) (im->access[y][x])
@@ -112,7 +113,7 @@ template <class T> image<T> *image<T>::copy() const {
 
 class pnm_error {};
 
-void pnm_read(std::ifstream &file, char *buf) {
+void pnm_read(std::ifstream &file, char buf[BUF_SIZE]) {
   char doc[BUF_SIZE];
   char c;
   
@@ -123,9 +124,10 @@ void pnm_read(std::ifstream &file, char *buf) {
   }
   file.putback(c);
   
-  file.width(BUF_SIZE);
-  file >> buf;
-  file.ignore();
+  //file.width(BUF_SIZE);
+  //file >> buf;
+  //file.ignore();
+  file.getline(buf, BUF_SIZE); // Use getline for robust reading
 }
 
 image<uchar> *loadPGM(const char *name) {
