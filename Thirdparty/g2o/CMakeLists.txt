@@ -4,7 +4,10 @@ SET(CMAKE_LEGACY_CYGWIN_WIN32 0)
 PROJECT(g2o)
 
 set(CPP_STANDARD_VERSION "17" CACHE STRING "Desired C++ standard version") 
-set(WITH_OPTIMIZATION_FLAGS ON CACHE BOOL "ENABLED Optimization flags")
+set(BUILD_WITH_MARCH_NATIVE ON CACHE BOOL "ENABLED Optimization flags")
+
+# This option allows the generations of a file compile_commands.json in our build folder: that file contains the full command line to compile individual source files
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 SET(g2o_C_FLAGS)
 SET(g2o_CXX_FLAGS)
@@ -57,13 +60,13 @@ IF(OPENMP_FOUND AND G2O_USE_OPENMP)
 ENDIF(OPENMP_FOUND AND G2O_USE_OPENMP)
 
 # Compiler specific options for gcc
-if(WITH_OPTIMIZATION_FLAGS)
-    SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native -fPIC -DNDEBUG") 
-    SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -march=native -fPIC -DNDEBUG") 
+if(BUILD_WITH_MARCH_NATIVE)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -fPIC -DNDEBUG") 
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -march=native -fPIC -DNDEBUG") 
 else()
     message(STATUS "\n !!! Compiling g2o without optimization flags!!!\n")
-    SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 ") 
-    SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 ")     
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 ") 
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 ")     
 endif()
 
 # Set the C++ standard 
@@ -192,5 +195,3 @@ g2o/stuff/property.cpp
 g2o/stuff/property.h       
 )
 
-# This option allows the generations of a file compile_commands.json in our build folder: that file contains the full command line to compile individual source files
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

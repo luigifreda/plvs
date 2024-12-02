@@ -25,6 +25,11 @@
 #include <pcl/common/io.h>
 #include <pcl/filters/voxel_grid.h>
 
+#ifndef pcl_isfinite
+#include <cmath> // For std::isfinite
+#define pcl_isfinite(x) std::isfinite(x)
+#endif
+
 
 inline void pcl::VoxelGridCustom<pcl::PointSurfelSegment>::applyFilter (PointCloud &output)
 {

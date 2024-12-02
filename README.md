@@ -1,5 +1,5 @@
 # PLVS II
-### v0.2
+### v0.2.1
 
 Author: [Luigi Freda](https://www.luigifreda.com)
 
@@ -32,7 +32,10 @@ PLVS is available in two different versions.
   
 ## Quick start 
 
-The following procedures were tested under **Ubuntu 20**. If you don't have it, check [rosdocker](https://github.com/luigifreda/rosdocker) and use the *noetic* or *noetic_cuda* containers.
+The following procedures were tested under **Ubuntu 20, 22, 24**. ROS support is provided only under **noetic** with **Ubuntu 20** (see [here](#ros-build)).  
+If you don't have Ubuntu 20 with noetic, check [rosdocker](https://github.com/luigifreda/rosdocker) and use the *noetic* or *noetic_cuda* containers.
+
+**NOTE**: At present, under Ubuntu 24.04, `BUILD_WITH_MARCH_NATIVE` is set to `OFF`. Enabling `--march=native` optimization brings some problems probably due to different default building options in the native `libpcl`.
 
 ### Build
 
@@ -43,13 +46,18 @@ The following procedures were tested under **Ubuntu 20**. If you don't have it, 
 3. Build the *PLVS* framework:       
   `$ ./build.sh`
 
-Under **ROS noetic** you can run:        
-`$ ./build_ros_catkin.sh`       
-to build the *PLVS* ROS workspace and deploy it into the `ros_ws` subfolder.
-
-It should be easy to adapt the above procedures if you have a different OS or ROS version. 
+It should be easy to adapt the above procedures if you have a different OS version. 
 
 If you want to skip step 2, you can set the variables `OpenCV_DIR` and `OPENCV_VERSION` in `config.sh` with your local *OpenCV* path and version, respectively. However, this is not recommended. 
+
+### ROS build
+
+Only under **ROS noetic** you can run:        
+`$ ./build_ros_catkin.sh`       
+
+This command builds the *PLVS* ROS workspace and deploys it in the `ros_ws` folder.
+
+
 
 ### Running the examples 
 

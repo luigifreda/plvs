@@ -105,3 +105,39 @@ index 24dc07ed..ccef4062 100644
      $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>
      $<INSTALL_INTERFACE:include>
  )
+diff --git a/components/pango_packetstream/include/pangolin/log/packetstream.h b/components/pango_packetstream/include/pangolin/log/packetstream.h
+index 49ee0c72..48201be9 100644
+--- a/components/pango_packetstream/include/pangolin/log/packetstream.h
++++ b/components/pango_packetstream/include/pangolin/log/packetstream.h
+@@ -25,6 +25,7 @@
+ 
+ #pragma once
+ 
++#include <cstdint>
+ #include <fstream>
+ 
+ #include <pangolin/platform.h>
+diff --git a/components/pango_packetstream/include/pangolin/log/packetstream_tags.h b/components/pango_packetstream/include/pangolin/log/packetstream_tags.h
+index 2798fecc..2adbd299 100644
+--- a/components/pango_packetstream/include/pangolin/log/packetstream_tags.h
++++ b/components/pango_packetstream/include/pangolin/log/packetstream_tags.h
+@@ -1,5 +1,6 @@
+ #pragma once
+ 
++#include <cstdint>
+ #include <string>
+ 
+ namespace pangolin {
+diff --git a/examples/PythonExamples/SimpleDisplay.py b/examples/PythonExamples/SimpleDisplay.py
+index 77e7fcdd..83c52dec 100755
+--- a/examples/PythonExamples/SimpleDisplay.py
++++ b/examples/PythonExamples/SimpleDisplay.py
+@@ -1,5 +1,8 @@
+ import sys
+ 
++sys.path.append('/home/luigi/Work/slam_rgbd_wss/plvs2/Thirdparty/Pangolin/build/pypangolin-0.8.data/purelib/')
++
++
+ import pypangolin as pango
+ from OpenGL.GL import *
+ 

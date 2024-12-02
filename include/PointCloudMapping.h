@@ -26,6 +26,7 @@
 #include <thread>
 #include <chrono>
 #include <atomic>
+#include <deque>
 #include <condition_variable>
 
 #include "PointDefinitions.h"

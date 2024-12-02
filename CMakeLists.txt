@@ -16,7 +16,7 @@ set(WITH_LIBSGM         ON  CACHE BOOL "Add stereo libsgm support")  # for stere
 set(WITH_OPENMP         ON  CACHE BOOL "Add OpenMP support") # useful for PCL (since we use the macro PCL_NO_PRECOMPILE!)
 set(WITH_CUDA           OFF CACHE BOOL "Add CUDA support")
 set(WITH_TRACY_PROFILER OFF CACHE BOOL "Add Tracy profiler support.")
-set(WITH_RERUN          OFF  CACHE BOOL "Add Rerun support.")
+set(WITH_RERUN          OFF CACHE BOOL "Add Rerun support.")
 
 #====================================
 # c++ standard 

@@ -22,9 +22,8 @@
 
 #include "PointDefinitions.h"
 
+#include <pcl/common/common.h>
 #include <pcl/filters/voxel_grid.h>
-
-
 
 
 namespace pcl

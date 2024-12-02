@@ -127,7 +127,11 @@ void PointCloudMapVoxelGridFilter<PointT>::OnMapChange()
 template<typename PointT>
 PointCloudMapModel<PointT>::PointCloudMapModel()
 {
-    pPointCloud_ = boost::make_shared< PointCloudT >();     
+#if PCL_VERSION <= PCL_VERSION_CALC(1, 10, 0)  // pcl 1.10
+    pPointCloud_ = boost::make_shared< PointCloudT >();   
+#else
+    pPointCloud_ = std::make_shared< PointCloudT >();
+#endif  
 }
 
 template<typename PointT>
