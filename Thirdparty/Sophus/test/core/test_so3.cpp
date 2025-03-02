@@ -187,7 +187,7 @@ class Tests {
     // We (a) split the output space in half, (b) apply a series of random
     // rotations to a point, (c) check which half of the output space each
     // transformed point ends up, and then (d) apply a standard "coin toss"
-    // chi-square test
+    // chi-squared test
 
     for (size_t trial = 0; trial < 5; trial++) {
       std::normal_distribution<Scalar> normal(0, 10);

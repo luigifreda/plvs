@@ -94,8 +94,11 @@ else
     fi 
 fi 
 echo CUDA_ON: $CUDA_ON
-export PATH=/usr/local/$CUDA_VERSION/bin${PATH:+:${PATH}}   # this is for having the right nvcc in the path
-export LD_LIBRARY_PATH=/usr/local/$CUDA_VERSION/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}  # this is for libs 
+if [[ "$CUDA_ON" == "ON" ]]; then
+    echo CUDA_PATH: /usr/local/$CUDA_VERSION
+    export PATH=/usr/local/$CUDA_VERSION/bin${PATH:+:${PATH}}   # this is for having the right nvcc in the path
+    export LD_LIBRARY_PATH=/usr/local/$CUDA_VERSION/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}  # this is for libs
+fi 
 
 # pre-installing some required packages 
 

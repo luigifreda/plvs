@@ -59,8 +59,8 @@ export OPENCV_VERSION=4
 
 # 1: ON, 0: OFF
 export USE_CUDA=0  # use CUDA in PLVS sparse SLAM  
-export CUDA_VERSION="cuda-11.8"  # must be an installed CUDA path in "/usr/local"; 
-                                 # if available, you can use the simple path "/usr/local/cuda" which should be a symbolic link to the last installed cuda version 
+export CUDA_VERSION="cuda"  # must be an installed CUDA path in "/usr/local"; 
+                            # if available, you can use the simple path "/usr/local/cuda" which should be a symbolic link to the last installed cuda version 
 if [ ! -d /usr/local/$CUDA_VERSION ]; then
     CUDA_VERSION="cuda"  # use last installed CUDA path in standard path as a fallback 
 fi 

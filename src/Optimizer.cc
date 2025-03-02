@@ -651,11 +651,11 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
             maxKFid=pKF->mnId;
     }
 
-    const float thHuber2D = sqrt(5.99);  // chi-square 2 DOFs
-    const float thHuber3D = sqrt(7.815); // chi-square 3 DOFs
+    const float thHuber2D = sqrt(5.99);  // chi-squared 2 DOFs
+    const float thHuber3D = sqrt(7.815); // chi-squared 3 DOFs
     
-    const float thHuberLineMono = sqrt(5.99);    // chi-square 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley pg 119)
-    const float thHuberLineStereo = sqrt(9.49);  // chi-square 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs 
+    const float thHuberLineMono = sqrt(5.99);    // chi-squared 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley pg 119)
+    const float thHuberLineStereo = sqrt(9.49);  // chi-squared 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs 
     
     const float thHuberObjectTimesSigma = sqrt(3);  // we estimate sigma2 = E[ek^2] and use it to normalize the object error, n=3 is used for rejecting outliers that have ek^2/sigma2 > n
 
@@ -1338,8 +1338,8 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
                 }
                 
 #if USE_LINES  
-                const float chi2LineMono = 5.991;        // chi-square 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley Zisserman pg 119)
-                const float chi2LineStereo = 9.49;       // chi-square 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs   
+                const float chi2LineMono = 5.991;        // chi-squared 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley Zisserman pg 119)
+                const float chi2LineStereo = 9.49;       // chi-squared 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs   
                 
                 for(size_t i=0, iend=vpLineEdgesMono.size(); i<iend;i++)
                 {
@@ -1729,8 +1729,8 @@ void Optimizer::FullInertialBA(Map *pMap, int its, const bool bFixLocal, const l
 
     const float thHuberMono = sqrt(5.991);
     const float thHuberStereo = sqrt(7.815);
-    const float thHuberLineMono = sqrt(5.991);  // chi-square 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley pg 119)
-    const float thHuberLineStereo = sqrt(9.49); // chi-square 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs
+    const float thHuberLineMono = sqrt(5.991);  // chi-squared 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley pg 119)
+    const float thHuberLineStereo = sqrt(9.49); // chi-squared 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs
     const float thHuberObjectTimesSigma = sqrt(3); // we estimate sigma2 = E[ek^2] and use it to normalize the object error, n=3 is used for rejecting outliers that have ek^2/sigma2 > n
 
     const unsigned long iniMPid = maxKFid*5;
@@ -2460,8 +2460,8 @@ int Optimizer::PoseOptimization(Frame *pFrame)
     vpEdgesStereo.reserve(N);
     vnIndexEdgeStereo.reserve(N);
 
-    const float deltaMono = sqrt(5.991);    // chi-square 2 DOFs
-    const float deltaStereo = sqrt(7.815);  // chi-square 3 DOFs
+    const float deltaMono = sqrt(5.991);    // chi-squared 2 DOFs
+    const float deltaStereo = sqrt(7.815);  // chi-squared 3 DOFs
     
 #if USE_LINES_POSE_OPTIMIZATION     
     // Set MapLine vertices
@@ -2483,8 +2483,8 @@ int Optimizer::PoseOptimization(Frame *pFrame)
     vpEdgesLineMonoRight.reserve(Nlines);
     vnIndexEdgeLineMonoRight.reserve(Nlines);    
 
-    const float deltaLineMono   = sqrt(5.991);// chi-square 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley Zisserman pg 119)
-    const float deltaLineStereo = sqrt(9.49); // chi-square 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs 
+    const float deltaLineMono   = sqrt(5.991);// chi-squared 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley Zisserman pg 119)
+    const float deltaLineStereo = sqrt(9.49); // chi-squared 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs 
         
 #endif
     
@@ -2902,10 +2902,10 @@ int Optimizer::PoseOptimization(Frame *pFrame)
 
     // We perform 4 optimizations, after each optimization we classify observation as inlier/outlier
     // At the next optimization, outliers are not included, but at the end they can be classified as inliers again.
-    const float chi2Mono[4]={5.991,5.991,5.991,5.991};            // chi-square 2 DOFs
-    const float chi2Stereo[4]={7.815,7.815,7.815,7.815};          // chi-square 3 DOFs
-    const float chi2LineMono[4]={5.991,5.991,5.991,5.991};        // chi-square 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley Zisserman pg 119)
-    const float chi2LineStereo[4]={9.49,9.49,9.49,9.49};          // chi-square 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs 
+    const float chi2Mono[4]={5.991,5.991,5.991,5.991};            // chi-squared 2 DOFs
+    const float chi2Stereo[4]={7.815,7.815,7.815,7.815};          // chi-squared 3 DOFs
+    const float chi2LineMono[4]={5.991,5.991,5.991,5.991};        // chi-squared 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley Zisserman pg 119)
+    const float chi2LineStereo[4]={9.49,9.49,9.49,9.49};          // chi-squared 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs 
     const int its[4]={10,10,10,10};    
 
     int nBad=0;
@@ -3559,10 +3559,10 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pKF, bool* pbStopFlag, Map* pM
 #endif // USE_OBJECTS_LOCAL_BA     
 
     
-    const float thHuberMono = sqrt(5.991);      // chi-square 2 DOFS 
-    const float thHuberStereo = sqrt(7.815);    // chi-square 3 DOFS
-    const float thHuberLineMono = sqrt(5.991);  // chi-square 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley pg 119)
-    const float thHuberLineStereo = sqrt(9.49); // chi-square 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs
+    const float thHuberMono = sqrt(5.991);      // chi-squared 2 DOFS 
+    const float thHuberStereo = sqrt(7.815);    // chi-squared 3 DOFS
+    const float thHuberLineMono = sqrt(5.991);  // chi-squared 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley pg 119)
+    const float thHuberLineStereo = sqrt(9.49); // chi-squared 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs
     const float thHuberObjectTimesSigma = sqrt(3); // we estimate sigma2 = E[ek^2] and use it to normalize the object error, n=3 is used for rejecting outliers that have ek^2/sigma2 > n
 
     
@@ -6008,9 +6008,9 @@ void Optimizer::LocalInertialBA(KeyFramePtr pKF, bool *pbStopFlag, Map *pMap, in
     const float thHuberStereo = sqrt(7.815);
     const float chi2Stereo2 = 7.815;
 
-    const float thHuberLineMono = sqrt(5.991);  // chi-square 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley pg 119)
+    const float thHuberLineMono = sqrt(5.991);  // chi-squared 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley pg 119)
     const float chi2LineMono2 = 5.991;    
-    const float thHuberLineStereo = sqrt(9.49); // chi-square 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs
+    const float thHuberLineStereo = sqrt(9.49); // chi-squared 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs
     const float chi2LineStereo2 = 9.49;    
     const float thHuberObjectTimesSigma = sqrt(3); // we estimate sigma2 = E[ek^2] and use it to normalize the object error, n=3 is used for rejecting outliers that have ek^2/sigma2 > n
     const float chi2ObjectStereo2 = 3;        
@@ -7469,10 +7469,10 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pMainKF, vector<KeyFramePtr> v
 
 #endif // USE_OBJECTS_LOCAL_BA        
     
-    const float thHuberMono = sqrt(5.991);      // chi-square 2 DOFS 
-    const float thHuberStereo = sqrt(7.815);    // chi-square 3 DOFS
-    const float thHuberLineMono = sqrt(5.991);  // chi-square 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley pg 119)
-    const float thHuberLineStereo = sqrt(9.49); // chi-square 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs
+    const float thHuberMono = sqrt(5.991);      // chi-squared 2 DOFS 
+    const float thHuberStereo = sqrt(7.815);    // chi-squared 3 DOFS
+    const float thHuberLineMono = sqrt(5.991);  // chi-squared 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley pg 119)
+    const float thHuberLineStereo = sqrt(9.49); // chi-squared 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs
     const float thHuberObjectTimesSigma = sqrt(3); // we estimate sigma2 = E[ek^2] and use it to normalize the object error, n=3 is used for rejecting outliers that have ek^2/sigma2 > n
 
     
@@ -8886,9 +8886,9 @@ void Optimizer::MergeInertialBA(KeyFramePtr pCurrKF, KeyFramePtr pMergeKF, bool 
     const float thHuberStereo = sqrt(7.815);
     const float chi2Stereo2 = 7.815;
 
-    const float thHuberLineMono = sqrt(5.991);  // chi-square 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley pg 119)
+    const float thHuberLineMono = sqrt(5.991);  // chi-squared 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley pg 119)
     const float chi2LineMono2 = 5.991;    
-    const float thHuberLineStereo = sqrt(9.49); // chi-square 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs
+    const float thHuberLineStereo = sqrt(9.49); // chi-squared 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs
     const float chi2LineStereo2 = 9.49;    
     const float thHuberObjectTimesSigma = sqrt(3); // we estimate sigma2 = E[ek^2] and use it to normalize the object error, n=3 is used for rejecting outliers that have ek^2/sigma2 > n
     const float chi2ObjectStereo2 = 3;    
@@ -9448,8 +9448,8 @@ int Optimizer::PoseInertialOptimizationLastKeyFrame(Frame *pFrame, bool bRecInit
     vnIndexEdgeLineMono.reserve(Nlines);       
     vnIndexEdgeLineStereo.reserve(Nlines); 
 
-    const float deltaLineMono   = sqrt(5.991);// chi-square 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley Zisserman pg 119)
-    const float deltaLineStereo = sqrt(9.49); // chi-square 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs         
+    const float deltaLineMono   = sqrt(5.991);// chi-squared 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley Zisserman pg 119)
+    const float deltaLineStereo = sqrt(9.49); // chi-squared 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs         
 #endif    
 
     {
@@ -9812,13 +9812,13 @@ int Optimizer::PoseInertialOptimizationLastKeyFrame(Frame *pFrame, bool bRecInit
 
     // We perform 4 optimizations, after each optimization we classify observation as inlier/outlier
     // At the next optimization, outliers are not included, but at the end they can be classified as inliers again.
-    float chi2Mono[4]={12,7.5,5.991,5.991};                       // chi-square 2 DOFs (first iterations have larger thresholds)
-    float chi2Stereo[4]={15.6,9.8,7.815,7.815};                   // chi-square 3 DOFs (first iterations have larger thresholds)
+    float chi2Mono[4]={12,7.5,5.991,5.991};                       // chi-squared 2 DOFs (first iterations have larger thresholds)
+    float chi2Stereo[4]={15.6,9.8,7.815,7.815};                   // chi-squared 3 DOFs (first iterations have larger thresholds)
     
-    //const float chi2LineMono[4]={5.991,5.991,5.991,5.991};      // chi-square 2 2D-perpendicular-line-distances = 2 DOFs for alpha=0.95 (Hartley Zisserman pg 119)
+    //const float chi2LineMono[4]={5.991,5.991,5.991,5.991};      // chi-squared 2 2D-perpendicular-line-distances = 2 DOFs for alpha=0.95 (Hartley Zisserman pg 119)
     const float chi2LineMono[4]={7.378,5.991,5.991,5.991};        // the first modified value 7.378 corresponds to 2 DOFs and alpha=0.975
     
-    //const float chi2LineStereo[4]={9.49,9.49,9.49,9.49};        // chi-square 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs 
+    //const float chi2LineStereo[4]={9.49,9.49,9.49,9.49};        // chi-squared 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs 
     const float chi2LineStereo[4]={11.14,9.49,9.49,9.49};          // the first modified value 11.14 corresponds to 4 DOFs and alpha=0.975 
     
     int its[4]={10,10,10,10};
@@ -10207,8 +10207,8 @@ int Optimizer::PoseInertialOptimizationLastFrame(Frame *pFrame, bool bRecInit)
     vnIndexEdgeLineMono.reserve(Nlines);       
     vnIndexEdgeLineStereo.reserve(Nlines); 
 
-    const float deltaLineMono   = sqrt(5.991);// chi-square 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley Zisserman pg 119)
-    const float deltaLineStereo = sqrt(9.49); // chi-square 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs         
+    const float deltaLineMono   = sqrt(5.991);// chi-squared 2 2D-perpendicular-line-distances = 2 DOFs  (Hartley Zisserman pg 119)
+    const float deltaLineStereo = sqrt(9.49); // chi-squared 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs         
 #endif    
 
     {
@@ -10591,10 +10591,10 @@ int Optimizer::PoseInertialOptimizationLastFrame(Frame *pFrame, bool bRecInit)
     const float chi2Mono[4]={5.991,5.991,5.991,5.991};
     const float chi2Stereo[4]={15.6f,9.8f,7.815f,7.815f};
     
-    //const float chi2LineMono[4]={5.991,5.991,5.991,5.991};      // chi-square 2 2D-perpendicular-line-distances = 2 DOFs for alpha=0.95 (Hartley Zisserman pg 119)
+    //const float chi2LineMono[4]={5.991,5.991,5.991,5.991};      // chi-squared 2 2D-perpendicular-line-distances = 2 DOFs for alpha=0.95 (Hartley Zisserman pg 119)
     const float chi2LineMono[4]={7.378,5.991,5.991,5.991};        // the first modified value 7.378 corresponds to 2 DOFs and alpha=0.975
     
-    //const float chi2LineStereo[4]={9.49,9.49,9.49,9.49};        // chi-square 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs 
+    //const float chi2LineStereo[4]={9.49,9.49,9.49,9.49};        // chi-squared 2 2D-perpendicular-line-distances + 2 3D-perpendicular-line-distances = 4 DOFs 
     const float chi2LineStereo[4]={11.14,9.49,9.49,9.49};          // the first modified value 11.14 corresponds to 4 DOFs and alpha=0.975 
     
 

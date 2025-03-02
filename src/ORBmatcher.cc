@@ -269,9 +269,9 @@ namespace PLVS2
         const float dsqr = num*num/den;
 
         if(!b1)
-            return dsqr<3.84*pKF2->mvLevelSigma2[kp2.octave]; // value of inverse cumulative chi-square for 1 DOF with alpha=0.95 (Hartley Zisserman pag 567)
+            return dsqr<3.84*pKF2->mvLevelSigma2[kp2.octave]; // value of inverse cumulative chi-squared for 1 DOF with alpha=0.95 (Hartley Zisserman pag 567)
         else
-            return dsqr<6.63*pKF2->mvLevelSigma2[kp2.octave]; // value of inverse cumulative chi-square for 1 DOF with alpha=0.99 
+            return dsqr<6.63*pKF2->mvLevelSigma2[kp2.octave]; // value of inverse cumulative chi-squared for 1 DOF with alpha=0.99 
     }
 
     bool ORBmatcher::CheckDistEpipolarLine2(const cv::KeyPoint &kp1, const cv::KeyPoint &kp2, const cv::Mat &F12, const KeyFramePtr& pKF2, const float unc)

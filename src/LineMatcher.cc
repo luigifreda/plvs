@@ -89,14 +89,14 @@ const int LineMatcher::TH_LOW = 60;//50;//80;
 const int LineMatcher::TH_LOW_STEREO = 50;
 const int LineMatcher::HISTO_LENGTH = 12; //30;
 
-const float kChiSquareSegSeg = 3.84;        // value of the inverse cumulative chi-square with 1 DOF for alpha=0.95 (Hartley-Zisserman pag 567) 
-const float kChiSquareSegSegLarger = 5.024; // value of the inverse cumulative chi-square with 1 DOF for alpha=0.975  
+const float kChiSquareSegSeg = 3.84;        // value of the inverse cumulative chi-squared with 1 DOF for alpha=0.95 (Hartley-Zisserman pag 567) 
+const float kChiSquareSegSegLarger = 5.024; // value of the inverse cumulative chi-squared with 1 DOF for alpha=0.975  
 
-const float kChiSquareLineMonoProj = 5.991;        // chi-square 2 2D-perpendicular-line-distances = 2 DOFs for alpha=0.95  (Hartley-Zisserman pg 119)
-const float kChiSquareLineMonoProjLarger = 7.378;  // chi-square 2 2D-perpendicular-line-distances = 2 DOFs for alpha=0.975  
+const float kChiSquareLineMonoProj = 5.991;        // chi-squared 2 2D-perpendicular-line-distances = 2 DOFs for alpha=0.95  (Hartley-Zisserman pg 119)
+const float kChiSquareLineMonoProjLarger = 7.378;  // chi-squared 2 2D-perpendicular-line-distances = 2 DOFs for alpha=0.975  
     
-const float kChiSquareLinePointProj = 3.84;        // value of the inverse cumulative chi-square with 1 DOF for alpha=0.95 (Hartley-Zisserman pag 567) 
-const float kChiSquareLinePointProjLarger = 5.024; // value of the inverse cumulative chi-square with 1 DOF for alpha=0.975
+const float kChiSquareLinePointProj = 3.84;        // value of the inverse cumulative chi-squared with 1 DOF for alpha=0.95 (Hartley-Zisserman pag 567) 
+const float kChiSquareLinePointProjLarger = 5.024; // value of the inverse cumulative chi-squared with 1 DOF for alpha=0.975
 
 template <typename T>    // T can be a std container: list<int> or vector<int> 
 void ComputeThreeMaxima(T* histo, const int L, int &ind1, int &ind2, int &ind3)
@@ -2159,7 +2159,7 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
         //        const float er = ur-kpr;
         //        const float e2 = ex*ex+ey*ey+er*er;
 
-        //        if(e2*pKF->mvInvLevelSigma2[kpLevel]>7.8) // 7.81 = value of the inverse cumulative chi-square with 3 DOFs (Hartley-Zisserman pag 567) 
+        //        if(e2*pKF->mvInvLevelSigma2[kpLevel]>7.8) // 7.81 = value of the inverse cumulative chi-squared with 3 DOFs (Hartley-Zisserman pag 567) 
         //            continue;
         //    }
         //    else
@@ -2170,7 +2170,7 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
         //        const float ey = v-kpy;
         //        const float e2 = ex*ex+ey*ey;
 
-        //        if(e2*pKF->mvInvLevelSigma2[kpLevel]>5.99) // 5.99 = value of the inverse cumulative chi-square with 2 DOFs (Hartley-Zisserman pag 567)  
+        //        if(e2*pKF->mvInvLevelSigma2[kpLevel]>5.99) // 5.99 = value of the inverse cumulative chi-squared with 2 DOFs (Hartley-Zisserman pag 567)  
         //            continue;
         //    }
 
