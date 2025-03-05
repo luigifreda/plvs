@@ -5,9 +5,7 @@ set -e
 
 START_DIR=`pwd`
 
-cd Vocabulary
-
-if [ ! -f ORBvoc.bin ] && [ -f bin_vocabulary ]; then
+if [ ! -f "Vocabulary/ORBvoc.bin" ] && [ -f "Vocabulary/bin_vocabulary" ]; then
 
 	. config.sh  # source configuration file 
 	
@@ -15,6 +13,7 @@ if [ ! -f ORBvoc.bin ] && [ -f bin_vocabulary ]; then
 	print_blue "Building Vocabulary"
 	print_blue '================================================'
 
+	cd Vocabulary
 
 	if [ ! -f ORBvoc.txt ]; then
 		echo "Uncompress vocabulary ..."
