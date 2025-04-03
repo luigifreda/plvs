@@ -32,23 +32,36 @@ else
     PLOT=0 # default 
 fi
 
+echo PLOT: $PLOT
+
 #echo TRAJECTORY_PATH=$TRAJECTORY_PATH
 echo GROUDTRUTH_PATH=$GROUDTRUTH_PATH
+
+CAMERA_TRAJECTORY=$TRAJECTORY_PATH/CameraTrajectory.txt
+KEYFRAME_TRAJECTORY=$TRAJECTORY_PATH/KeyFrameTrajectory.txt
+if [[ ! -f "$CAMERA_TRAJECTORY" || ! -f "$KEYFRAME_TRAJECTORY" ]]; then
+	echo CameraTrajectory.txt or KeyFrameTrajectory.txt not found =\> using Results folder data
+	#CAMERA_TRAJECTORY=$SCRIPT_DIR/Results/CameraTrajectory.txt  # just for testing
+	KEYFRAME_TRAJECTORY=$SCRIPT_DIR/Results/KeyFrameTrajectory.txt
+fi
 
 
 # for evo info https://github.com/MichaelGrupp/evo/wiki/evo_traj
 
 if [ $PLOT -eq 1 ] ; then
-	evo_traj kitti $TRAJECTORY_PATH/CameraTrajectory.txt --ref=$GROUDTRUTH_PATH -a  -p --plot_mode=xz &> /dev/null  &
-	evo_ape kitti $TRAJECTORY_PATH/CameraTrajectory.txt $GROUDTRUTH_PATH -a  -va --plot --plot_mode=xz &> /dev/null  &
+	evo_traj kitti "$CAMERA_TRAJECTORY" --ref=$GROUDTRUTH_PATH -a  -p --plot_mode=xz #&> /dev/null  &
+	evo_ape kitti "$CAMERA_TRAJECTORY" $GROUDTRUTH_PATH -a  -va --plot --plot_mode=xz #&> /dev/null  &
 fi	
 
 if [ $IS_MONO -eq 1 ] ; then
 	# use the script generate_kitti_groundtruths_as_tum.sh to generate the groundtruth files in tum format
 	GROUDTRUTH_PATH="$(dirname $GROUDTRUTH_PATH)/gt_tum.txt"
-	evo_ape tum $TRAJECTORY_PATH/KeyFrameTrajectory.txt $GROUDTRUTH_PATH -as # -s to align in Sim(3) given the monocular sensor
+	KEYFRAME_TRAJECTORY=$CAMERA_TRAJECTORY
+	echo evaluating monocular trajectory $KEYFRAME_TRAJECTORY
+	evo_ape tum $GROUDTRUTH_PATH "$KEYFRAME_TRAJECTORY" -as -p --plot_mode=xz # -s to align in Sim(3) given the monocular sensor
 else 
-	evo_ape kitti $TRAJECTORY_PATH/CameraTrajectory.txt $GROUDTRUTH_PATH -a 
+	echo evaluating trajectory $CAMERA_TRAJECTORY
+	evo_ape kitti $GROUDTRUTH_PATH "$CAMERA_TRAJECTORY" -a 
 fi 
 
 

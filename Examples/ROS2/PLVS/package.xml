@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format2.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>plvs</name>
+  <version>1.0.0</version>
+  <description>ROS2 wrapper for PLVS</description>
+  <maintainer email="luigifreda@gmail.com">Luigi Freda</maintainer>
+  <license>GPLv3</license>
+  <author>Luigi Freda</author>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>cv_bridge</depend>
+  <depend>message_filters</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

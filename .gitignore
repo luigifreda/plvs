@@ -97,6 +97,7 @@ Thirdparty/depthai-core
 Thirdparty/rerun 
 
 ros_ws/
+ros2_ws/
 
 Vocabulary/ORBvoc.txt
 Vocabulary/ORBvoc.bin

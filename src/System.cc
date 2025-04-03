@@ -860,11 +860,12 @@ bool System::isShutDown() {
 void System::SaveTrajectoryTUM(const string &filename)
 {
     cout << endl << "Saving camera trajectory to " << filename << " ..." << endl;
-    if(mSensor==MONOCULAR)
-    {
-        cerr << "ERROR: SaveTrajectoryTUM cannot be used for monocular." << endl;
-        return;
-    }
+    // NOTE: [Luigi] commented for testing
+    // if(mSensor==MONOCULAR)
+    // {
+    //     cerr << "ERROR: SaveTrajectoryTUM cannot be used for monocular." << endl;
+    //     return;
+    // }
 
     vector<KeyFramePtr> vpKFs = mpAtlas->GetAllKeyFrames();
     sort(vpKFs.begin(),vpKFs.end(),KeyFrame::lId);

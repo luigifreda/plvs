@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# just clean plvs 
+# just clean plvs and ROS workspaces
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir 
 SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
@@ -16,17 +16,6 @@ if [[ -d build ]]; then
 fi 
 
 echo "cleaning ros ws "
-if [[ -d ros_ws ]]; then 
-	cd ros_ws
-	if [[ -d build ]]; then 
-		rm -R build
-	fi
-	if [[ -d devel ]]; then 
-		rm -R devel 
-	fi
-	if [[ -d log ]]; then 
-		rm -R log 
-	fi	
-fi 
+$SCRIPT_DIR/clean_plvs_ros.sh
 
 cd $SCRIPT_DIR

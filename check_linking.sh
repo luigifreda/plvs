@@ -19,11 +19,12 @@ cd $PROJECT_DIR
 echo "Check you are getting only one version of opencv!"
 ldd lib/libplvs.so | grep opencv
 
-echo ""
-# check correct linking of opencv libs: you should see only one version of opencv 
+print_blue '================================================'
+
+# check correct linking of opencv libs on ROS1 workspace: you should see only one version of opencv 
 if [ -f ros_ws/devel/setup.bash ]; then 
     cd $PROJECT_DIR
-    echo "Check you are getting only one version of opencv under ros!"    
+    echo "Check you are getting only one version of opencv under ROS1!"    
     source ros_ws/devel/setup.bash 
     ldd ros_ws/devel/lib/plvs/RGBD | grep opencv  
 
@@ -31,6 +32,16 @@ if [ -f ros_ws/devel/setup.bash ]; then
         echo "Check you are getting only one version of libdepthai_ros_driver under ros!"    
         ldd ros_ws/devel/lib/libdepthai_ros_driver.so | grep opencv          
     fi 
+fi 
+
+print_blue '================================================'
+
+# check correct linking of opencv libs on ROS2 workspace: you should see only one version of opencv 
+if [ -f ros2_ws/install/local_setup.bash ]; then 
+    cd $PROJECT_DIR
+    echo "Check you are getting only one version of opencv under ROS2!"    
+    source ros2_ws/install/local_setup.bash 
+    ldd ros2_ws/install/plvs/lib/plvs/rgbd | grep opencv
 fi 
 
 print_blue '================================================'
@@ -46,6 +57,6 @@ print_blue '================================================'
 
 # check correct linking of libpcl libs: you should see the libs  
 cd $PROJECT_DIR
-echo "Check you are getting the local pcl libs"
+echo "Check you are getting the local pcl libs or only one version of it"
 ldd lib/libplvs.so | grep pcl
 

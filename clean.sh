@@ -15,6 +15,11 @@ if [ $CLEAN_OPENCV -eq 1 ] && [ -d Thirdparty/opencv ]; then
 	cd $SCRIPT_DIR	
 fi
 
+echo "cleaning Vocabulary"
+if [[ -d Vocabulary ]]; then 
+	rm "Vocabulary/ORBvoc.bin"
+	cd $SCRIPT_DIR
+fi
 
 echo "cleaning Thirdparty/Pangolin ..."
 if [[ -d Thirdparty/Pangolin ]]; then 
