@@ -8,6 +8,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/image.hpp"
+#include "sensor_msgs/msg/camera_info.hpp"
 
 #include "message_filters/subscriber.h"
 #include "message_filters/synchronizer.h"
@@ -24,18 +25,27 @@
 
 class RgbdSlamNode : public rclcpp::Node
 {
+    static constexpr int kTimeOutWaitCameraInfoMs = 10000; // time out for waiting camera info [ms]
 public:
-    RgbdSlamNode(PLVS2::System* pSLAM);
+    RgbdSlamNode(std::shared_ptr<PLVS2::System>& pSLAM, bool bWaitForCameraInfo = false);
 
     ~RgbdSlamNode();
+
+public: 
+
+    void SetBaseline(float baseline) { baseline_ = baseline; }
+
+private: 
+
+    void GrabRGBD(const sensor_msgs::msg::Image::SharedPtr msgRGB, const sensor_msgs::msg::Image::SharedPtr msgD);
+    void GrabCameraInfo(const sensor_msgs::msg::CameraInfo::SharedPtr msg);
+    void WaitCameraInfoTimerCallback();    
 
 private:
     using ImageMsg = sensor_msgs::msg::Image;
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::msg::Image, sensor_msgs::msg::Image> approximate_sync_policy;
 
-    void GrabRGBD(const sensor_msgs::msg::Image::SharedPtr msgRGB, const sensor_msgs::msg::Image::SharedPtr msgD);
-
-    PLVS2::System* m_SLAM;
+    std::shared_ptr<PLVS2::System> pSLAM_;
 
     cv_bridge::CvImageConstPtr cv_ptrRGB;
     cv_bridge::CvImageConstPtr cv_ptrD;
@@ -44,6 +54,14 @@ private:
     std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::Image> > depth_sub;
 
     std::shared_ptr<message_filters::Synchronizer<approximate_sync_policy> > syncApproximate;
+
+    rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr info_color_sub;
+    rclcpp::TimerBase::SharedPtr timerWaitCameraInfo;
+    
+    bool bWaitForCameraInfo_ = false;
+    std::atomic_bool bGotCameraInfo_ = false;    
+    std::mutex mMutexGotCameraInfo_;
+    float baseline_ = 1.0f;
 };
 
 #endif

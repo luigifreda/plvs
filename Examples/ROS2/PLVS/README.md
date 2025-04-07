@@ -1,17 +1,19 @@
 # PLVS_ROS2
 
-This package is a ROS2 wrapper of PLVS2. 
+This package is a ROS2 wrapper for PLVS2. 
 This was inspired by the repository: https://github.com/zang09/ORB_SLAM3_ROS2
 
 ---
 
 ## Prerequisites
-- I have tested the ROS 2 integration under
+
+This package was tested under 
   - Ubuntu 20.04
+  - ROS1 noetic
   - ROS2 foxy
   - OpenCV 4.2.0
 
-- Install related ROS2 package
+Install required ROS2 package
 ```
 $ sudo apt install ros-$ROS_DISTRO-vision-opencv && sudo apt install ros-$ROS_DISTRO-message-filters
 ```
@@ -45,7 +47,7 @@ See the main [README](../../../README.md#ros-build) on how to build PLVS with RO
         ```
 
 ---
-## Run with ros1 bags
+## Run with ros1 bags via ros bridge
 
 To play ros1 bag file, you should install `ros1 noetic` & `ros1 bridge`.  
 

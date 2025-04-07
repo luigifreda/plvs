@@ -9,21 +9,20 @@ PLVS is a real-time system that combines sparse SLAM, volumetric mapping, and 3D
 
 <p align="center">
 <img src="Images/PLVS-lab.png"
-alt="PLVS lab" max-width="585" border="1"/> 
+alt="PLVS lab" max-width="585" border="0"/> 
 <img src="Images/PLVS-ar2.gif"
-alt="PLVS augmented reality" height="180" border="1"/> 
+alt="PLVS augmented reality" height="180" border="0"/> 
 <img src="Images/PLVS-details.gif"
-alt="PLVS details" height="180" border="1"/> 
+alt="PLVS details" height="180" border="0"/> 
 <img src="Images/PLVS-Points-Lines-Vol-Seg.png"
-alt="PLVS details" max-width="695" border="1"/> 
+alt="PLVS details" max-width="695" border="0"/> 
 </p>
 
 PLVS is available in two different versions.
-- **PLVS I**: hosted in the branch `plvs1`. It is based on [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2), and supports mono, stereo, and RGB-D cameras.
-- **PLVS II**: hosted in the `master` branch. It is based on [ORB-SLAM3](https://github.com/UZ-SLAMLab/ORB_SLAM3), and also supports camera systems provided with IMUs. 
+- **PLVS I**: hosted in the branch `plvs1`. It builds on [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2), and supports mono, stereo, and RGB-D cameras.
+- **PLVS II**: hosted in the `master` branch. It builds on [ORB-SLAM3](https://github.com/UZ-SLAMLab/ORB_SLAM3), and also supports camera systems provided with IMUs. 
 
-This [document](./new_features.md) provides a list of the **new features** provided by PLVS. For more information and videos, please visit this research [page](https://www.luigifreda.com/research/plvs-an-open-source-rgb-d-and-stereo-slam-for-volumetric-reconstruction-and-3d-incremental-segmentation/) or refer to the following **document**:
-
+This [document](./new_features.md) provides a list of the **new features** introduced by PLVS. For more information and videos, please visit this [project page](https://www.luigifreda.com/research/plvs-an-open-source-rgb-d-and-stereo-slam-for-volumetric-reconstruction-and-3d-incremental-segmentation/) or refer to the following **document**:
 **[PLVS: A SLAM System with Points, Lines, Volumetric Mapping, and 3D Incremental Segmentation](https://arxiv.org/pdf/2309.10896.pdf)**         
 *Luigi Freda* 
 
@@ -32,9 +31,9 @@ This [document](./new_features.md) provides a list of the **new features** provi
   
 ## Quick start 
 
-The following procedures were tested under **Ubuntu 20, 22, 24**. 
+- The [build](#build) procedures were tested under **Ubuntu 20, 22, 24**. 
 - ROS1 support is provided only under **noetic** with **Ubuntu 20** (see [here](#ros-build)).
-- ROS2 was tested under **foxy** and **Ubuntu 20** (further details [here](#ros-build)) 
+- ROS2 was tested under **foxy** and **Ubuntu 20** (further details [here](#ros-build)). 
 
 If you don't have Ubuntu 20 with noetic, check [rosdocker](https://github.com/luigifreda/rosdocker) and use the *noetic* or *noetic_cuda* containers.
 
@@ -58,17 +57,17 @@ If you want to skip step 2, you can set the variables `OpenCV_DIR` and `OPENCV_V
 
 #### ROS 1
 
-Under **ROS noetic** you can run:        
+Under **ROS noetic**, open a new terminal, source the main ROS1 `setup.bash` and run:        
 `$ ./build_ros_catkin.sh`       
 
-This command builds the *PLVS* ROS workspace and deploys it in the `ros_ws` folder.
+This command builds the *PLVS* ROS1 workspace in `Example_old/ROS/PLVS` and deploys it in the `ros_ws` folder.
 
 #### ROS 2
 
-Under **ROS 2** you can run:        
+Under **ROS 2**, open a new terminal, source the main ROS2 `setup.bash` and run:      
 `$ ./build_ros_colcon.sh`       
 
-This command builds the *PLVS* ROS workspace and deploys it in the `ros2_ws` folder.
+This command builds the *PLVS* ROS2 workspace in `Example/ROS2/PLVS` and deploys it in the `ros2_ws` folder.
 
 
 ---
@@ -84,13 +83,17 @@ Once everything is built, you can enter in the `Scripts` folder and test the dif
 
 In each of the above scripts, you have to configure *(1)* the `DATASET_BASE_FOLDER`, *(2)* the specific `DATASET` of interest, and *(3)* the used `YAML` configuration file. In particular, each `YAML` configuration file shows different sections with commented options. For a quick overview of the **new features** and their corresponding `YAML` options refer to [new_features.md](./new_features.md).   
 
-#### ROS 1
+#### ROS 1 
 
-If you built the ROS workspace, you can use the scripts `ros_xterm*` to launch the PLVS ROS nodes. For instance, with the TUM datasets, run `ros_xterm_tum_rgbd.sh`.
+If you built the ROS workspace, you can use the scripts `ros_xterm*` to launch the PLVS ROS nodes. 
+For instance, with the TUM datasets, configure and run `ros_xterm_tum_rgbd.sh`.
 
 #### ROS 2
 
 Refer to this [README](./Examples/ROS2/PLVS/README.md). At present, this is a work in progress.
+With the TUM datasets, configure and run `ros2_xterm_tum_rgbd.sh`.
+
+**Note**: The ROS1 and ROS2 install paths are automatically detected by the script `Scripts/find_ros.sh`.
 
 ---
 ## Contributing
@@ -108,5 +111,5 @@ If you use PLVS in your projects, please cite our above-mentioned document.
 ## Credits  
 
 * The *PLVS I* and *PLVS II* frameworks are based on [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2) and [ORB-SLAM3](https://github.com/UZ-SLAMLab/ORB_SLAM3) respectively. Many thanks to their Authors for their great work and contributions to the Research and open-source communities. 
-* Ther ROS 2 wrapper for PLVS was inspired by this [repository](https://github.com/zang09/ORB_SLAM3_ROS2). Many thanks to his Author, [Haebeom Jung](https://github.com/zang09). 
+* Ther ROS 2 wrapper was inspired by this [repository](https://github.com/zang09/ORB_SLAM3_ROS2). Many thanks to his Author, [Haebeom Jung](https://github.com/zang09). 
 
