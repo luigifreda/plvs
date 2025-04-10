@@ -78,10 +78,9 @@ PointCloudMapOctreePointCloud<PointT>::PointCloudMapOctreePointCloud(Map* pMap, 
 template<typename PointT>
 void PointCloudMapOctreePointCloud<PointT>::SetDepthCameraModel(const PointCloudCamParams& params)
 {
-    pDepthCameraModel_ = std::make_shared<chisel::PinholeCamera>();
-    *pDepthCameraModel_ = chisel_server::ToChiselCamera(params.fx, params.fy, params.cx, params.cy, params.width, params.height);
-    pDepthCameraModel_->SetNearPlane(params.minDist);
-    pDepthCameraModel_->SetFarPlane(params.maxDist);
+    depthCameraModel_ = chisel_server::ToChiselCamera(params.fx, params.fy, params.cx, params.cy, params.width, params.height);
+    depthCameraModel_.SetNearPlane(params.minDist);
+    depthCameraModel_.SetFarPlane(params.maxDist);
 }
 
 template<typename PointT>
@@ -136,7 +135,7 @@ void PointCloudMapOctreePointCloud<PointT>::ReinsertCloud(typename PointCloudMap
 //
 //        chisel::Frustum frustum;
 //        chisel::AABB box;
-//        pDepthCameraModel_->SetupFrustum(transform, &frustum);
+//        depthCameraModel_.SetupFrustum(transform, &frustum);
 //        frustum.ComputeBoundingBox(&box);
 //
 //        // 1. crop point cloud with AABB of frustrum 
@@ -163,12 +162,12 @@ void PointCloudMapOctreePointCloud<PointT>::ReinsertCloud(typename PointCloudMap
 //        cv::Mat twc = Twc.rowRange(0, 3).col(3);
 //        cv::Mat Rcw = Rwc.t();
 //        cv::Mat tcw = -Rcw*twc;
-//        const float fx = pDepthCameraModel_->GetIntrinsics().GetFx();
-//        const float fy = pDepthCameraModel_->GetIntrinsics().GetFy();
-//        const float cx = pDepthCameraModel_->GetIntrinsics().GetCx();
-//        const float cy = pDepthCameraModel_->GetIntrinsics().GetCy();
-//        const int width = pDepthCameraModel_->GetWidth();
-//        const int height = pDepthCameraModel_->GetHeight();
+//        const float fx = depthCameraModel_.GetIntrinsics().GetFx();
+//        const float fy = depthCameraModel_.GetIntrinsics().GetFy();
+//        const float cx = depthCameraModel_.GetIntrinsics().GetCx();
+//        const float cy = depthCameraModel_.GetIntrinsics().GetCy();
+//        const int width = depthCameraModel_.GetWidth();
+//        const int height = depthCameraModel_.GetHeight();
 //        for (size_t ii = 0; ii < point_cloud_in_frustrum.size(); ii++)
 //        {
 //            const cv::Mat P = (cv::Mat_<float>(3, 1) << point_cloud_in_frustrum[ii].x, point_cloud_in_frustrum[ii].y, point_cloud_in_frustrum[ii].z);
@@ -274,7 +273,7 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthOld(typename Poi
 
         chisel::Frustum frustum;
         chisel::AABB box;
-        pDepthCameraModel_->SetupFrustum(transform, &frustum);
+        depthCameraModel_.SetupFrustum(transform, &frustum);
         frustum.ComputeBoundingBox(&box);
 
         // 1. crop point cloud with AABB of frustrum 
@@ -314,12 +313,12 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthOld(typename Poi
         const Sophus::SE3f Tcw = Twc.inverse();
         const Sophus::Matrix3f Rcw = Tcw.rotationMatrix(); 
         const Sophus::Vector3f tcw = Tcw.translation();         
-        const float fx = pDepthCameraModel_->GetIntrinsics().GetFx();
-        const float fy = pDepthCameraModel_->GetIntrinsics().GetFy();
-        const float cx = pDepthCameraModel_->GetIntrinsics().GetCx();
-        const float cy = pDepthCameraModel_->GetIntrinsics().GetCy();
-        const int width = pDepthCameraModel_->GetWidth();
-        const int height = pDepthCameraModel_->GetHeight();
+        const float fx = depthCameraModel_.GetIntrinsics().GetFx();
+        const float fy = depthCameraModel_.GetIntrinsics().GetFy();
+        const float cx = depthCameraModel_.GetIntrinsics().GetCx();
+        const float cy = depthCameraModel_.GetIntrinsics().GetCy();
+        const int width = depthCameraModel_.GetWidth();
+        const int height = depthCameraModel_.GetHeight();
         
         int pixelToPointIndexColsMin1 = pixelToPointIndex.cols-1;
         int pixelToPointIndexRowsMin1 = pixelToPointIndex.rows-1;
@@ -496,12 +495,12 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthNoSegm(typename 
                      0, 0, 0, 1;
         Eigen::Matrix4f pose = transform.matrix() * cam2robot;        
         
-        const float fx = pDepthCameraModel_->GetIntrinsics().GetFx();
-        const float fy = pDepthCameraModel_->GetIntrinsics().GetFy();
-        const float cx = pDepthCameraModel_->GetIntrinsics().GetCx();
-        const float cy = pDepthCameraModel_->GetIntrinsics().GetCy();
-        const int width = pDepthCameraModel_->GetWidth();
-        const int height = pDepthCameraModel_->GetHeight();
+        const float fx = depthCameraModel_.GetIntrinsics().GetFx();
+        const float fy = depthCameraModel_.GetIntrinsics().GetFy();
+        const float cx = depthCameraModel_.GetIntrinsics().GetCx();
+        const float cy = depthCameraModel_.GetIntrinsics().GetCy();
+        const int width = depthCameraModel_.GetWidth();
+        const int height = depthCameraModel_.GetHeight();
         
         TICKCLOUD("octreepointPA");
 
@@ -623,7 +622,11 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthSegm(typename Po
 
     //int count = 0;
 
-    if ((this->pPointCloudMapParameters_->bUseCarving || (this->pPointCloudMapParameters_->bSegmentationOn && !labelMap.IsAlreadyProcessed() )) && !depthImage.empty() && this->pPointCloud_)
+    if (
+        ( this->pPointCloudMapParameters_->bUseCarving || (this->pPointCloudMapParameters_->bSegmentationOn && !labelMap.IsAlreadyProcessed()) ) 
+        && !depthImage.empty()
+        && this->pPointCloud_
+    )
     {
 
         if (this->bMapUpdated_)
@@ -652,12 +655,14 @@ void PointCloudMapOctreePointCloud<PointT>::InsertCloudWithDepthSegm(typename Po
                      0, 0, 0, 1;
         Eigen::Matrix4f pose = transform.matrix() * cam2robot;        
         
-        const float fx = pDepthCameraModel_->GetIntrinsics().GetFx();
-        const float fy = pDepthCameraModel_->GetIntrinsics().GetFy();
-        const float cx = pDepthCameraModel_->GetIntrinsics().GetCx();
-        const float cy = pDepthCameraModel_->GetIntrinsics().GetCy();
-        const int width = pDepthCameraModel_->GetWidth();
-        const int height = pDepthCameraModel_->GetHeight();
+        const auto& intrinsics = depthCameraModel_.GetIntrinsics();
+        const float fx = intrinsics.GetFx();
+        const float fy = intrinsics.GetFy();
+        const float cx = intrinsics.GetCx();
+        const float cy = intrinsics.GetCy();
+        
+        const int width = depthCameraModel_.GetWidth();
+        const int height = depthCameraModel_.GetHeight();
         
         TICKCLOUD("octreepointPA");
 

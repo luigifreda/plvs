@@ -23,11 +23,7 @@
 #include "PointCloudMap.h" 
 
 #include "OctreePointCloudCentroid.h"
-
-namespace chisel
-{
-class PinholeCamera;
-}
+#include <open_chisel/camera/PinholeCamera.h>
 
 
 namespace PLVS2
@@ -101,14 +97,14 @@ public:
 
 protected:
 
+    chisel::PinholeCamera depthCameraModel_;
+    
     OctreeType octree_;
     
     pcl::VoxelGrid<PointT> voxelFilter_;
     
     //int nPointCounterThreshold_;
     float carvingThreshold_; 
-    
-    std::shared_ptr<chisel::PinholeCamera> pDepthCameraModel_;
     
     std::unordered_map<uint32_t, typename PointCloudKeyFrameT::Ptr> mapKfidPointCloudKeyFrame_;    
 };
