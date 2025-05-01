@@ -17,8 +17,8 @@
  * 
  */
 
-#ifndef POIN_CLOUD_TUTILS_H
-#define POIN_CLOUD_TUTILS_H
+#ifndef POINT_CLOUD_UTILS_H
+#define POINT_CLOUD_UTILS_H
 
 #include "PointDefinitions.h"
 
@@ -205,7 +205,7 @@ typename pcl::PointCloud<PointOut>::Ptr transformCloud(const typename pcl::Point
     typename pcl::PointCloud<PointOut>::Ptr transformedCloud(new pcl::PointCloud<PointOut>());
     transformedCloud->reserve(cloud->size());
     transformedCloud->header = cloud->header; 
-    transformedCloud->is_dense = transformedCloud->is_dense;
+    transformedCloud->is_dense = cloud->is_dense;
 
     for (const PointIn& p : cloud->points)
     {
@@ -218,7 +218,7 @@ typename pcl::PointCloud<PointOut>::Ptr transformCloud(const typename pcl::Point
         if constexpr (has3dNormalFields<PointOut>() && has3dNormalFields<PointIn>())
         {
             const Eigen::Matrix<Scalar,3,1> normal(p.normal_x, p.normal_y, p.normal_z);
-            const auto normalOut = transform * normal;
+            const Eigen::Matrix<Scalar,3,1> normalOut = transform.rotation() * normal;
             pout.normal_x = normalOut.x();
             pout.normal_y = normalOut.y();
             pout.normal_z = normalOut.z();
@@ -269,7 +269,7 @@ void transformCloud(const typename pcl::PointCloud<PointIn>& cloud,
         if constexpr (has3dNormalFields<PointOut>() && has3dNormalFields<PointIn>())
         {
             const Eigen::Matrix<Scalar,3,1> normal(p.normal_x, p.normal_y, p.normal_z);
-            const auto normalOut = transform * normal;
+            const Eigen::Matrix<Scalar,3,1> normalOut = transform.rotation() * normal;
             pout.normal_x = normalOut.x();
             pout.normal_y = normalOut.y();
             pout.normal_z = normalOut.z();

@@ -105,6 +105,11 @@ struct PointSurfelSegment : public _PointSurfelSegment
         x = p.x;
         y = p.y;
         z = p.z;
+
+        normal_x = p.normal_x;
+        normal_y = p.normal_y;
+        normal_z = p.normal_z;
+
         kfid = p.kfid;
         //data[3] = 1.0f;
         rgba = p.rgba;
@@ -120,7 +125,8 @@ struct PointSurfelSegment : public _PointSurfelSegment
         x = y = z = 0.0f;
         kfid = 0; 
         //data[3] = 1.0f;
-        normal_x = normal_y = normal_z = data_n[3] = 0.0f;
+        normal_x = normal_y = normal_z = 0.0f; 
+        data_n[3] = 0.0f;
         rgba = 0;
         depth = 0.f;
         //curvature = 0.0f;
