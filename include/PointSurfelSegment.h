@@ -50,7 +50,7 @@ namespace pcl
       float x; \
       float y; \
       float z; \
-      uint32_t kfid; \
+      std::uint32_t kfid; \
     }; \
   };
 
@@ -80,8 +80,8 @@ struct EIGEN_ALIGN16 _PointSurfelSegment
 //            uint16_t label; // 2 bytes
 //            uint8_t label_confidence; // 1 byte to be capped    
             
-            uint32_t label;        // 4 bytes
-            uint32_t label_confidence;   // 4 bytes
+            std::uint32_t label;        // 4 bytes
+            std::uint32_t label_confidence;   // 4 bytes
             
             //float confidence;
             //uint8_t confidence; //1 byte to be capped
@@ -104,6 +104,11 @@ struct PointSurfelSegment : public _PointSurfelSegment
         x = p.x;
         y = p.y;
         z = p.z;
+
+        normal_x = p.normal_x;
+        normal_y = p.normal_y;
+        normal_z = p.normal_z;
+
         kfid = p.kfid;
         //data[3] = 1.0f;
         rgba = p.rgba;
@@ -119,7 +124,8 @@ struct PointSurfelSegment : public _PointSurfelSegment
         x = y = z = 0.0f;
         kfid = 0; 
         //data[3] = 1.0f;
-        normal_x = normal_y = normal_z = data_n[3] = 0.0f;
+        normal_x = normal_y = normal_z = 0.0f; 
+        data_n[3] = 0.0f;
         rgba = 0;
         depth = 0.f;
         //curvature = 0.0f;
@@ -147,14 +153,14 @@ inline std::ostream& operator<<(std::ostream& s, const pcl::PointSurfelSegment &
 }
 
 POINT_CLOUD_REGISTER_POINT_STRUCT(pcl::PointSurfelSegment,
-                                  (float, x, x)(float, y, y)(float, z, z) (uint32_t, kfid, kfid)
+                                  (float, x, x)(float, y, y)(float, z, z) (std::uint32_t, kfid, kfid)
                                   (float, normal_x, normal_x)(float, normal_y, normal_y)(float, normal_z, normal_z)
-                                  (uint32_t, rgba, rgba)
+                                  (std::uint32_t, rgba, rgba)
                                   (float, depth, depth)
-                                  (uint32_t, label, label)
+                                  (std::uint32_t, label, label)
                                   //(uint16_t, curvature, curvature)
                                   //(uint8_t, confidence, confidence)
-                                  (uint32_t, label_confidence, label_confidence)
+                                  (std::uint32_t, label_confidence, label_confidence)
                                   )
         
         

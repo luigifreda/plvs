@@ -356,10 +356,12 @@ bool LoopClosing::ComputeSim3()
                 cv::Mat R = pSolver->GetEstimatedRotation();
                 cv::Mat t = pSolver->GetEstimatedTranslation();
                 const float s = pSolver->GetEstimatedScale();
-                matcher.SearchBySim3(mpCurrentKF,pKF,vpMapPointMatches,s,R,t,7.5);
+                int num_new_matches = matcher.SearchBySim3(mpCurrentKF,pKF,vpMapPointMatches,s,R,t,7.5);
+                std::cout << "[LoopClosing SearchBySim3] Number of new matches: " << num_new_matches << std::endl;
 
                 g2o::Sim3 gScm(Converter::toMatrix3d(R),Converter::toVector3d(t),s);
                 const int nInliers = Optimizer::OptimizeSim3(mpCurrentKF, pKF, vpMapPointMatches, gScm, 10, mbFixScale);
+                std::cout << "[LoopClosing OptimizeSim3] Number optimized inliers: " << nInliers << std::endl;
 
                 // If optimization is successful stop ransacs and continue
                 if(nInliers>=20)
@@ -434,7 +436,8 @@ bool LoopClosing::ComputeSim3()
     }
 
     // Find more matches projecting with the computed Sim3
-    matcher.SearchByProjection(mpCurrentKF, mScw, mvpLoopMapPoints, mvpCurrentMatchedPoints,10);
+    int nmatches = matcher.SearchByProjection(mpCurrentKF, mScw, mvpLoopMapPoints, mvpCurrentMatchedPoints,10);
+    std::cout << "[LoopClosing SearchByProjection] Number of new matches: " << nmatches << std::endl;
     
 #if USE_LINES_FOR_VOTING_LOOP_CLOSURE    
     if(mpTracker->IsLineTracking())

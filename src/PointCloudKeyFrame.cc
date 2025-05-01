@@ -27,6 +27,8 @@
 #include "Converter.h"
 #include "Stopwatch.h"
 #include "StereoDisparity.h"
+#include "Utils.h"
+#include "PointCloudUtils.h"
 
 #ifdef USE_LIBELAS  
 #include "ElasInterface.h"
@@ -72,7 +74,7 @@ std::shared_ptr<StereoDisparity> PointCloudKeyFrame<PointT>::pSd = 0;
 
 template<typename PointT>
 PointCloudKeyFrame<PointT>::PointCloudKeyFrame()
-: pKF(0), bCloudReady(false), bInMap(false), bIsValid(true), bStereo(false)
+: pKF(nullptr), bCloudReady(false), bInMap(false), bIsValid(true), bStereo(false)
 {
 }
 
@@ -517,11 +519,16 @@ void PointCloudKeyFrame<PointT>::GetTransformedCloud(const cv::Mat& Twc, typenam
     
     Eigen::Isometry3d T = PLVS::Converter::toSE3Quat(Twc);
 
-#if !USE_NORMALS
-    pcl::transformPointCloud(*pCloudCamera, *pCloudOut, T.matrix());
-#else
-    pcl::transformPointCloudWithNormals(*pCloudCamera, *pCloudOut, T.matrix());
-#endif
+// #if !USE_NORMALS
+//     pcl::transformPointCloud(*pCloudCamera, *pCloudOut, T.matrix());
+// #else
+//     pcl::transformPointCloudWithNormals(*pCloudCamera, *pCloudOut, T.matrix());
+// #endif
+#if 0
+    PointCloudUtils::transformCloud<PointT, PointT, Eigen::Isometry3d, double>(*pCloudCamera, *pCloudOut, T);
+#else 
+    PointCloudUtils::transformCloud<PointT, PointT, Eigen::Isometry3f, float>(*pCloudCamera, *pCloudOut, T.cast<float>());
+#endif  
 }
 
 }

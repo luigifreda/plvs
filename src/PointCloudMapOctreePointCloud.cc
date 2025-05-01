@@ -1089,7 +1089,7 @@ void PointCloudMapOctreePointCloud<pcl::PointSurfelSegment>::OnMapChange()
     
     if(this->bCloudDeformationOnSparseMapChange_)
     {
-        std::cout << "PointCloudMapVoxelGridFilterActive<PointT>::OnMapChange() - point cloud KF adjustment" << std::endl;
+        std::cout << "PointCloudMapOctreePointCloud<PointT>::OnMapChange() - point cloud KF adjustment" << std::endl;
         
         this->UpdateMap(); // update the pointcloud 
                 
@@ -1143,7 +1143,7 @@ void PointCloudMapOctreePointCloud<pcl::PointSurfelSegment>::OnMapChange()
             
             // check if the transformation is "big" enough otherwise do not re-transform the cloud 
             double norm = cv::norm(Twnwo - identity);
-            std::cout << "norm: " << norm << std::endl; 
+            //std::cout << "norm: " << norm << std::endl; 
             if( norm > kNormThresholdForEqualMatrices)
             {            
                 this->TransformCameraCloudInWorldFrame(kfCloudWorld, Twnwo, kfCloudWorldNew);   

@@ -46,6 +46,7 @@
 #include "Utils.h"  
 #include "Stopwatch.h"
 #include "PointUtils.h"
+#include "PointCloudUtils.h"
 #include "Neighborhood.h"
 
 
@@ -1121,7 +1122,12 @@ PointCloudMapping::PointCloudT::Ptr PointCloudMapping::GeneratePointCloudInWorld
     Eigen::Isometry3d T = PLVS::Converter::toSE3Quat(pcKeyframe->pKF->GetPose());
 
     PointCloudT::Ptr p_cloud_world(new PointCloudT);
-    pcl::transformPointCloud(*(pcKeyframe->pCloudCamera), *p_cloud_world, T.inverse().matrix());
+    //pcl::transformPointCloud(*(pcKeyframe->pCloudCamera), *p_cloud_world, T.inverse().matrix());
+#if 0
+    PointCloudUtils::transformCloud<PointT, PointT, Eigen::Isometry3d, double>(*(pcKeyframe->pCloudCamera), *p_cloud_world, T.inverse());
+#else 
+    PointCloudUtils::transformCloud<PointT, PointT, Eigen::Isometry3f, float>(*(pcKeyframe->pCloudCamera), *p_cloud_world, T.inverse().cast<float>());
+#endif     
     p_cloud_world->is_dense = false;
 
     cout << "generate point cloud for kf " << pcKeyframe->pKF->mnId << ", size=" << p_cloud_world->points.size() << endl;

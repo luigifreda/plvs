@@ -36,6 +36,7 @@
 #include "Utils.h"
 #include "Stopwatch.h"
 
+#include "PointCloudUtils.h"
 
 
 namespace PLVS
@@ -98,26 +99,46 @@ void PointCloudMap<PointT>::TransformCameraCloudInWorldFrame(typename PointCloud
                                                              const cv::Mat& Twc,
                                                              typename PointCloudT::Ptr pCloudWorld)
 {
-    // N.B.: keep this consistent with the following function, which does the same job 
+    // NOTE: these pcl functions do not copy all the custom fields 
+
+	// N.B.: keep this consistent with the following function, which does the same job 
     Eigen::Isometry3d T = PLVS::Converter::toSE3Quat(Twc);
 
-#if !USE_NORMALS
-    pcl::transformPointCloud(*pCloudCamera, *pCloudWorld, T.matrix());
-#else
-    pcl::transformPointCloudWithNormals(*pCloudCamera, *pCloudWorld, T.matrix());
-#endif
+// #if !USE_NORMALS
+//     pcl::transformPointCloud(*pCloudCamera, *pCloudWorld, T.matrix());
+// #else
+//     pcl::transformPointCloudWithNormals(*pCloudCamera, *pCloudWorld, T.matrix());
+// #endif
+
+#if 0
+    PointCloudUtils::transformCloud<PointT, PointT, Eigen::Isometry3d, double>(*pCloudCamera, *pCloudWorld, T);
+#else 
+    PointCloudUtils::transformCloud<PointT, PointT, Eigen::Isometry3f, float>(*pCloudCamera, *pCloudWorld, T.cast<float>());
+#endif 
+
 }
 
 template<typename PointT>
-void PointCloudMap<PointT>::TransformCameraCloudInWorldFrame(const PointCloudT& cloudCamera, const cv::Mat& Twc, PointCloudT& cloudWorld)
+void PointCloudMap<PointT>::TransformCameraCloudInWorldFrame(const PointCloudT& cloudCamera, 
+                                                             const cv::Mat& Twc, 
+                                                             PointCloudT& cloudWorld)
 {
+    // NOTE: these pcl functions do not copy all the custom fields 
+
     Eigen::Isometry3d T = PLVS::Converter::toSE3Quat(Twc);
 
-#if !USE_NORMALS
-    pcl::transformPointCloud(cloudCamera, cloudWorld, T.matrix());
-#else
-    pcl::transformPointCloudWithNormals(cloudCamera, cloudWorld, T.matrix());
-#endif    
+// #if !USE_NORMALS
+//     pcl::transformPointCloud(cloudCamera, cloudWorld, T.matrix());
+// #else
+//     pcl::transformPointCloudWithNormals(cloudCamera, cloudWorld, T.matrix());
+// #endif
+
+#if 0
+    PointCloudUtils::transformCloud<PointT, PointT, Eigen::Isometry3d, double>(cloudCamera, cloudWorld, T);
+#else 
+    PointCloudUtils::transformCloud<PointT, PointT, Eigen::Isometry3f, float>(cloudCamera, cloudWorld, T.cast<float>());
+#endif 
+ 
 }
 
 template<typename PointT>
