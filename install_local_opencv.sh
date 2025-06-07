@@ -102,6 +102,11 @@ fi
 
 # pre-installing some required packages 
 
+export BUILD_SFM_OPTION="ON"
+if [[ $version == *"24.04"* ]] ; then
+    BUILD_SFM_OPTION="OFF"  # it seems this module brings some build issues with Ubuntu 24.04
+fi
+
 if [[ ! -d $TARGET_FOLDER/opencv ]]; then
 	sudo apt-get update
 	sudo apt-get install -y pkg-config libglew-dev libtiff5-dev zlib1g-dev libjpeg-dev libeigen3-dev libtbb-dev libgtk2.0-dev libopenblas-dev
@@ -209,6 +214,7 @@ if [ ! -f opencv/install/lib/libopencv_core.so ]; then
           -DOPENCV_ENABLE_NONFREE=ON \
           -DBUILD_opencv_java=OFF \
           -DBUILD_opencv_python3=ON \
+          -DBUILD_opencv_sfm=$BUILD_SFM_OPTION \
           -Wno-deprecated-gpu-targets ..
     else
         # Nvidia Jetson aarch64
