@@ -1,3 +1,9 @@
+<p align="center">
+<img src="Images/PLVS-logo.png"
+alt="PLVS lab" width="300" border="0"/>
+</p>
+
+
 # PLVS II
 
 ### v0.2.1
