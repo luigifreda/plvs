@@ -2105,6 +2105,11 @@ int LineMatcher::ComputeDescriptorMatches(const cv::Mat& ldesc_q/*query*/, const
 #endif
         
         const std::vector<cv::DMatch>& lmatchesi = lmatches[i];
+        if(lmatchesi.empty())
+        {
+            // No neighbors returned for this query -> invalid.
+            continue;
+        }
         if(lmatchesi.size() > 1)
         {
             if (lmatchesi[0].distance < mfNNratio* lmatchesi[1].distance)
@@ -2126,7 +2131,17 @@ int LineMatcher::ComputeDescriptorMatches(const cv::Mat& ldesc_q/*query*/, const
 void LineMatcher::LineDescriptorMAD(const std::vector<std::vector<cv::DMatch> >&matches, double &sigma_mad)
 {
     std::vector<std::vector<cv::DMatch> > matches_nn;
-    matches_nn = matches;
+    matches_nn.reserve(matches.size());
+    for(const auto &m : matches)
+    {
+        if(!m.empty())
+            matches_nn.push_back(m);
+    }
+    if(matches_nn.empty())
+    {
+        sigma_mad = 0.0;
+        return;
+    }
 
     // estimate the NN's distance standard deviation
     double nn_dist_median;
@@ -2141,7 +2156,17 @@ void LineMatcher::LineDescriptorMAD(const std::vector<std::vector<cv::DMatch> >&
 void LineMatcher::LineDescriptorMAD12(const std::vector<std::vector<cv::DMatch> >&matches, double &sigma12_mad)
 {
     std::vector<std::vector<cv::DMatch> > matches_12;
-    matches_12 = matches;
+    matches_12.reserve(matches.size());
+    for(const auto &m : matches)
+    {
+        if(m.size() >= 2)
+            matches_12.push_back(m);
+    }
+    if(matches_12.empty())
+    {
+        sigma12_mad = 0.0;
+        return;
+    }
 
     // estimate the NN's 12 distance standard deviation
     double nn12_dist_median;

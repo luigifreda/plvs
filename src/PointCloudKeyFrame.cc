@@ -249,6 +249,7 @@ void PointCloudKeyFrame<PointT>::Release()
     
     if (pCloudCamera) pCloudCamera->clear();
     bCloudReady = false;
+    bIsProcessed = false;
 }
     
 // get Ow
@@ -293,6 +294,7 @@ void PointCloudKeyFrame<PointT>::Clear()
     
     bInMap = false;
     bIsValid = false;
+    bIsProcessed = false;
 }
 
 template<typename PointT>

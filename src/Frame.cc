@@ -254,7 +254,7 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     mvbOutlier = vector<bool>(N,false);
     
     
-    // LSD line segments extraction 
+    // Line segments extraction 
     if(mpLineExtractorLeft)
     {
                 
@@ -408,7 +408,7 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
     mvbOutlier = vector<bool>(N,false);
     
     
-    // LSD line segments extraction 
+    // Line segments extraction 
     if(mpLineExtractorLeft)
     {        
         Nlines = mvKeyLines.size();
@@ -964,19 +964,19 @@ void Frame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax, co
     {
         return; 
     }    
-    const int nMaxCellThetaRow = std::min(LINE_THETA_GRID_ROWS-1, (int)floor((thetaMax -LINE_THETA_MIN)*mfLineGridElementThetaInv));    
-    if( nMaxCellThetaRow < 0)
+    const int nMaxCellThetaRow = std::min(LINE_THETA_GRID_ROWS-1, (int)ceil((thetaMax -LINE_THETA_MIN)*mfLineGridElementThetaInv));    
+    if( nMaxCellThetaRow < 0 || nMaxCellThetaRow < nMinCellThetaRow)    
     {
         return; 
-    }
+    }    
     
     const int nMinCellDCol = std::max(0,(int)floor((dMin + mnMaxDiag)*mfLineGridElementDInv));  // + mnMaxDiag = - mnMinDiag
     if( nMinCellDCol >= LINE_D_GRID_COLS)
     {
         return; 
     }
-    const int nMaxCellDCol = std::min(LINE_D_GRID_COLS-1,(int)floor((dMax + mnMaxDiag)*mfLineGridElementDInv)); // + mnMaxDiag = - mnMinDiag
-    if( nMaxCellDCol < 0)
+    const int nMaxCellDCol = std::min(LINE_D_GRID_COLS-1,(int)ceil((dMax + mnMaxDiag)*mfLineGridElementDInv)); // + mnMaxDiag = - mnMinDiag
+    if( nMaxCellDCol < 0 || nMaxCellDCol < nMinCellDCol)    
     {
         return; 
     }

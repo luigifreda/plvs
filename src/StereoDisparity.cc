@@ -159,7 +159,7 @@ void StereoDisparityCPU::Compute(cv::Mat& left, cv::Mat& right, cv::Mat& dispari
 //        wls_filter->setLambda(mParams.dLambda);
 //        wls_filter->setSigmaColor(mParams.dSigma);
         filtering_time = (double) cv::getTickCount();
-        wls_filter->filter(left_disp, left, filtered_disp, right_disp);
+        wls_filter->filter(left_disp, left_for_matcher, filtered_disp, right_disp);
         filtering_time = ((double) cv::getTickCount() - filtering_time) / cv::getTickFrequency();
 
         conf_map = wls_filter->getConfidenceMap();
@@ -184,7 +184,7 @@ void StereoDisparityCPU::Compute(cv::Mat& left, cv::Mat& right, cv::Mat& dispari
 //        wls_filter->setLambda(kLambda);
 //        wls_filter->setSigmaColor(kSigma);
         filtering_time = (double) cv::getTickCount();
-        wls_filter->filter(left_disp, left, filtered_disp, cv::Mat(), ROI);
+        wls_filter->filter(left_disp, left_for_matcher, filtered_disp, cv::Mat(), ROI);
         filtering_time = ((double) cv::getTickCount() - filtering_time) / cv::getTickFrequency();
     }
     else
@@ -195,9 +195,9 @@ void StereoDisparityCPU::Compute(cv::Mat& left, cv::Mat& right, cv::Mat& dispari
 
     if (mParams.bDownScale)
     {
-        // upscale raw disparity and ROI back for a proper comparison:
-        cv::resize(left_disp, left_disp, cv::Size(), 1 / mParams.dResizeScale, 1 / mParams.dResizeScale);
-        left_disp = left_disp / mParams.dResizeScale;
+        // Upscale filtered disparity and rescale its values to full resolution.
+        cv::resize(filtered_disp, filtered_disp, left.size(), 0.0, 0.0, cv::INTER_LINEAR);
+        filtered_disp.convertTo(filtered_disp, filtered_disp.type(), 1.0 / mParams.dResizeScale);
     }
 
     disparity = filtered_disp;
@@ -269,9 +269,9 @@ void StereoDisparityGPU::Compute(cv::Mat& left, cv::Mat& right, cv::Mat& dispari
     d_left.upload(left);
     d_right.upload(right);
 
-    // Prepare disparity map of specified type
-    cv::Mat disp(left.size(), CV_8U);
-    cv::cuda::GpuMat d_disp(left.size(), CV_8U);
+    // Let CUDA matcher choose output type to avoid truncation.
+    cv::Mat disp;
+    cv::cuda::GpuMat d_disp;
 
 
     switch (mParams.nCudaAlgorithmType)
@@ -286,6 +286,10 @@ void StereoDisparityGPU::Compute(cv::Mat& left, cv::Mat& right, cv::Mat& dispari
         
     case StereoCudaAlgorithms::kCudaCSBP: 
         csbp->compute(d_left, d_right, d_disp);
+        break;
+    default:
+        std::cerr << "StereoDisparityGPU::Compute() - Unsupported algorithm type";
+        quick_exit(-1);
         break;
     }
     
