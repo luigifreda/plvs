@@ -23,8 +23,6 @@
 #include <opencv2/core/core.hpp>
 
 #include <mutex>
-#include <thread>
-
 #include "PointDefinitions.h"
 
 #include <boost/core/noncopyable.hpp>
@@ -111,6 +109,7 @@ public:
     
     static StereoLibrary skStereoLibrary; 
     static bool skbNeedRectification; 
+    static bool skbLibelasEnableSubsampling;
     
 public: 
         
@@ -178,6 +177,7 @@ public:
     bool bInMap;
     bool bIsValid;
     bool bStereo;
+    bool bColorFromLeft = false;
 
     PointCloudCamParams* pCamParams = nullptr;
    
@@ -186,7 +186,13 @@ public:
 #endif
     
 #ifdef USE_LIBSGM
+    // Shared SGM instance: GPU buffers are large, so keep one static instance
+    // to avoid per-keyframe allocations and eventual CUDA OOM.
     static std::shared_ptr<sgm::StereoSGM> pSgm;
+    static std::mutex sgmMutex;
+    static int sgmWidth;
+    static int sgmHeight;
+    static int sgmBits;
 #endif    
     
     static std::shared_ptr<StereoDisparity> pSd;  // for OpenCV (with or without CUDA)  

@@ -6,7 +6,7 @@ alt="PLVS lab" width="300" border="0"/>
 
 # PLVS II
 
-### v0.2.1
+### v0.3.0
 
 Author: [Luigi Freda](https://www.luigifreda.com)
 

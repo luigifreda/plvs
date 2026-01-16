@@ -1325,6 +1325,7 @@ void KeyFrame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax,
         const float dMax1 = -dMin; 
         GetLineFeaturesInArea(thetaMin1,thetaMax1,dMin1,dMax1,vIndices,bRight);
         
+        // Since theta ∈ [-π/2, π/2] and dtheta > 0, if thetaMin < -π/2 then thetaMax > -π/2 always
         const float thetaMin2 = -M_PI_2 + std::numeric_limits<float>::epsilon(); 
         const float thetaMax2 = thetaMax;
         const float dMin2 = dMin; 
@@ -1346,6 +1347,7 @@ void KeyFrame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax,
         const float dMax1 = -dMin; 
         GetLineFeaturesInArea(thetaMin1,thetaMax1,dMin1,dMax1,vIndices,bRight);
         
+        // Since theta ∈ [-π/2, π/2] and dtheta > 0, if thetaMax > π/2 then thetaMin < π/2 always
         const float thetaMin2 = thetaMin; 
         const float thetaMax2 = M_PI_2 - std::numeric_limits<float>::epsilon();
         const float dMin2 = dMin; 
@@ -1364,8 +1366,8 @@ void KeyFrame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax,
     {
         return; 
     }    
-    const int nMaxCellThetaRow = std::min(LINE_THETA_GRID_ROWS-1, (int)floor((thetaMax -LINE_THETA_MIN)*mfLineGridElementThetaInv));    
-    if( nMaxCellThetaRow < 0)
+    const int nMaxCellThetaRow = std::min(LINE_THETA_GRID_ROWS-1, (int)ceil((thetaMax -LINE_THETA_MIN)*mfLineGridElementThetaInv));    
+    if( nMaxCellThetaRow < 0 || nMaxCellThetaRow < nMinCellThetaRow)
     {
         return; 
     }
@@ -1375,8 +1377,8 @@ void KeyFrame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax,
     {
         return; 
     }
-    const int nMaxCellDCol = std::min(LINE_D_GRID_COLS-1,(int)floor((dMax + mnMaxDiag)*mfLineGridElementDInv)); // + mnMaxDiag = - mnMinDiag
-    if( nMaxCellDCol < 0)
+    const int nMaxCellDCol = std::min(LINE_D_GRID_COLS-1,(int)ceil((dMax + mnMaxDiag)*mfLineGridElementDInv)); // + mnMaxDiag = - mnMinDiag
+    if( nMaxCellDCol < 0 || nMaxCellDCol < nMinCellDCol)
     {
         return; 
     }

@@ -357,10 +357,9 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     // mmProjectPoints.clear();
     // mmMatchedInImage.clear();
     
-    // LSD line segments extraction 
+    // Line segments extraction 
     if(mpLineExtractorLeft)
     {
-                
         Nlines = mvKeyLines.size();
         
         if(mvKeyLines.empty())
@@ -380,7 +379,6 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
 
         // mmProjectLines.clear();// = map<long unsigned int, LineEndPoints>(N, static_cast<LineEndPoints>(NULL));
         // mmMatchedLinesInImage.clear();
-
     }    
 
     mpMutexImu = new std::mutex();
@@ -555,7 +553,7 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
 
     mvbOutlier = vector<bool>(N,false);
     
-    // LSD line segments extraction 
+    // Line segments extraction 
     if(mpLineExtractorLeft)
     {        
         Nlines = mvKeyLines.size();
@@ -1368,6 +1366,7 @@ void Frame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax, co
         const float dMax1 = -dMin; 
         GetLineFeaturesInArea(thetaMin1,thetaMax1,dMin1,dMax1,bCheckLevels,minLevel,maxLevel,vIndices, bRight);
         
+        // Since theta ∈ [-π/2, π/2] and dtheta > 0, if thetaMin < -π/2 then thetaMax > -π/2 always
         const float thetaMin2 = -M_PI_2 + std::numeric_limits<float>::epsilon(); 
         const float thetaMax2 = thetaMax;
         const float dMin2 = dMin; 
@@ -1394,6 +1393,7 @@ void Frame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax, co
         const float dMax1 = -dMin; 
         GetLineFeaturesInArea(thetaMin1,thetaMax1,dMin1,dMax1,bCheckLevels,minLevel,maxLevel,vIndices, bRight);
         
+        // Since theta ∈ [-π/2, π/2] and dtheta > 0, if thetaMax > π/2 then thetaMin < π/2 always
         const float thetaMin2 = thetaMin; 
         const float thetaMax2 = M_PI_2 - std::numeric_limits<float>::epsilon();
         const float dMin2 = dMin; 
@@ -1414,8 +1414,8 @@ void Frame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax, co
     {
         return; 
     }    
-    const int nMaxCellThetaRow = std::min(LINE_THETA_GRID_ROWS-1, (int)floor((thetaMax -LINE_THETA_MIN)*mfLineGridElementThetaInv));    
-    if( nMaxCellThetaRow < 0)
+    const int nMaxCellThetaRow = std::min(LINE_THETA_GRID_ROWS-1, (int)ceil((thetaMax -LINE_THETA_MIN)*mfLineGridElementThetaInv));    
+    if( nMaxCellThetaRow < 0 || nMaxCellThetaRow < nMinCellThetaRow)
     {
         return; 
     }
@@ -1425,8 +1425,8 @@ void Frame::GetLineFeaturesInArea(const float thetaMin, const float thetaMax, co
     {
         return; 
     }
-    const int nMaxCellDCol = std::min(LINE_D_GRID_COLS-1,(int)floor((dMax + mnMaxDiag)*mfLineGridElementDInv)); // + mnMaxDiag = - mnMinDiag
-    if( nMaxCellDCol < 0)
+    const int nMaxCellDCol = std::min(LINE_D_GRID_COLS-1,(int)ceil((dMax + mnMaxDiag)*mfLineGridElementDInv)); // + mnMaxDiag = - mnMinDiag
+    if( nMaxCellDCol < 0 || nMaxCellDCol < nMinCellDCol)
     {
         return; 
     }
@@ -1603,7 +1603,8 @@ void Frame::UndistortKeyLines()
     if(mpCamera->GetType() == GeometricCamera::CAM_PINHOLE)
     {
         cv::undistortPoints(mat,mat, mpCamera->toK(),mDistCoef,cv::Mat(),mpCamera->toLinearK());
-        //NOTE: here we should have NlinesRight == 0
+
+        //NOTE: here we should have NlinesRight == -1 (i.e. no right keylines)
         MSG_ASSERT(NlinesRight == -1, "Should be NlinesRight == -1!");
     }
     else
@@ -1777,8 +1778,20 @@ void Frame::ComputeImageBounds(const cv::Mat &imLeft)
     mnMaxDiag = sqrt( pow(mnMaxX-mnMinX,2) + pow(mnMaxY-mnMinY,2) );
 }
 
+// NOTE: here we assume images have been rectified 
 void Frame::ComputeStereoMatches()
 {
+    // NOTE: In this codebase mpCamera2 is only set for stereo fisheye (Kannala–Brandt), 
+    // not for rectified pinhole stereo
+    if(mDistCoef.at<float>(0)!=0.0 || mpCamera2)
+    {
+        std::cout << "mDistCoef: " << mDistCoef << std::endl;
+        std::cout << "mpCamera: " << int(mpCamera != nullptr) << std::endl;
+        std::cout << "mpCamera2: " << int(mpCamera2 != nullptr) << std::endl;
+        MSG_WARN_STREAM("Stereo matching not supported for non rectified cameras. Images must be rectified before calling this function.");
+        return;
+    }
+
     mvuRight = vector<float>(N,-1.0f);
     mvDepth = vector<float>(N,-1.0f);
 
@@ -2007,6 +2020,16 @@ static double lineSegmentOverlapStereo( double ys1, double ye1, double ys2, doub
 // NOTE: here we assume images have been rectified 
 void Frame::ComputeStereoLineMatches()
 {    
+    // NOTE: In this codebase mpCamera2 is only set for stereo fisheye (Kannala–Brandt), 
+    // not for rectified pinhole stereo
+    if(mDistCoef.at<float>(0)!=0.0 || mpCamera2)
+    {
+        std::cout << "mDistCoef: " << mDistCoef << std::endl;
+        std::cout << "mpCamera2: " << int(mpCamera2 != nullptr) << std::endl;        
+        MSG_WARN_STREAM("Stereo line matching not supported for non rectified cameras. Images must be rectified before calling this function.");
+        return;
+    }
+
     mvuRightLineStart = vector<float>(Nlines,-1);
     mvDepthLineStart  = vector<float>(Nlines,-1);
     
@@ -2908,7 +2931,7 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     mvbOutlier = vector<bool>(N,false);
 
 
-    // LSD line segments extraction 
+    // Line segments extraction 
     if(mpLineExtractorLeft)
     {
         NlinesLeft = mvKeyLines.size();

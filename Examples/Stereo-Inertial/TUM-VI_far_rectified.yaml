@@ -185,6 +185,7 @@ SparseMapping.forceRelocalization: 1
 # StereoDense.type: libelas, libsgm, opencv, opencvcuda(this needs tuning and improvements) 
 # (library used in combination with volumetric mapping to compute depth from stereo images)
 StereoDense.type: "libelas"
+StereoDense.libelasEnableSubsampling: 0
 
 #--------------------------------------------------------------------------------------------
 # PointCloud Mapping

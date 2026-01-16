@@ -664,7 +664,10 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
     {
         MapPointPtr pMP = vpMPoints[i];
         if(pMP->isBad())
+        {
+            vbNotIncludedMPoints[i]=true;
             continue;
+        }
         g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
         vPoint->setEstimate(pMP->GetWorldPos().cast<double>());
         const int id = pMP->mnId+maxKFid+1;
@@ -844,7 +847,10 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
     {
         const MapLinePtr pML = vpMLines[i];
         if(pML->isBad())
+        {
+            vbNotIncludedMLines[i]=true;
             continue;
+        }
         g2o::VertexSBALine* vLine = new g2o::VertexSBALine();
         Eigen::Vector3f posStart, posEnd;
         pML->GetWorldEndPoints(posStart, posEnd);                          
@@ -970,7 +976,8 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
                 e->XSbc = e->camBackProject(Eigen::Vector2d(klUn.startPointX,klUn.startPointY),pKF->mvDepthLineStart[leftIndex]);
                 e->XEbc = e->camBackProject(Eigen::Vector2d(klUn.endPointX,klUn.endPointY),pKF->mvDepthLineEnd[leftIndex]);
                         
-                e->lineLenghtInv = 1.0/(e->XSbc - e->XEbc).norm(); // use the length of the 3D detected line 
+                const double safeXSbc_XEbc_norm = std::max((e->XSbc - e->XEbc).norm(), MIN_LINE_LENGTH);
+                e->lineLenghtInv = 1.0/safeXSbc_XEbc_norm; // use the length of the 3D detected line 
                 e->mu = Optimizer::skMuWeightForLine3dDist;
                 
                 e->init(); // here we check the match between Bp and P (Bq and Q)
@@ -1123,7 +1130,10 @@ void Optimizer::BundleAdjustment(const vector<KeyFramePtr> &vpKFs, const vector<
     {
         MapObjectPtr pMObj = vpMObjects[i];
         if(pMObj->isBad())
+        {
+            vbNotIncludedMObjects[i]=true;
             continue;
+        }
         g2o::VertexSim3Expmap* vObject = new g2o::VertexSim3Expmap();
         Eigen::Matrix<double,3,3> Row = pMObj->GetRotation().cast<double>();
         Eigen::Matrix<double,3,1> tow = pMObj->GetTranslation().cast<double>();
@@ -1753,7 +1763,10 @@ void Optimizer::FullInertialBA(Map *pMap, int its, const bool bFixLocal, const l
 #if SKIP_BAD_MPS_FULL_INERTIAL        
         // Luigi: this seems to be missing here!
         if(pMP->isBad())
+        {
+            vbNotIncludedMP[i]=true;
             continue;
+        }
 #endif             
         g2o::VertexSBAPointXYZ* vPoint = new g2o::VertexSBAPointXYZ();
         vPoint->setEstimate(pMP->GetWorldPos().cast<double>());
@@ -1882,7 +1895,10 @@ void Optimizer::FullInertialBA(Map *pMap, int its, const bool bFixLocal, const l
     {
         const MapLinePtr pML = vpMLs[i];
         if(pML->isBad())
+        {
+            vbNotIncludedMLines[i]=true;
             continue;
+        }
 
         g2o::VertexSBALine* vLine = new g2o::VertexSBALine();
         Eigen::Vector3f posStart, posEnd;
@@ -2016,8 +2032,8 @@ void Optimizer::FullInertialBA(Map *pMap, int its, const bool bFixLocal, const l
                 Eigen::Vector2d projMapP, projMapQ;
                 Eigen::Vector3d mapP, mapQ;
                 e->getMapLineAndProjections(mapP, mapQ, projMapP, projMapQ);
-                Eigen::Vector3d &backprojP = e->XSbc;
-                Eigen::Vector3d &backprojQ = e->XEbc; 
+                Eigen::Vector3d &backprojP = e->XSc_backproj;
+                Eigen::Vector3d &backprojQ = e->XEc_backproj; 
 
                 Set2DLineInformationMat(Info(0,0),Info(1,1), sigma2, 
                            klUn.startPointX,klUn.startPointY, 
@@ -2772,7 +2788,8 @@ int Optimizer::PoseOptimization(Frame *pFrame)
                     e->XSbc = e->camBackProject(Eigen::Vector2d(klUn.startPointX,klUn.startPointY),pFrame->mvDepthLineStart[i] );
                     e->XEbc = e->camBackProject(Eigen::Vector2d(klUn.endPointX,klUn.endPointY),pFrame->mvDepthLineEnd[i] );
 
-                    e->lineLenghtInv = 1.0/(e->XSbc - e->XEbc).norm(); // use the length of the 3D detected line 
+                    const double safeXSbc_XEbc_norm = std::max((e->XSbc - e->XEbc).norm(), MIN_LINE_LENGTH);
+                    e->lineLenghtInv = 1.0/safeXSbc_XEbc_norm; // use the length of the 3D detected line 
 
                     e->init();                 
 
@@ -3862,7 +3879,8 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pKF, bool* pbStopFlag, Map* pM
                         e->XSbc = e->camBackProject(Eigen::Vector2d(klUn.startPointX,klUn.startPointY),pKFi->mvDepthLineStart[leftIndex]);
                         e->XEbc = e->camBackProject(Eigen::Vector2d(klUn.endPointX,klUn.endPointY),pKFi->mvDepthLineEnd[leftIndex]);
                             
-                        e->lineLenghtInv = 1.0/(e->XSbc - e->XEbc).norm(); // use the length of the 3D detected line 
+                        const double safeXSbc_XEbc_norm = std::max((e->XSbc - e->XEbc).norm(), MIN_LINE_LENGTH);
+                        e->lineLenghtInv = 1.0/safeXSbc_XEbc_norm; // use the length of the 3D detected line 
                         e->mu = Optimizer::skMuWeightForLine3dDist;
                         
                         e->init();
@@ -6300,8 +6318,8 @@ void Optimizer::LocalInertialBA(KeyFramePtr pKF, bool *pbStopFlag, Map *pMap, in
                         Eigen::Vector2d projMapP, projMapQ;
                         Eigen::Vector3d mapP, mapQ;
                         e->getMapLineAndProjections(mapP, mapQ, projMapP, projMapQ);
-                        Eigen::Vector3d &backprojP = e->XSbc;
-                        Eigen::Vector3d &backprojQ = e->XEbc; 
+                        Eigen::Vector3d &backprojP = e->XSc_backproj;
+                        Eigen::Vector3d &backprojQ = e->XEc_backproj; 
 
                         Set2DLineInformationMat(Info(0,0),Info(1,1), sigma2, 
                                 klUn.startPointX,klUn.startPointY, 
@@ -6348,9 +6366,12 @@ void Optimizer::LocalInertialBA(KeyFramePtr pKF, bool *pbStopFlag, Map *pMap, in
                 if(pKFi->mpCamera2){
                     int rightIndex = get<1>(mit->second);
 
-                    if(rightIndex != -1 )
+                    if(rightIndex != -1)
                     {
-                        rightIndex -= pKFi->NlinesLeft;                    
+                        rightIndex -= pKFi->NlinesLeft;    
+                        if(rightIndex < 0 || rightIndex >= pKFi->mvKeyLinesRightUn.size())
+                            continue;
+                        
                         mVisEdges[pKFi->mnId] += Tracking::sknLineTrackWeigth;
 
                         const cv::line_descriptor_c::KeyLine &klUn = pKFi->mvKeyLinesRightUn[rightIndex];
@@ -7651,9 +7672,13 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pMainKF, vector<KeyFramePtr> v
             Line2DRepresentation lineRepresentation;
             Geom2DUtils::GetLine2dRepresentationNoTheta(klUn.startPointX,klUn.startPointY,klUn.endPointX,klUn.endPointY, lineRepresentation);
 
-#if USE_LINE_STEREO                
-            if( (!pKF->mvuRightLineStart.empty()) && (pKF->mvuRightLineStart[leftIndex]<0) || (pKF->mvuRightLineEnd[leftIndex]<0) ) //Monocular
-#endif                
+#if USE_LINE_STEREO
+            const bool hasRightLine = (!pKF->mvuRightLineStart.empty()) &&
+                                      (!pKF->mvuRightLineEnd.empty()) &&
+                                      (leftIndex < static_cast<int>(pKF->mvuRightLineStart.size())) &&
+                                      (leftIndex < static_cast<int>(pKF->mvuRightLineEnd.size()));
+            if(!hasRightLine || (pKF->mvuRightLineStart[leftIndex] < 0) || (pKF->mvuRightLineEnd[leftIndex] < 0)) // Monocular
+#endif
             {
                 mpObsMLs[pMLi]++;
                 
@@ -7732,7 +7757,8 @@ void Optimizer::LocalBundleAdjustment(KeyFramePtr pMainKF, vector<KeyFramePtr> v
                 e->XSbc = e->camBackProject(Eigen::Vector2d(klUn.startPointX,klUn.startPointY),pKF->mvDepthLineStart[leftIndex]);
                 e->XEbc = e->camBackProject(Eigen::Vector2d(klUn.endPointX,klUn.endPointY),pKF->mvDepthLineEnd[leftIndex]);
 
-                e->lineLenghtInv = 1.0/(e->XSbc - e->XEbc).norm(); // use the length of the 3D detected line 
+                const double safeXSbc_XEbc_norm = std::max((e->XSbc - e->XEbc).norm(), MIN_LINE_LENGTH);
+                e->lineLenghtInv = 1.0/safeXSbc_XEbc_norm; // use the length of the 3D detected line 
                 e->mu = Optimizer::skMuWeightForLine3dDist;
 
                 e->init();
@@ -9044,12 +9070,12 @@ void Optimizer::MergeInertialBA(KeyFramePtr pCurrKF, KeyFramePtr pMergeKF, bool 
                     continue;    
                 const ImuCamPose& imuCamPose = VP->estimate();
 
-                const float uRightLineStart = -1; 
-                const float uRightLineEnd = -1; 
-                if(!pKFi->mvuRightLineStart.empty() && (leftIndex < pKFi->mvuRightLineStart.size()))
+                float uRightLineStart = -1; 
+                float uRightLineEnd = -1; 
+                if(!pKFi->mvuRightLineStart.empty() && (leftIndex < pKFi->mvuRightLineStart.size()) && (leftIndex < pKFi->mvuRightLineEnd.size()))
                 {
-                    pKFi->mvuRightLineStart[leftIndex];
-                    pKFi->mvuRightLineEnd[leftIndex];
+                    uRightLineStart = pKFi->mvuRightLineStart[leftIndex];
+                    uRightLineEnd = pKFi->mvuRightLineEnd[leftIndex];
                 }
 
                 const cv::line_descriptor_c::KeyLine &klUn = pKFi->mvKeyLinesUn[leftIndex];
@@ -9134,8 +9160,8 @@ void Optimizer::MergeInertialBA(KeyFramePtr pCurrKF, KeyFramePtr pMergeKF, bool 
                     Eigen::Vector2d projMapP, projMapQ;
                     Eigen::Vector3d mapP, mapQ;
                     e->getMapLineAndProjections(mapP, mapQ, projMapP, projMapQ);
-                    Eigen::Vector3d &backprojP = e->XSbc;
-                    Eigen::Vector3d &backprojQ = e->XEbc; 
+                    Eigen::Vector3d &backprojP = e->XSc_backproj;
+                    Eigen::Vector3d &backprojQ = e->XEc_backproj; 
 
                     Set2DLineInformationMat(Info(0,0),Info(1,1), sigma2, 
                             klUn.startPointX,klUn.startPointY, 
@@ -9676,8 +9702,8 @@ int Optimizer::PoseInertialOptimizationLastKeyFrame(Frame *pFrame, bool bRecInit
                         Eigen::Vector2d projMapP, projMapQ;
                         Eigen::Vector3d mapP, mapQ;
                         e->getMapLineAndProjections(mapP, mapQ, projMapP, projMapQ);
-                        Eigen::Vector3d &backprojP = e->XSbc;
-                        Eigen::Vector3d &backprojQ = e->XEbc; 
+                        Eigen::Vector3d &backprojP = e->XSc_backproj;
+                        Eigen::Vector3d &backprojQ = e->XEc_backproj; 
 
                         Set2DLineInformationMat(Info(0,0),Info(1,1), sigma2, 
                                 klUn.startPointX,klUn.startPointY, 
@@ -10435,8 +10461,8 @@ int Optimizer::PoseInertialOptimizationLastFrame(Frame *pFrame, bool bRecInit)
                         Eigen::Vector2d projMapP, projMapQ;
                         Eigen::Vector3d mapP, mapQ;
                         e->getMapLineAndProjections(mapP, mapQ, projMapP, projMapQ);
-                        Eigen::Vector3d &backprojP = e->XSbc;
-                        Eigen::Vector3d &backprojQ = e->XEbc; 
+                        Eigen::Vector3d &backprojP = e->XSc_backproj;
+                        Eigen::Vector3d &backprojQ = e->XEc_backproj;
 
                         Set2DLineInformationMat(Info(0,0),Info(1,1), sigma2, 
                                 klUn.startPointX,klUn.startPointY, 
@@ -11071,7 +11097,8 @@ void Optimizer::OptimizeEssentialGraph4DoF(Map* pMap, KeyFramePtr pLoopKF, KeyFr
             Siw = vScw[nIDi];
 
         // 1.1.0 Spanning tree edge
-        KeyFramePtr pParentKF = static_cast<KeyFramePtr>(NULL);
+        //KeyFramePtr pParentKF = static_cast<KeyFramePtr>(NULL);
+        KeyFramePtr pParentKF = pKF->GetParent(); // Luigi: MODIFICATION
         if(pParentKF)
         {
             int nIDj = pParentKF->mnId;

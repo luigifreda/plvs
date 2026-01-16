@@ -61,6 +61,8 @@
 namespace PLVS2
 {
 
+constexpr float kLineMinNorm = 1e-6f;
+
 LocalMapping::LocalMapping(System* pSys, Atlas *pAtlas, const float bMonocular, bool bInertial, const string &_strSeqName):
     mpSystem(pSys), mbMonocular(bMonocular), mbInertial(bInertial), mbResetRequested(false), mbResetRequestedActiveMap(false), mbFinishRequested(false), mbFinished(true), mpAtlas(pAtlas), bInitializing(false),
     mbAbortBA(false), mbStopped(false), mbStopRequested(false), mbNotStop(false), mbAcceptKeyFrames(true),
@@ -541,7 +543,7 @@ void LocalMapping::CreateNewMapFeatures()
         pLineMatcher.reset( new LineMatcher(0.6,false) );
     }
 
-    Sophus::SE3<float> sophTcw1 = mpCurrentKeyFrame->GetPose();
+    Sophus::SE3<float> sophTcw1 = mpCurrentKeyFrame->GetPose(); // copy
     Eigen::Matrix<float,3,4> eigTcw1 = sophTcw1.matrix3x4();
     Eigen::Matrix<float,3,3> Rcw1 = eigTcw1.block<3,3>(0,0);
     Eigen::Matrix<float,3,3> Rwc1 = Rcw1.transpose();
@@ -656,7 +658,7 @@ void LocalMapping::CreateNewMapFeatures()
 
         matcher.SearchForTriangulation(mpCurrentKeyFrame,pKF2,vMatchedIndices,false,bCoarse);
 
-        Sophus::SE3<float> sophTcw2 = pKF2->GetPose();
+        Sophus::SE3<float> sophTcw2 = pKF2->GetPose(); // copy
         Eigen::Matrix<float,3,4> eigTcw2 = sophTcw2.matrix3x4();
         Eigen::Matrix<float,3,3> Rcw2 = eigTcw2.block<3,3>(0,0);
         Eigen::Matrix<float,3,3> Rwc2 = Rcw2.transpose();
@@ -694,7 +696,7 @@ void LocalMapping::CreateNewMapFeatures()
 
 #endif 
 
-        // Triangulate each match
+        // Triangulate each keypoint match
         const int nmatches = vMatchedIndices.size();
         for(int ikp=0; ikp<nmatches; ikp++)
         {
@@ -763,11 +765,13 @@ void LocalMapping::CreateNewMapFeatures()
                 Rcw1 = eigTcw1.block<3,3>(0,0);
                 Rwc1 = Rcw1.transpose();
                 tcw1 = sophTcw1.translation();
+                twc1 = -Rwc1*tcw1;
 
                 eigTcw2 = sophTcw2.matrix3x4();
                 Rcw2 = eigTcw2.block<3,3>(0,0);
                 Rwc2 = Rcw2.transpose();
                 tcw2 = sophTcw2.translation();
+                twc2 = -Rwc2*tcw2;
             }
 
             // Check parallax between rays
@@ -794,7 +798,7 @@ void LocalMapping::CreateNewMapFeatures()
             Eigen::Vector3f x3D;
 
             bool goodProj = false;
-            bool bPointStereo = false;
+            //bool bPointStereo = false;
             if(cosParallaxRays<cosParallaxStereo && cosParallaxRays>0 && (bStereo1 || bStereo2 ||
                                                                           (cosParallaxRays<0.9996 && mbInertial) || (cosParallaxRays<0.9998 && !mbInertial)))
             {
@@ -805,13 +809,13 @@ void LocalMapping::CreateNewMapFeatures()
             else if(bStereo1 && cosParallaxStereo1<cosParallaxStereo2)
             {
                 //countStereoAttempt++;
-                bPointStereo = true;
+                //bPointStereo = true;
                 goodProj = mpCurrentKeyFrame->UnprojectStereo(idx1, x3D);
             }
             else if(bStereo2 && cosParallaxStereo2<cosParallaxStereo1)
             {
                 //countStereoAttempt++;
-                bPointStereo = true;
+                //bPointStereo = true;
                 goodProj = pKF2->UnprojectStereo(idx2, x3D);
             }
             else
@@ -878,7 +882,7 @@ void LocalMapping::CreateNewMapFeatures()
             else
             {
                 float u2 = fx2*x2*invz2+cx2;
-                float u2_r = u2 - mpCurrentKeyFrame->mbf*invz2;
+                float u2_r = u2 - pKF2->mbf*invz2;
                 float v2 = fy2*y2*invz2+cy2;
                 float errX2 = u2 - kp2.pt.x;
                 float errY2 = v2 - kp2.pt.y;
@@ -939,13 +943,19 @@ void LocalMapping::CreateNewMapFeatures()
             Eigen::Matrix3f H21_LL, H21_LR, H21_RL, H21_RR; 
             Eigen::Vector3f e2_LL, e2_LR, e2_RL, e2_RR;
 
-            ComputeH21(mpCurrentKeyFrame, pKF2, H21_LL, e2_LL, false/*bRight1*/, false/*bRight2*/); 
+            ComputeH21(mpCurrentKeyFrame, pKF2, H21_LL, e2_LL, false/*bRight1*/, false/*bRight2*/);
+            if(mpCurrentKeyFrame->mpCamera2)
+            {
+                ComputeH21(mpCurrentKeyFrame, pKF2, H21_RL, e2_RL, true/*bRight1*/, false/*bRight2*/);
+            }
             if(pKF2->mpCamera2)
             {
                 ComputeH21(mpCurrentKeyFrame, pKF2, H21_LR, e2_LR, false/*bRight1*/, true/*bRight2*/);
-                ComputeH21(mpCurrentKeyFrame, pKF2, H21_RL, e2_RL, true/*bRight1*/, false/*bRight2*/);
-                ComputeH21(mpCurrentKeyFrame, pKF2, H21_RR, e2_RR, true/*bRight1*/, true/*bRight2*/);
-            }       
+                if(mpCurrentKeyFrame->mpCamera2)
+                {
+                    ComputeH21(mpCurrentKeyFrame, pKF2, H21_RR, e2_RR, true/*bRight1*/, true/*bRight2*/);
+                }
+            }
             
             const Eigen::Matrix3f K2L = pKF2->mpCamera->toLinearK_(); // pKF2->mK;
             const Eigen::Matrix3f K2R = pKF2->mpCamera2 ? pKF2->mpCamera2->toLinearK_() : Eigen::Matrix3f::Zero();
@@ -1004,7 +1014,15 @@ void LocalMapping::CreateNewMapFeatures()
                 const auto& K1 = bRight1 ? K1R : K1L; 
                 
                 // left image original index or left index corresponding to left-right stereo match if any (valid if >=0)
-                const int idx1L = !bRight1 ? idx1 : mpCurrentKeyFrame->mvRightToLeftLinesMatch[idx1-mpCurrentKeyFrame->NlinesLeft]; // get the corresponding left line if any  
+                int idx1L = -1;
+                if(!bRight1)
+                    idx1L = idx1;
+                else
+                {
+                    const int rightIdx = idx1 - mpCurrentKeyFrame->NlinesLeft;
+                    if(rightIdx >= 0 && rightIdx < (int)mpCurrentKeyFrame->mvRightToLeftLinesMatch.size())
+                        idx1L = mpCurrentKeyFrame->mvRightToLeftLinesMatch[rightIdx];
+                }  
 
 		        // get undistorted kl2 
                 const auto& kl2 = (pKF2->NlinesLeft == -1) ? pKF2->mvKeyLinesUn[idx2] :
@@ -1019,13 +1037,22 @@ void LocalMapping::CreateNewMapFeatures()
                 const auto& K2 = bRight2 ? K2R : K2L;
 
                 // left image original index or left index corresponding to left-right stereo match if any (valid if >=0)
-                const int idx2L = !bRight2 ? idx2 : pKF2->mvRightToLeftLinesMatch[idx2-pKF2->NlinesLeft]; 
+                int idx2L = -1;
+                if(!bRight2)
+                    idx2L = idx2;
+                else
+                {
+                    const int rightIdx = idx2 - pKF2->NlinesLeft;
+                    if(rightIdx >= 0 && rightIdx < (int)pKF2->mvRightToLeftLinesMatch.size())
+                        idx2L = pKF2->mvRightToLeftLinesMatch[rightIdx];
+                } 
 
                 const Eigen::Vector3f p1(kl1.startPointX , kl1.startPointY, 1.0);
                 const Eigen::Vector3f q1(kl1.endPointX ,   kl1.endPointY, 1.0); 
                 const Eigen::Vector3f m1 = 0.5*(p1+q1);
                 Eigen::Vector3f l1 = p1.cross(q1);   
                 const float l1Norm = sqrt( Utils::Pow2(l1[0]) + Utils::Pow2(l1[1]) );
+                if (l1Norm < kLineMinNorm) continue;
                 l1 = l1/l1Norm; // in this way we have l1 = (nx, ny, -d) with (nx^2 + ny^2) = 1
                                     
                 const Eigen::Vector3f p2(kl2.startPointX, kl2.startPointY, 1.0);
@@ -1033,6 +1060,7 @@ void LocalMapping::CreateNewMapFeatures()
                 const Eigen::Vector3f m2 = 0.5*(p2+q2);
                 Eigen::Vector3f l2 = p2.cross(q2); 
                 const float l2Norm = sqrt( Utils::Pow2(l2[0]) + Utils::Pow2(l2[1]) );
+                if (l2Norm < kLineMinNorm) continue;
                 l2 = l2/l2Norm; // in this way we have l2 = (nx, ny, -d) with (nx^2 + ny^2) = 1             
                 
                 // Check if we can triangulate, i.e. check if the normals of the two planes corresponding to lines are not parallel
@@ -1071,12 +1099,12 @@ void LocalMapping::CreateNewMapFeatures()
                 float cosParallaxStereo1 = cosParallaxStereo;
                 float cosParallaxStereo2 = cosParallaxStereo;
                 
-                if(bStereo1 && idx1L>=0)
+                if(bStereo1 && idx1L>=0 && idx1L < (int)mpCurrentKeyFrame->mvDepthLineStart.size() && idx1L < (int)mpCurrentKeyFrame->mvDepthLineEnd.size())
                 {
                     const float depthM1 = 0.5* ( mpCurrentKeyFrame->mvDepthLineStart[idx1L] + mpCurrentKeyFrame->mvDepthLineEnd[idx1L] ); // depth middle point left
                     cosParallaxStereo1 = cos(2*atan2(mpCurrentKeyFrame->mb/2,depthM1));
                 }
-                else if(bStereo2 && idx2L>=0)
+                else if(bStereo2 && idx2L>=0 && idx2L < (int)pKF2->mvDepthLineStart.size() && idx2L < (int)pKF2->mvDepthLineEnd.size())
                 {
                     const float depthM2 = 0.5* ( pKF2->mvDepthLineStart[idx2L] + pKF2->mvDepthLineEnd[idx2L] ); // depth middle point right                   
                     cosParallaxStereo2 = cos(2*atan2(pKF2->mb/2,depthM2));
@@ -1141,7 +1169,10 @@ void LocalMapping::CreateNewMapFeatures()
                                     else
                                     {
                                         // assign depth and (virtual) disparity to left line end points      
-                                        if(idx1L>=0)
+                                        if(idx1L>=0 && idx1L < (int)mpCurrentKeyFrame->mvDepthLineStart.size() && 
+                                           idx1L < (int)mpCurrentKeyFrame->mvDepthLineEnd.size() &&
+                                           idx1L < (int)mpCurrentKeyFrame->mvuRightLineStart.size() &&
+                                           idx1L < (int)mpCurrentKeyFrame->mvuRightLineEnd.size())
                                         {
                                             mpCurrentKeyFrame->mvDepthLineStart[idx1L] = depthP1;                             
                                             mpCurrentKeyFrame->mvuRightLineStart[idx1L] =  1; // fake value to signal depth availability 
@@ -1198,44 +1229,79 @@ void LocalMapping::CreateNewMapFeatures()
                     // N.B.2: if line is triangulated, the following block of checks are automatically satisfied by construction 
                     //(given the backprojection of the points p2 q2 from frame 2 on the plane corresponding to l1)
 
+                    const Eigen::Matrix3f Rcw1Sel = bRight1 ? Rwc1R.transpose() : Rwc1L.transpose();
+                    const Eigen::Vector3f twc1Sel = bRight1 ? twc1R : twc1L;
+                    const Eigen::Vector3f tcw1Sel = -Rcw1Sel*twc1Sel;
+                    const Eigen::Matrix3f Rcw2Sel = bRight2 ? Rwc2R.transpose() : Rwc2L.transpose();
+                    const Eigen::Vector3f twc2Sel = bRight2 ? twc2R : twc2L;
+                    const Eigen::Vector3f tcw2Sel = -Rcw2Sel*twc2Sel;
+                    float fx1Sel, fy1Sel, cx1Sel, cy1Sel, fx2Sel, fy2Sel, cx2Sel, cy2Sel;
+                    if(bRight1)
+                    {
+                        fx1Sel = fx1R;
+                        fy1Sel = fy1R;
+                        cx1Sel = cx1R;
+                        cy1Sel = cy1R;
+                    }
+                    else
+                    {
+                        fx1Sel = fx1;
+                        fy1Sel = fy1;
+                        cx1Sel = cx1;
+                        cy1Sel = cy1;
+                    }
+                    if(bRight2)
+                    {
+                        fx2Sel = fx2R;
+                        fy2Sel = fy2R;
+                        cx2Sel = cx2R;
+                        cy2Sel = cy2R;
+                    }
+                    else
+                    {
+                        fx2Sel = fx2;
+                        fy2Sel = fy2;
+                        cx2Sel = cx2;
+                        cy2Sel = cy2;
+                    }
                     const Eigen::Vector3f x3DSt = x3DS.transpose();
                     const Eigen::Vector3f x3DEt = x3DE.transpose(); 
 
                     //Check triangulation in front of cameras
-                    const float sz1 = Rcw1.row(2).dot(x3DSt)+tcw1[2];
+                    const float sz1 = Rcw1Sel.row(2).dot(x3DSt)+tcw1Sel[2];
                     if(sz1<=0)
                         continue;
-                    const float ez1 = Rcw1.row(2).dot(x3DEt)+tcw1[2];
+                    const float ez1 = Rcw1Sel.row(2).dot(x3DEt)+tcw1Sel[2];
                     if(ez1<=0)
                         continue;                
 
-                    const float sz2 = Rcw2.row(2).dot(x3DSt)+tcw2[2];
+                    const float sz2 = Rcw2Sel.row(2).dot(x3DSt)+tcw2Sel[2];
                     if(sz2<=0)
                         continue;
-                    const float ez2 = Rcw2.row(2).dot(x3DEt)+tcw2[2];
+                    const float ez2 = Rcw2Sel.row(2).dot(x3DEt)+tcw2Sel[2];
                     if(ez2<=0)
                         continue;                
 
                     //Check reprojection error in first keyframe
                     const float &sigmaSquare1 = mpCurrentKeyFrame->mvLineLevelSigma2[kl1.octave];
 
-                    const float sx1 = Rcw1.row(0).dot(x3DSt)+tcw1[0];
-                    const float sy1 = Rcw1.row(1).dot(x3DSt)+tcw1[1];
+                    const float sx1 = Rcw1Sel.row(0).dot(x3DSt)+tcw1Sel[0];
+                    const float sy1 = Rcw1Sel.row(1).dot(x3DSt)+tcw1Sel[1];
                     const float sinvz1 = 1.0/sz1;
 
-                    const float su1 = fx1*sx1*sinvz1+cx1;
-                    const float sv1 = fy1*sy1*sinvz1+cy1;
+                    const float su1 = fx1Sel*sx1*sinvz1+cx1Sel;
+                    const float sv1 = fy1Sel*sy1*sinvz1+cy1Sel;
                     const float dl1s = l1[0] * su1 + l1[1] * sv1 + l1[2]; // distance point-line
                     if((dl1s*dl1s)>3.84*sigmaSquare1)
                         continue;
 
 
-                    const float ex1 = Rcw1.row(0).dot(x3DEt)+tcw1[0];
-                    const float ey1 = Rcw1.row(1).dot(x3DEt)+tcw1[1];
+                    const float ex1 = Rcw1Sel.row(0).dot(x3DEt)+tcw1Sel[0];
+                    const float ey1 = Rcw1Sel.row(1).dot(x3DEt)+tcw1Sel[1];
                     const float einvz1 = 1.0/ez1;         
 
-                    const float eu1 = fx1*ex1*einvz1+cx1;
-                    const float ev1 = fy1*ey1*einvz1+cy1;
+                    const float eu1 = fx1Sel*ex1*einvz1+cx1Sel;
+                    const float ev1 = fy1Sel*ey1*einvz1+cy1Sel;
                     const float dl1e = l1[0] * eu1 + l1[1] * ev1 + l1[2]; // distance point-line
                     if((dl1e*dl1e)>3.84*sigmaSquare1)
                         continue;                
@@ -1243,23 +1309,23 @@ void LocalMapping::CreateNewMapFeatures()
                     //Check reprojection error in second keyframe                                          
                     const float sigmaSquare2 = pKF2->mvLineLevelSigma2[kl2.octave];
 
-                    const float sx2 = Rcw2.row(0).dot(x3DSt)+tcw2[0];
-                    const float sy2 = Rcw2.row(1).dot(x3DSt)+tcw2[1];
+                    const float sx2 = Rcw2Sel.row(0).dot(x3DSt)+tcw2Sel[0];
+                    const float sy2 = Rcw2Sel.row(1).dot(x3DSt)+tcw2Sel[1];
                     const float sinvz2 = 1.0/sz2;         
 
-                    const float su2 = fx2*sx2*sinvz2+cx2;
-                    const float sv2 = fy2*sy2*sinvz2+cy2;
+                    const float su2 = fx2Sel*sx2*sinvz2+cx2Sel;
+                    const float sv2 = fy2Sel*sy2*sinvz2+cy2Sel;
                     const float dl2s = l2[0] * su2 + l2[1] * sv2 + l2[2];
                     if((dl2s*dl2s)>3.84*sigmaSquare2)
                         continue;
 
 
-                    const float ex2 = Rcw2.row(0).dot(x3DEt)+tcw2[0];
-                    const float ey2 = Rcw2.row(1).dot(x3DEt)+tcw2[1];
+                    const float ex2 = Rcw2Sel.row(0).dot(x3DEt)+tcw2Sel[0];
+                    const float ey2 = Rcw2Sel.row(1).dot(x3DEt)+tcw2Sel[1];
                     const float einvz2 = 1.0/ez2;       
 
-                    float eu2 = fx2*ex2*einvz2+cx2;
-                    float ev2 = fy2*ey2*einvz2+cy2;
+                    float eu2 = fx2Sel*ex2*einvz2+cx2Sel;
+                    float ev2 = fy2Sel*ey2*einvz2+cy2Sel;
                     const float dl2e = l2[0] * eu2 + l2[1] * ev2 + l2[2];
                     if((dl2e*dl2e)>3.84*sigmaSquare2)
                         continue;                    
@@ -1268,10 +1334,12 @@ void LocalMapping::CreateNewMapFeatures()
                 //Check scale consistency
                 Eigen::Vector3f x3DM = 0.5*(x3DS+x3DE);
                 
-                Eigen::Vector3f normal1 = x3DM-Ow1;
+                const Eigen::Vector3f& Ow1Sel = bRight1 ? twc1R : twc1L;
+                const Eigen::Vector3f& Ow2Sel = bRight2 ? twc2R : twc2L;
+                Eigen::Vector3f normal1 = x3DM-Ow1Sel;
                 float dist1 = normal1.norm();
 
-                Eigen::Vector3f normal2 = x3DM-Ow2;
+                Eigen::Vector3f normal2 = x3DM-Ow2Sel;
                 float dist2 = normal2.norm();
 
                 if(dist1==0 || dist2==0)
@@ -1492,6 +1560,23 @@ void LocalMapping::SearchInNeighbors()
 }
 
 
+Eigen::Matrix3f GetKinverse(const Eigen::Matrix3f& K)
+{
+    const float& fx = K(0,0);
+    const float& fy = K(1,1);
+    const float& cx = K(0,2);
+    const float& cy = K(1,2);
+    const float invfx = 1.0f / fx;
+    const float invfy = 1.0f / fy;
+
+    Eigen::Matrix3f Kinv = Eigen::Matrix3f::Identity();
+    Kinv(0,0) = invfx;
+    Kinv(1,1) = invfy;
+    Kinv(0,2) = -cx * invfx;
+    Kinv(1,2) = -cy * invfy;
+    return Kinv;
+}
+
 
 void LocalMapping::ComputeH12(KeyFramePtr& pKF1, KeyFramePtr& pKF2, Eigen::Matrix3f& H12, Eigen::Vector3f& e1, const bool bRight1, const bool bRight2)      
 {
@@ -1514,10 +1599,7 @@ void LocalMapping::ComputeH12(KeyFramePtr& pKF1, KeyFramePtr& pKF2, Eigen::Matri
     const Eigen::Matrix3f K1 = bRight1 ? pKF1->mpCamera2->toLinearK_() : pKF1->mpCamera->toLinearK_();
     const Eigen::Matrix3f K2 = bRight2 ? pKF2->mpCamera2->toLinearK_() : pKF2->mpCamera->toLinearK_();
     
-    Eigen::Matrix3f K2inv;
-    K2inv <<  pKF2->invfx,           0,  -pKF2->cx*pKF2->invfx, 
-                        0, pKF2->invfy,  -pKF2->cy*pKF2->invfy, 
-                        0,           0,                     1.;
+    const Eigen::Matrix3f K2inv = GetKinverse(K2);
 
     e1  = K1*t12; // epipole in image 1 
     //H12 = K1*R12*K2.inverse();
@@ -1547,10 +1629,7 @@ void LocalMapping::ComputeH21(KeyFramePtr& pKF1, KeyFramePtr& pKF2, Eigen::Matri
     const Eigen::Matrix3f K1 = bRight1 ? pKF1->mpCamera2->toLinearK_() : pKF1->mpCamera->toLinearK_();
     const Eigen::Matrix3f K2 = bRight2 ? pKF2->mpCamera2->toLinearK_() : pKF2->mpCamera->toLinearK_();
 
-    Eigen::Matrix3f K1inv;
-    K1inv <<  pKF1->invfx,           0,  -pKF1->cx*pKF1->invfx, 
-                        0, pKF1->invfy,  -pKF1->cy*pKF1->invfy, 
-                        0,           0,                     1.;
+    const Eigen::Matrix3f K1inv = GetKinverse(K1);
 
     e2  = K2*t21; // epipole in image 2
     //H21 = K2*R21*K1.inverse();
@@ -1913,6 +1992,8 @@ void LocalMapping::KeyFrameCulling()
                             // if line is too far or is not stereo then continue
                             if( 
                                 (pKF->mvDepthLineStart.empty()) ||
+                                (i >= pKF->mvDepthLineStart.size()) ||
+                                (i >= pKF->mvDepthLineEnd.size()) ||
                                 (pKF->mvDepthLineStart[i] > pKF->mThDepth || pKF->mvDepthLineStart[i] < 0) || 
                                 (pKF->mvDepthLineEnd[i] > pKF->mThDepth || pKF->mvDepthLineEnd[i] < 0)
                               )
@@ -1922,9 +2003,19 @@ void LocalMapping::KeyFrameCulling()
                         nMLs++;
                         if(pML->Observations()>thLineObs)
                         {                                
-                            const int &scaleLevel = (pKF->NlinesLeft == -1) ? pKF->mvKeyLinesUn[i].octave
-                                                                                : (i < pKF->NlinesLeft) ? pKF->mvKeyLinesUn[i].octave
-                                                                                                        : pKF->mvKeyLinesRightUn[i-pKF->NlinesLeft].octave;
+                            int scaleLevel;
+                            if(pKF->NlinesLeft == -1)
+                                scaleLevel = pKF->mvKeyLinesUn[i].octave;
+                            else if(i < pKF->NlinesLeft)
+                                scaleLevel = pKF->mvKeyLinesUn[i].octave;
+                            else
+                            {
+                                const int rightIdx = i - pKF->NlinesLeft;
+                                if(rightIdx >= 0 && rightIdx < (int)pKF->mvKeyLinesRightUn.size())
+                                    scaleLevel = pKF->mvKeyLinesRightUn[rightIdx].octave;
+                                else
+                                    continue; // invalid index, skip this line
+                            }
                             const map<KeyFramePtr, tuple<int,int>> observations = pML->GetObservations();
                             int nObs=0;
                             for(map<KeyFramePtr, tuple<int,int>>::const_iterator mit=observations.begin(), mend=observations.end(); mit!=mend; mit++)
@@ -1942,9 +2033,13 @@ void LocalMapping::KeyFrameCulling()
                                         scaleLeveli = pKFi->mvKeyLinesUn[leftIndex].octave;
                                     }
                                     if (rightIndex != -1) {
-                                        int rightLevel = pKFi->mvKeyLinesRightUn[rightIndex - pKFi->NlinesLeft].octave;
-                                        scaleLeveli = (scaleLeveli == -1 || scaleLeveli > rightLevel) ? rightLevel
-                                                                                                        : scaleLeveli;
+                                        const int rightIdx = rightIndex - pKFi->NlinesLeft;
+                                        if(rightIdx >= 0 && rightIdx < (int)pKFi->mvKeyLinesRightUn.size())
+                                        {
+                                            int rightLevel = pKFi->mvKeyLinesRightUn[rightIdx].octave;
+                                            scaleLeveli = (scaleLeveli == -1 || scaleLeveli > rightLevel) ? rightLevel
+                                                                                                            : scaleLeveli;
+                                        }
                                     }
                                 }             
                                 

@@ -296,7 +296,9 @@ public:
     static float cy;
     static float invfx;
     static float invfy;
-    cv::Mat mDistCoef;
+    cv::Mat mDistCoef; // NOTE: mDistCoef is populated only for pinhole monocular/IMU-monocular cameras (via settings->needToUndistort()). 
+                       // For non-fisheye stereo cameras, mDistCoef is set to 0.0 since cameras are rectified.
+                       // Fisheye stereo cameras use mpCamera->getDistortionParams() and mpCamera2->getDistortionParams() instead.
 
     // Stereo baseline multiplied by fx.
     float mbf;
@@ -476,6 +478,7 @@ private:
     std::mutex *mpMutexImu;
 
 public:
+    // NOTE: mpCamera2 is only set for stereo fisheye (Kannala–Brandt), 
     GeometricCamera *mpCamera=nullptr, *mpCamera2=nullptr;
 
     /// < Stereo fisheye keypoints information 

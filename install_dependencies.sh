@@ -4,11 +4,14 @@ echo "Installing main dependencies ..."
 
 set -e
 
-UBUNTU_VERSION=$(lsb_release -a 2>&1)  # to get ubuntu version 
-
-
 # generic
 sudo apt-get update
+
+sudo apt install lsb-release
+UBUNTU_VERSION=$(lsb_release -a 2>&1)  # to get ubuntu version 
+echo "Ubuntu version: $UBUNTU_VERSION"
+
+# devel
 sudo apt-get install -y build-essential cmake   
 sudo apt-get install -y libeigen3-dev 
 sudo apt-get install -y libopenni-dev libopenni2-dev libpcl-dev

@@ -45,7 +45,7 @@ class Geom2DUtils
 {
 public:
 
-    // get the 3D minimum distance between 2 segments
+    // get the 2D minimum distance between 2 segments
     static float distSegment2Segment(const Eigen::Vector2f& s1P0, const Eigen::Vector2f& s1P1, const Eigen::Vector2f& s2P0, const Eigen::Vector2f& s2P1)
     {
         static const float SMALL_NUM = 1e-10;
@@ -117,8 +117,8 @@ public:
             }
         }
         // finally do the division to get sc and tc
-        sc = (abs(sN) < SMALL_NUM ? 0.0 : sN / sD);
-        tc = (abs(tN) < SMALL_NUM ? 0.0 : tN / tD);
+        sc = (std::fabs(sN) < SMALL_NUM ? 0.0 : sN / sD);
+        tc = (std::fabs(tN) < SMALL_NUM ? 0.0 : tN / tD);
 
         // get the difference of the two closest points
         const Eigen::Vector2f dP = w + (sc * u) - (tc * v); // =  S1(sc) - S2(tc)
@@ -143,7 +143,17 @@ public:
             lineRepresentation.ny *= -1.0f;
         } 
         
-        const float nNormInv = 1.0f / sqrt(lineRepresentation.nx * lineRepresentation.nx + lineRepresentation.ny * lineRepresentation.ny);
+        const float nNormSq = lineRepresentation.nx * lineRepresentation.nx + lineRepresentation.ny * lineRepresentation.ny;
+        if (nNormSq < 1e-10f) // check for zero-length line (degenerate case)
+        {
+            // degenerate case: start and end points are the same
+            lineRepresentation.nx = 1.0f;
+            lineRepresentation.ny = 0.0f;
+            lineRepresentation.d = xs; // use x-coordinate as distance
+            return;
+        }
+        
+        const float nNormInv = 1.0f / sqrt(nNormSq);
         lineRepresentation.nx *= nNormInv;
         lineRepresentation.ny *= nNormInv;
         

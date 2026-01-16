@@ -144,7 +144,11 @@ public:
 template<typename FrameType>
 inline bool LineProjection::ProjectLineWithCheck(const MapLinePtr& pML, const FrameType& F, const FrameTransformsForLineProjection& frameTfs, bool bRight)
 {
+    constexpr float minDepth = 1e-6f;
+
     const GeometricCamera* cam = bRight ? F.mpCamera2 : F.mpCamera;
+    if(cam == nullptr)
+        return false;
     const auto& R = bRight ? frameTfs.mRrw : frameTfs.mRcw;
     const auto& t = bRight ? frameTfs.mtrw : frameTfs.mtcw;
     const bool isPinhole = cam->GetType() == GeometricCamera::CAM_PINHOLE;
@@ -159,7 +163,7 @@ inline bool LineProjection::ProjectLineWithCheck(const MapLinePtr& pML, const Fr
     const float &p3DMcZ = p3DMc(2);
         
     // Check positive depth
-    if(p3DMcZ<0.0f)
+    if(p3DMcZ<minDepth)
         return false;  
     
     // Project in image without distortion model
@@ -198,7 +202,7 @@ inline bool LineProjection::ProjectLineWithCheck(const MapLinePtr& pML, const Fr
     const float &p3DScZ = p3DSc(2);    
     
     // Check positive depth
-    if(p3DScZ<0.0f)
+    if(p3DScZ<minDepth)
         return false;  
 
     // 3D in camera coordinates of end point 
@@ -206,7 +210,7 @@ inline bool LineProjection::ProjectLineWithCheck(const MapLinePtr& pML, const Fr
     const float &p3DEcZ = p3DEc(2);   
 
     // Check positive depth
-    if(p3DEcZ<0.0f)
+    if(p3DEcZ<minDepth)
         return false;    
 
 

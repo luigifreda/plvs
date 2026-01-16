@@ -104,8 +104,8 @@ void EdgeLineMono::linearizeOplus()
     // This entails: 
     //   dSb/d(mu) = - SE3deriv_S
     //   dEb/d(mu) = - SE3deriv_E        
-    //   deS/dSc = [nx,ny]*proj_jac_S, dSc/dSb=Rcb (since Sc=Rcb*Sb+tcw)
-    //   deE/dEc = [nx,ny]*proj_jac_E, dEc/dEb=Rcb (since Ec=Rcb*Eb+tcw)    
+    //   deS/dSc = [nx,ny]*proj_jac_S, dSc/dSb=Rcb (since Sc=Rcb*Sb+tcb)
+    //   deE/dEc = [nx,ny]*proj_jac_E, dEc/dEb=Rcb (since Ec=Rcb*Eb+tcb)    
     // Therefore:  _jacobianOplusXj = de2/d(mu) = [ -[nx,ny]*proj_jac_S * Rcb * SE3deriv_S ]
     //                                            [ -[nx,ny]*proj_jac_E * Rcb * SE3deriv_E ] 
 }
@@ -177,8 +177,8 @@ void EdgeLineMonoOnlyPose::linearizeOplus()
     // This entails: 
     //   dSb/d(mu) = - SE3deriv_S
     //   dEb/d(mu) = - SE3deriv_E        
-    //   deS/dSc = [nx,ny]*proj_jac_S, dSc/dSb=Rcb (since Sc=Rcb*Sb+tcw)
-    //   deE/dEc = [nx,ny]*proj_jac_E, dEc/dEb=Rcb (since Ec=Rcb*Eb+tcw)       
+    //   deS/dSc = [nx,ny]*proj_jac_S, dSc/dSb=Rcb (since Sc=Rcb*Sb+tcb)
+    //   deE/dEc = [nx,ny]*proj_jac_E, dEc/dEb=Rcb (since Ec=Rcb*Eb+tcb)       
     // Therefore:  _jacobianOplusXi = de2/d(mu) = [ -[nx,ny]*proj_jac_S * Rcb * SE3deriv_S ]
     //                                            [ -[nx,ny]*proj_jac_E * Rcb * SE3deriv_E ] 
 }
@@ -243,9 +243,13 @@ void EdgeLineStereo::linearizeOplus()
     const Eigen::Vector3d Ve = (XEc - XSc_backproj).cross(Ec_Be); //  (Ec-Bs) X (Ec-Be)
 
     // JdS = d(dS)/dSc = - Vs^T/|Vs| * skew(deltaB)/|deltaB| + muWeigth * (Sc-Bs)^T/|Sc-Bs|
-    const Eigen::Matrix<double,1,3> JdS = -(Vs.transpose()/Vs.norm())*skewDeltaBackproj_over_lineLength + muWeigth*Sc_Bs.transpose()/Sc_Bs.norm();
+    const double safeSc_Bs_norm = std::max(Sc_Bs.norm(), MIN_LINE_LENGTH);
+    const double safeVs_norm = std::max(Vs.norm(), MIN_LINE_LENGTH);
+    const Eigen::Matrix<double,1,3> JdS = -(Vs.transpose()/safeVs_norm)*skewDeltaBackproj_over_lineLength + muWeigth*Sc_Bs.transpose()/safeSc_Bs_norm;
     // JdE = d(dE)/dEc = - Ve^T/|Ve| * skew(deltaB)/|deltaB| + muWeigth * (Ec-Be)^T/|Ec-Be|
-    const Eigen::Matrix<double,1,3> JdE = -(Ve.transpose()/Ve.norm())*skewDeltaBackproj_over_lineLength + muWeigth*Ec_Be.transpose()/Ec_Be.norm(); 
+    const double safeEc_Be_norm = std::max(Ec_Be.norm(), MIN_LINE_LENGTH);
+    const double safeVe_norm = std::max(Ve.norm(), MIN_LINE_LENGTH);
+    const Eigen::Matrix<double,1,3> JdE = -(Ve.transpose()/safeVe_norm)*skewDeltaBackproj_over_lineLength + muWeigth*Ec_Be.transpose()/safeEc_Be_norm; 
 
     // _jacobianOplusXi = de4/d(Sw,Ew) \in IR^4x6
     _jacobianOplusXi.block<1,3>(0,0) =  JlineS * Rcw; // deS/dSw = deS/dSc * dSc/dSw
@@ -283,9 +287,9 @@ void EdgeLineStereo::linearizeOplus()
                    ye,  -xe, 0.0,  0.0, 0.0, 1.0;                   
 
     // _jacobianOplusXj = de4/d(mu) = [ deS/d(mu)   ] = [deS/dSc * dSc/dSb * dSb/d(mu)   ]  \in IR^4x6
-    //                                [ deE/d(mu)   ]   [deE/dEc * dEc/dEb * dSb/d(mu)   ] 
+    //                                [ deE/d(mu)   ]   [deE/dEc * dEc/dEb * dEb/d(mu)   ] 
     //                                [ d(dS)/d(mu) ]   [d(dS)/dSc * dSc/dSb * dSb/d(mu) ]
-    //                                [ d(dE)/d(mu) ]   [d(dE)/dEc * dSc/dSb * dEb/d(mu) ]    
+    //                                [ d(dE)/d(mu) ]   [d(dE)/dEc * dEc/dEb * dEb/d(mu) ]    
     // _jacobianOplusXj.block<1,6>(0,0) = -JlineS * Rcb * SE3deriv_S;  // explanation in the following lines
     // _jacobianOplusXj.block<1,6>(1,0) = -JlineE * Rcb * SE3deriv_E;
     // _jacobianOplusXj.block<1,6>(2,0) = -JdS * Rcb * SE3deriv_S;
@@ -306,9 +310,9 @@ void EdgeLineStereo::linearizeOplus()
     //  dSb/d(mu) = - SE3deriv_S
     //  dEb/d(mu) = - SE3deriv_E               
     //  deS/dSc = [nx,ny]*d[us;vs]/dSc = [nx,ny]*proj_jac_S = JlineS
-    //  dSc/dSb = Rcb (since Sc=Rcb*Sb+tcw)
+    //  dSc/dSb = Rcb (since Sc=Rcb*Sb+tcb)
     //  deE/dEc = [nx,ny]*d[ue;ve]/dEc = [nx,ny]*proj_jac_E = JlineE
-    //  dEc/dEb = Rcb (since Ec=Rcb*Eb+tcw)    
+    //  dEc/dEb = Rcb (since Ec=Rcb*Eb+tcb)    
     // d(dS)/dSc = - Vs^T/|Vs| * skew(deltaB)/|deltaB| + muWeigth * (S-Bs)^T/|S-Bs| = JdS
     // d(dE)/dEc = - Ve^T/|Ve| * skew(deltaB)/|deltaB| + muWeigth * (E-Be)^T/|E-Be| = JdE     
     // Therefore:  _jacobianOplusXj = de4/d(mu) = [ deS/d(mu)   ] = [ -JlineS * Rcb * SE3deriv_S ]
@@ -371,9 +375,11 @@ void EdgeLineStereoOnlyPose::linearizeOplus()
     const Eigen::Vector3d Ve = (XEc - XSc_backproj).cross(Ec_Be); //  (Ec-Bs) X (Ec-Be)
 
     // JdS = d(dS)/dSc = - Vs^T/|Vs| * skew(deltaB)/|deltaB|
-    const Eigen::Matrix<double,1,3> JdS = -(Vs.transpose()/Vs.norm())*skewDeltaBackproj_over_lineLength;
+    const double safeVs_norm = std::max(Vs.norm(), MIN_LINE_LENGTH);
+    const Eigen::Matrix<double,1,3> JdS = -(Vs.transpose()/safeVs_norm)*skewDeltaBackproj_over_lineLength;
     // JdE = d(dE)/dEc = - Ve^T/|Ve| * skew(deltaB)/|deltaB| 
-    const Eigen::Matrix<double,1,3> JdE = -(Ve.transpose()/Ve.norm())*skewDeltaBackproj_over_lineLength; 
+    const double safeVe_norm = std::max(Ve.norm(), MIN_LINE_LENGTH);
+    const Eigen::Matrix<double,1,3> JdE = -(Ve.transpose()/safeVe_norm)*skewDeltaBackproj_over_lineLength; 
 
 
     Eigen::Matrix<double,3,6> SE3deriv_S, SE3deriv_E; 
@@ -398,9 +404,9 @@ void EdgeLineStereoOnlyPose::linearizeOplus()
                    ye,  -xe, 0.0,  0.0, 0.0, 1.0;                   
 
     // _jacobianOplusXi = de4/d(mu) = [ deS/d(mu)   ] = [deS/dSc * dSc/dSb * dSb/d(mu)   ]  \in IR^4x6
-    //                                [ deE/d(mu)   ]   [deE/dEc * dEc/dEb * dSb/d(mu)   ] 
+    //                                [ deE/d(mu)   ]   [deE/dEc * dEc/dEb * dEb/d(mu)   ] 
     //                                [ d(dS)/d(mu) ]   [d(dS)/dSc * dSc/dSb * dSb/d(mu) ]
-    //                                [ d(dE)/d(mu) ]   [d(dE)/dEc * dSc/dSb * dEb/d(mu) ]    
+    //                                [ d(dE)/d(mu) ]   [d(dE)/dEc * dEc/dEb * dEb/d(mu) ]    
     // _jacobianOplusXi.block<1,6>(0,0) = -JlineS * Rcb * SE3deriv_S;  // explanation in the following lines
     // _jacobianOplusXi.block<1,6>(1,0) = -JlineE * Rcb * SE3deriv_E;
     // _jacobianOplusXi.block<1,6>(2,0) = -JdS * Rcb * SE3deriv_S;
@@ -420,9 +426,9 @@ void EdgeLineStereoOnlyPose::linearizeOplus()
     //  dSb/d(mu) = - SE3deriv_S
     //  dEb/d(mu) = - SE3deriv_E               
     //  deS/dSc = [nx,ny]*d[us;vs]/dSc = [nx,ny]*proj_jac_S = JlineS 
-    //  dSc/dSb = Rcb (since Sc=Rcb*Sb+tcw)
+    //  dSc/dSb = Rcb (since Sc=Rcb*Sb+tcb)
     //  deE/dEc = [nx,ny]*d[ue;ve]/dEc = [nx,ny]*proj_jac_E = JlineE 
-    //  dEc/dEb = Rcb (since Ec=Rcb*Eb+tcw)    
+    //  dEc/dEb = Rcb (since Ec=Rcb*Eb+tcb)    
     // d(dS)/dSc = - Vs^T/|Vs| * skew(deltaB)/|deltaB| = JdS
     // d(dE)/dEc = - Ve^T/|Ve| * skew(deltaB)/|deltaB| = JdE     
     // Therefore:  _jacobianOplusXi = de4/d(mu) = [ deS/d(mu)   ] = [ -JlineS * Rcb * SE3deriv_S ]

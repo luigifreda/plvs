@@ -118,6 +118,7 @@ mpAtlas(atlas), mpTracking(tracking), mpLocalMapping(localMap), bInitCamGridPoin
     if (stereoDenseStringType == "opencvcuda") PointCloudKeyFrame<PointT>::skStereoLibrary = PointCloudKeyFrame<PointT>::StereoLibrary::kLibOpenCVCuda;  
     
     PointCloudKeyFrame<PointT>::skbNeedRectification = Utils::GetParam(fsSettings, "StereoDense.needRectification", false);
+    PointCloudKeyFrame<PointT>::skbLibelasEnableSubsampling = Utils::GetParam(fsSettings, "StereoDense.libelasEnableSubsampling", true);
     if(PointCloudKeyFrame<PointT>::skbNeedRectification){
         std::cout << "PointCloudMapping need rectification" << std::endl;
         // check we are using KB cameras 

@@ -21,6 +21,7 @@
 #include "PointCloudMapping.h"
 
 #include <pcl/common/geometry.h>
+#include <thread>
 
 #include "KeyFrame.h" 
 #include "TimeUtils.h"
@@ -48,7 +49,8 @@ namespace PLVS2
 
 template<typename PointT>
 bool PointCloudKeyFrame<PointT>::skbNeedRectification = false;
-
+template<typename PointT>
+bool PointCloudKeyFrame<PointT>::skbLibelasEnableSubsampling = true;
 // default initialization 
 template<typename PointT>
 typename PointCloudKeyFrame<PointT>::StereoLibrary PointCloudKeyFrame<PointT>::skStereoLibrary = 
@@ -71,13 +73,25 @@ template<typename PointT>
 std::shared_ptr<libelas::ElasInterface> PointCloudKeyFrame<PointT>::pElas = 0;
 #endif
 
+template<typename PointT>
+std::shared_ptr<StereoDisparity> PointCloudKeyFrame<PointT>::pSd = 0;
+
 #ifdef USE_LIBSGM
 template<typename PointT>
 std::shared_ptr<sgm::StereoSGM> PointCloudKeyFrame<PointT>::pSgm = 0;
-#endif  
 
 template<typename PointT>
-std::shared_ptr<StereoDisparity> PointCloudKeyFrame<PointT>::pSd = 0;
+std::mutex PointCloudKeyFrame<PointT>::sgmMutex;
+
+template<typename PointT>
+int PointCloudKeyFrame<PointT>::sgmWidth = 0;
+
+template<typename PointT>
+int PointCloudKeyFrame<PointT>::sgmHeight = 0;
+
+template<typename PointT>
+int PointCloudKeyFrame<PointT>::sgmBits = 0;
+#endif
 
 template<typename PointT>
 PointCloudKeyFrame<PointT>::PointCloudKeyFrame()
@@ -129,6 +143,7 @@ void PointCloudKeyFrame<PointT>::Init(PointCloudCamParams* camParams)
     if( !imgColor.empty() ) 
     {
         imgColor = imgColor.clone();
+        this->bColorFromLeft = false;
     }
     else
     {
@@ -137,6 +152,7 @@ void PointCloudKeyFrame<PointT>::Init(PointCloudCamParams* camParams)
         {
             imgColor = cv::Mat(imgLeft.rows, imgLeft.cols, CV_8UC3);
             cv::cvtColor(imgLeft, imgColor, cv::COLOR_GRAY2BGR);
+            this->bColorFromLeft = true;
         }
     }
     if( !imgDepth.empty() ) 
@@ -175,11 +191,34 @@ void PointCloudKeyFrame<PointT>::PreProcess()
             const cv::Mat& M2r = settings->M2r();
 
             cv::Mat imgLeftRect, imgRightRect;
+            cv::Mat imgColorRect;
 
             std::thread t1([&](){cv::remap(imgLeft, imgLeftRect, M1l, M2l, cv::INTER_LINEAR);});
             std::thread t2([&](){cv::remap(imgRight, imgRightRect, M1r, M2r, cv::INTER_LINEAR);});
+            std::unique_ptr<std::thread> t3;
+            if(!imgColor.empty() && !this->bColorFromLeft)
+            {
+                t3.reset(new std::thread([&](){cv::remap(imgColor, imgColorRect, M1l, M2l, cv::INTER_LINEAR);}));
+            }
             t1.join();
             t2.join();
+            if(t3)
+            {
+                t3->join();
+            }
+
+            if(!imgColor.empty())
+            {
+                if(this->bColorFromLeft)
+                {
+                    // Rebuild from rectified left to avoid extra remap.
+                    cv::cvtColor(imgLeftRect, imgColor, cv::COLOR_GRAY2BGR);
+                }
+                else
+                {
+                    cv::swap(imgColor, imgColorRect);
+                }
+            }
 
 #if 0 && RERUN_ENABLED
             auto& rec = RerunSingleton::instance();
@@ -285,6 +324,8 @@ void PointCloudKeyFrame<PointT>::Release()
     
     if (pCloudCamera) pCloudCamera->clear();
     bCloudReady = false;
+
+    bIsProcessed = false;
 }
     
 // get Ow
@@ -329,6 +370,8 @@ void PointCloudKeyFrame<PointT>::Clear()
     
     bInMap = false;
     bIsValid = false;
+    bIsProcessed = false;
+
 }
 
 template<typename PointT>
@@ -347,7 +390,21 @@ void PointCloudKeyFrame<PointT>::ProcessStereoLibelas()
     {
         libelas::Elas::Parameters param;
         param.postprocess_only_left = true;
-        param.subsampling = (PointCloudMapping::skDownsampleStep % 2) == 0; 
+        const int subsamplingStep = PointCloudMapping::skDownsampleStep;
+        if(subsamplingStep == 2)
+        {
+            param.subsampling = skbLibelasEnableSubsampling; //true;
+        }
+        else
+        {
+            param.subsampling = false;
+            if(subsamplingStep != 1)
+            {
+                std::cerr << "WARNING: disabling libelas subsampling because "
+                          << "PointCloudMapping::skDownsampleStep="
+                          << subsamplingStep << " (expected 2)." << std::endl;
+            }
+        }
         //param.filter_adaptive_mean = false;
         //param.ipol_gap_width = 300;
 
@@ -395,18 +452,25 @@ void PointCloudKeyFrame<PointT>::ProcessStereoLibelas()
     //void process (uint8_t* I1,uint8_t* I2,float* D1,float* D2,const int32_t* dims);    
     pElas->process( (uint8_t*)imgLeft.data, (uint8_t*)imgRight.data, (float*)imgD1.data, (float*)imgD2.data, dims);   
     
-    const int subsamplingStep = PointCloudMapping::skDownsampleStep;
     if(param.subsampling )
-    {        
-        imgDepth = cv::Mat(imgLeft.rows, imgLeft.cols, CV_32F, 0.f);
-        for (int m1 = 0, m = 0; m1 < imgD1.rows; m1++, m+=subsamplingStep)
+    {
+        const int upsampleStep = 2;
+        imgDepth = cv::Mat::zeros(imgLeft.rows, imgLeft.cols, CV_32F);
+        for (int m1 = 0, m = 0; m1 < imgD1.rows; m1++, m+=upsampleStep)
         {
             const float* depth_row_m1 = imgD1.ptr<float>(m1);
             float* depth_row_m  = imgDepth.ptr<float>(m);            
-            for (int n1 = 0, n = 0; n1 < imgD1.cols; n1++, n += subsamplingStep)
+            for (int n1 = 0, n = 0; n1 < imgD1.cols; n1++, n += upsampleStep)
             {
                 const float& d1 = depth_row_m1[n1];                        
-                depth_row_m[n] = depth_row_m[n+1] = bf/d1;                
+                if(n < imgDepth.cols)
+                {
+                    depth_row_m[n] = bf/d1;
+                    if(n + 1 < imgDepth.cols)
+                    {
+                        depth_row_m[n+1] = bf/d1;
+                    }
+                }
             }            
         }        
     }
@@ -438,8 +502,6 @@ void PointCloudKeyFrame<PointT>::ProcessStereoLibsgm()
 
     std::cout << "stereo processing (libsgm)" << std::endl;         
     
-    const float bf = pCamParams? pCamParams->bf : pKF->mbf;
-
 #ifdef USE_LIBSGM    
     
     int bits = 8;
@@ -458,11 +520,20 @@ void PointCloudKeyFrame<PointT>::ProcessStereoLibsgm()
         imgRight.convertTo(imgRight, CV_16UC1);
     }
         
-    if(!pSgm)
+    std::lock_guard<std::mutex> lock(sgmMutex);
+
+    const bool sgm_needs_reset =
+        !pSgm || sgmWidth != imgLeft.cols || sgmHeight != imgLeft.rows || sgmBits != bits;
+
+    if(sgm_needs_reset)
     {
         const bool bDownScale = ((PointCloudMapping::skDownsampleStep % 2) == 0);  
+        (void)bDownScale;
         const int disp_size = 64;
         pSgm.reset( new sgm::StereoSGM(imgLeft.cols, imgLeft.rows, disp_size, bits, 8, sgm::EXECUTE_INOUT_HOST2HOST));
+        sgmWidth = imgLeft.cols;
+        sgmHeight = imgLeft.rows;
+        sgmBits = bits;
     }
     
     cv::Mat imgDisp(cv::Size(imgLeft.cols, imgLeft.rows), CV_8UC1);    
@@ -470,6 +541,7 @@ void PointCloudKeyFrame<PointT>::ProcessStereoLibsgm()
     
     imgDisp.convertTo(imgDisp, CV_32F);//, 1.f/16.0f);
      
+    const float bf = pCamParams? pCamParams->bf : pKF->mbf;
     imgDepth = bf/imgDisp;
        
 #endif
@@ -519,9 +591,8 @@ void PointCloudKeyFrame<PointT>::ProcessStereoCuda()
 {
     //std::unique_lock<std::mutex> locker(keyframeMutex);    // already locked from Init() 
         
-    const float bf = pCamParams? pCamParams->bf : pKF->mbf;
-
 #ifdef USE_CUDA
+    const float bf = pCamParams? pCamParams->bf : pKF->mbf;
  
     std::cout << "stereo processing cv::cuda - need improvements" << std::endl;    
     

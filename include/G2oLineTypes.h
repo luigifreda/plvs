@@ -31,6 +31,8 @@
 #define USE_ANALYTIC_JACS_FULL_STEREO_IMU      (1 && USE_ANALYTIC_JACS_IMU)
 #define USE_ANALYTIC_JACS_ONLY_POSE_STEREO_IMU (1 && USE_ANALYTIC_JACS_IMU)
 
+#define MIN_LINE_LENGTH 1e-9
+
 namespace PLVS2
 {
 
@@ -214,7 +216,7 @@ public:
         XSc_backproj = XSc_backproj_.cast<double>();
         XEc_backproj = XEc_backproj_.cast<double>();
         const Eigen::Vector3d deltaBackproj = XSc_backproj - XEc_backproj; // deltaB
-        lineLenghtInv = 1.0/deltaBackproj.norm();
+        lineLenghtInv = 1.0/std::max(deltaBackproj.norm(), MIN_LINE_LENGTH);
         skewDeltaBackproj_over_lineLength = Skew(deltaBackproj)*lineLenghtInv; // Skew(deltaBackproj)/|deltaBackproj|
         deltaBackprojNormalized = deltaBackproj*lineLenghtInv;
     }
@@ -347,7 +349,7 @@ public:
         XSc_backproj = XSc_backproj_.cast<double>();
         XEc_backproj = XEc_backproj_.cast<double>();
         const Eigen::Vector3d deltaBackproj = XSc_backproj - XEc_backproj; // deltaB
-        lineLenghtInv = 1.0/deltaBackproj.norm();
+        lineLenghtInv = 1.0/std::max(deltaBackproj.norm(), MIN_LINE_LENGTH);
         skewDeltaBackproj_over_lineLength = Skew(deltaBackproj)*lineLenghtInv; // Skew(deltaBackproj)/|deltaBackproj|
         deltaBackprojNormalized = deltaBackproj*lineLenghtInv;
     }
@@ -373,10 +375,9 @@ public:
     }
 
     bool areDepthsPositive() {
-        const g2o::VertexSBALine* VLine = static_cast<const g2o::VertexSBALine*>(_vertices[0]);         
-        const VertexPose* VPose = static_cast<const VertexPose*>(_vertices[1]);
-        return VPose->estimate().isDepthPositive(VLine->estimate().head(3),cam_idx) && 
-               VPose->estimate().isDepthPositive(VLine->estimate().tail(3),cam_idx);        
+        const VertexPose* VPose = static_cast<const VertexPose*>(_vertices[0]);
+        return VPose->estimate().isDepthPositive(XSw,cam_idx) && 
+               VPose->estimate().isDepthPositive(XEw,cam_idx);        
     }    
 
     // compute total squared 3D error 

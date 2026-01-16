@@ -175,6 +175,7 @@ Line.LSD.on: 0
 # (library used in combination with volumetric mapping to compute depth from stereo images)
 StereoDense.type: "libelas"
 StereoDense.needRectification: 1  # only with KannalaBrandt8
+StereoDense.libelasEnableSubsampling: 0
 
 #--------------------------------------------------------------------------------------------
 # PointCloud Mapping

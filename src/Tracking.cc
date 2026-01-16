@@ -4839,7 +4839,7 @@ void Tracking::UpdateLocalKeyFrames()
             {
                 mvpLocalKeyFrames.push_back(pParent);
                 pParent->mnTrackReferenceForFrame=mCurrentFrame.mnId;
-                break;
+                //break; // Luigi: MODIFICATION: break here is bad, because the loop will be interrupted once we find a parent 
             }
         }
 

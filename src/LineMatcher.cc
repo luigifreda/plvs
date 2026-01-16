@@ -595,11 +595,19 @@ int LineMatcher::SearchForTriangulation(KeyFramePtr& pKF1, KeyFramePtr& pKF2, ve
     Eigen::Vector3f C12  = R2w*C1w+t2w;
 
     // undistorted projection of epipole in second image (used with pinhole cameras and mono observations)
-    const float invz = 1.0f/C12(2);
-    const float ex = pKF2->fx*C12(0)*invz+pKF2->cx;
-    const float ey = pKF2->fy*C12(1)*invz+pKF2->cy;  
+    constexpr float kEpiMinZ = 1e-6f;
+    const bool bValidEpipole = std::fabs(C12(2)) > kEpiMinZ;
+    float ex = 0.0f;
+    float ey = 0.0f;
+    if(bValidEpipole)
+    {
+        const float invz = 1.0f/C12(2);
+        ex = pKF2->fx*C12(0)*invz+pKF2->cx;
+        ey = pKF2->fy*C12(1)*invz+pKF2->cy;
+    }  
     
-    GeometricCamera *pCamera1 = pKF1->mpCamera, *pCamera2 = pKF2->mpCamera;
+    GeometricCamera *pCamera1 = pKF1->mpCamera;
+    GeometricCamera *pCamera2 = pKF2->mpCamera;
 
 #if 0
     Sophus::SE3f T12;
@@ -724,15 +732,18 @@ int LineMatcher::SearchForTriangulation(KeyFramePtr& pKF1, KeyFramePtr& pKF2, ve
                                        
             //const float xm = 0.5*(kl2.startPointX + kl2.endPointX);
             //const float ym = 0.5*(kl2.startPointY + kl2.endPointY);
-            const float disteSx = ex-kl2.startPointX;
-            const float disteSy = ey-kl2.startPointY;
+            if(bValidEpipole)
+            {
+                const float disteSx = ex-kl2.startPointX;
+                const float disteSy = ey-kl2.startPointY;
 
-            const float disteEx = ex-kl2.endPointX;
-            const float disteEy = ey-kl2.endPointY;
+                const float disteEx = ex-kl2.endPointX;
+                const float disteEy = ey-kl2.endPointY;
 
-            const float disteTh = 100*pKF2->mvLineScaleFactors[kl2.octave];
-            if( (disteSx*disteSx+disteSy*disteSy<disteTh) || (disteEx*disteEx+disteEy*disteEy<disteTh) )
-                continue;
+                const float disteTh = 100*pKF2->mvLineScaleFactors[kl2.octave];
+                if( (disteSx*disteSx+disteSy*disteSy<disteTh) || (disteEx*disteEx+disteEy*disteEy<disteTh) )
+                    continue;
+            }
         }        
                     
         if( !vbMatched2[idx2] )
@@ -1191,7 +1202,7 @@ int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
                             if(bin==HISTO_LENGTH)
                                 bin=0;
                             assert(bin>=0 && bin<HISTO_LENGTH);
-                            rotHist[bin].push_back(bestIdx);
+                            rotHist[bin].push_back(bestIdx + CurrentFrame.NlinesLeft);
                         }
                     }
                 }
@@ -1499,8 +1510,9 @@ int LineMatcher::SearchByProjection(Frame &F, const std::vector<MapLinePtr> &vpM
             {
                 const size_t idx = *vit; // this is a right line index
 
-                if(F.mvpMapLines[idx])
-                    if(F.mvpMapLines[idx]->Observations()>0)
+                const auto pMLR = F.mvpMapLines[idx + F.NlinesLeft];
+                if(pMLR)
+                    if(pMLR->Observations()>0)
                         continue;
 
                 const cv::line_descriptor_c::KeyLine& kl = F.mvKeyLinesRightUn[idx];
@@ -2603,6 +2615,11 @@ int LineMatcher::ComputeDescriptorMatches(const cv::Mat& ldesc_q/*query*/, const
 #endif
         
         const std::vector<cv::DMatch>& lmatchesi = lmatches[i];
+        if(lmatchesi.empty())
+        {
+            // No neighbors returned for this query -> invalid.
+            continue;
+        }
         if(lmatchesi.size() > 1)
         {
             if (lmatchesi[0].distance < mfNNratio* lmatchesi[1].distance)
@@ -2624,7 +2641,17 @@ int LineMatcher::ComputeDescriptorMatches(const cv::Mat& ldesc_q/*query*/, const
 void LineMatcher::LineDescriptorMAD(const std::vector<std::vector<cv::DMatch> >&matches, double &sigma_mad)
 {
     std::vector<std::vector<cv::DMatch> > matches_nn;
-    matches_nn = matches;
+    matches_nn.reserve(matches.size());
+    for(const auto &m : matches)
+    {
+        if(!m.empty())
+            matches_nn.push_back(m);
+    }
+    if(matches_nn.empty())
+    {
+        sigma_mad = 0.0;
+        return;
+    }
 
     // estimate the NN's distance standard deviation
     double nn_dist_median;
@@ -2639,7 +2666,17 @@ void LineMatcher::LineDescriptorMAD(const std::vector<std::vector<cv::DMatch> >&
 void LineMatcher::LineDescriptorMAD12(const std::vector<std::vector<cv::DMatch> >&matches, double &sigma12_mad)
 {
     std::vector<std::vector<cv::DMatch> > matches_12;
-    matches_12 = matches;
+    matches_12.reserve(matches.size());
+    for(const auto &m : matches)
+    {
+        if(m.size() >= 2)
+            matches_12.push_back(m);
+    }
+    if(matches_12.empty())
+    {
+        sigma12_mad = 0.0;
+        return;
+    }
 
     // estimate the NN's 12 distance standard deviation
     double nn12_dist_median;

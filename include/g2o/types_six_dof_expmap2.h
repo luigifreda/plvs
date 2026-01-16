@@ -41,7 +41,7 @@ namespace g2o {
   
 
 typedef Eigen::Matrix<double, 6, 6> Matrix6d;
-
+typedef Eigen::Matrix<double, 5, 1> Vector5d;
 
 
 class  EdgeRgbdSE3ProjectXYZ: public  BaseBinaryEdge<3, Eigen::Vector3d, VertexSBAPointXYZ, VertexSE3Expmap>{
@@ -172,8 +172,6 @@ public:
 }; 
 
 // -- -- -- -- 
-
-typedef Eigen::Matrix<double, 5, 1> Vector5d;
 
 class  EdgeSE3ProjectStereoLineOnlyPose: public  BaseUnaryEdge<4/*error size*/, Eigen::Matrix<double, 3, 1>/*meas type*/, VertexSE3Expmap>{
 public:
