@@ -67,7 +67,9 @@ if [[ "$UBUNTU_VERSION" == *"24.04"* ]] ; then
 	# At present, the standard g2o version generates some crashes under ubuntu 24.04
     echo "We force the use of the new g2o version!"
     EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DWITH_G2O_NEW=ON"
-fi 
+else 
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DWITH_G2O_NEW=$WITH_G2O_NEW"
+fi
 
  echo "external options: $EXTERNAL_OPTIONS"
 # ====================================================

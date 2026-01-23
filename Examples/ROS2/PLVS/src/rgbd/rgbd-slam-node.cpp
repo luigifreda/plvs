@@ -12,12 +12,8 @@ RgbdSlamNode::RgbdSlamNode(std::shared_ptr<PLVS2::System>& pSLAM, bool bWaitForC
     pSLAM_(pSLAM),
     bWaitForCameraInfo_(bWaitForCameraInfo)
 {
-    rgb_sub = std::make_shared<message_filters::Subscriber<ImageMsg> >(shared_ptr<rclcpp::Node>(this), "camera/rgb");   // /camera/rgb/image_raw
-    depth_sub = std::make_shared<message_filters::Subscriber<ImageMsg> >(shared_ptr<rclcpp::Node>(this), "camera/depth"); // camera/depth_registered/image_raw
-
-    syncApproximate = std::make_shared<message_filters::Synchronizer<approximate_sync_policy> >(approximate_sync_policy(10), *rgb_sub, *depth_sub);
-    syncApproximate->registerCallback(&RgbdSlamNode::GrabRGBD, this);
-
+    // Subscribers will be initialized in InitializeSubscribers() after node is fully constructed
+    // This avoids calling shared_from_this() in the constructor
     if(bWaitForCameraInfo_)
     {
         info_color_sub = this->create_subscription<sensor_msgs::msg::CameraInfo>("camera/rgb/camera_info", 10, std::bind(&RgbdSlamNode::GrabCameraInfo, this, std::placeholders::_1));
@@ -27,16 +23,38 @@ RgbdSlamNode::RgbdSlamNode(std::shared_ptr<PLVS2::System>& pSLAM, bool bWaitForC
     } else {
         bGotCameraInfo_ = true;
     }
+}
 
+void RgbdSlamNode::InitializeSubscribers()
+{
+    // Use shared_from_this() to get the correct shared_ptr to this node
+    // This can only be called after the node is fully constructed and managed by a shared_ptr
+    rgb_sub = std::make_shared<message_filters::Subscriber<ImageMsg> >(shared_from_this(), "camera/rgb");   // /camera/rgb/image_raw
+    depth_sub = std::make_shared<message_filters::Subscriber<ImageMsg> >(shared_from_this(), "camera/depth"); // camera/depth_registered/image_raw
+
+    syncApproximate = std::make_shared<message_filters::Synchronizer<approximate_sync_policy> >(approximate_sync_policy(10), *rgb_sub, *depth_sub);
+    syncApproximate->registerCallback(&RgbdSlamNode::GrabRGBD, this);
 }
 
 RgbdSlamNode::~RgbdSlamNode()
 {
-    // Stop all threads
-    pSLAM_->Shutdown();
-
-    // Save camera trajectory
-    pSLAM_->SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
+    std::cout << "RgbdSlamNode destructor called" << std::endl;
+    // Stop all threads and save trajectory
+    // Use a flag to prevent double shutdown if called multiple times
+    if(pSLAM_)
+    {
+        if(!pSLAM_->isShutDown())
+        {
+            std::cout << "Calling pSLAM_->Shutdown() from destructor" << std::endl;
+            pSLAM_->Shutdown();
+            pSLAM_->SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
+        }
+        else
+        {
+            std::cout << "SLAM already shut down, skipping shutdown in destructor" << std::endl;
+        }
+    }
+    std::cout << "RgbdSlamNode destructor finished" << std::endl;
 }
 
 void RgbdSlamNode::GrabRGBD(const ImageMsg::SharedPtr msgRGB, const ImageMsg::SharedPtr msgD)

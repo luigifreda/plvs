@@ -10,7 +10,7 @@ set(BUILD_WITH_MARCH_NATIVE ON  CACHE BOOL "Build with \"-march native\"")
 set(WITH_OPENMP             ON CACHE BOOL "Added OpenMP support") # useful for PCL (since we use the macro PCL_NO_PRECOMPILE!)
 set(WITH_CUDA               OFF CACHE BOOL "Added CUDA support")
 set(WITH_LOCAL_PCL          OFF  CACHE BOOL "Add local PCL support")
-
+set(WITH_G2O_NEW           OFF CACHE BOOL "Add g2o new support") # for using the new version of g2o with Cholmod and Csparse solvers (and more...)
 
 set(PLVS_ROOT_DIR ${PROJECT_SOURCE_DIR}/../../..)
 message("PLVS_ROOT_DIR: ${PLVS_ROOT_DIR}")
@@ -117,10 +117,45 @@ message("LSB_RELEASE: ${LSB_RELEASE}")
 find_package(Eigen3 REQUIRED)
 
 # set(Pangolin_DIR ${PLVS_ROOT_DIR}/Thirdparty/Pangolin/build/src)
-set(Pangolin_DIR ${PLVS_ROOT_DIR}/Thirdparty/Pangolin/build/)
+set(Pangolin_DIR ${PLVS_ROOT_DIR}/Thirdparty/Pangolin/build/) # this seems to work in general 
+#set(CMAKE_PREFIX_PATH ${PLVS_ROOT_DIR}/Thirdparty/Pangolin/install/lib/cmake/Pangolin/) # this does not work (after make install) if we set the RPATH!
+#set(Pangolin_DIR ${PLVS_ROOT_DIR}/Thirdparty/Pangolin/install/) # this does not work (after make install) if we set the RPATH!
 message(STATUS "set custom pangolin folder: ${Pangolin_DIR}")
 find_package(Pangolin REQUIRED)
 message(STATUS "pangolin include: ${Pangolin_INCLUDE_DIRS}")
+message(STATUS "pangolin libs: ${Pangolin_LIBRARY}")
+# Extract Pangolin library directory from the first library in Pangolin_LIBRARIES
+# Note: Based on main CMakeLists.txt comment, we use build/ directory, not install/
+# The libraries are directly in build/, not build/lib/
+set(PANGOLIN_LIB_DIR "")
+if(Pangolin_LIBRARIES)
+    list(GET Pangolin_LIBRARIES 0 FIRST_PANGOLIN_LIB)
+    if(FIRST_PANGOLIN_LIB)
+        get_filename_component(PANGOLIN_LIB_DIR ${FIRST_PANGOLIN_LIB} DIRECTORY)
+        message(STATUS "pangolin lib dir (from Pangolin_LIBRARIES): ${PANGOLIN_LIB_DIR}")
+    endif()
+endif()
+# Fallback: try build directory first (as per main CMakeLists.txt comment)
+# Libraries are directly in build/, not in a subdirectory
+if(NOT PANGOLIN_LIB_DIR OR PANGOLIN_LIB_DIR STREQUAL "")
+    if(EXISTS "${PLVS_ROOT_DIR}/Thirdparty/Pangolin/build/libpango_display.so")
+        set(PANGOLIN_LIB_DIR ${PLVS_ROOT_DIR}/Thirdparty/Pangolin/build)
+        message(STATUS "pangolin lib dir (fallback to build): ${PANGOLIN_LIB_DIR}")
+    elseif(EXISTS "${PLVS_ROOT_DIR}/Thirdparty/Pangolin/install/lib/libpango_display.so")
+        # Last resort: install directory
+        set(PANGOLIN_LIB_DIR ${PLVS_ROOT_DIR}/Thirdparty/Pangolin/install/lib)
+        message(STATUS "pangolin lib dir (fallback to install): ${PANGOLIN_LIB_DIR}")
+    else()
+        # Default to build directory as per main CMakeLists.txt
+        set(PANGOLIN_LIB_DIR ${PLVS_ROOT_DIR}/Thirdparty/Pangolin/build)
+        message(STATUS "pangolin lib dir (default to build): ${PANGOLIN_LIB_DIR}")
+    endif()
+endif()
+# Ensure PANGOLIN_LIB_DIR is always set
+if(NOT PANGOLIN_LIB_DIR OR PANGOLIN_LIB_DIR STREQUAL "")
+    set(PANGOLIN_LIB_DIR ${PLVS_ROOT_DIR}/Thirdparty/Pangolin/build)
+    message(WARNING "pangolin lib dir was empty, forcing to build directory: ${PANGOLIN_LIB_DIR}")
+endif()
 
 
 if(WITH_LOCAL_PCL)
@@ -152,6 +187,61 @@ endif()
 find_package(Protobuf REQUIRED)
 message(STATUS "protobuf libs: ${PROTOBUF_LIBRARIES}")
 
+# Detect which g2o version to use (same approach as main CMakeLists.txt)
+# Check if main library was built with g2o_new by checking if the library exists
+if(WITH_G2O_NEW)
+    message(STATUS "Detected g2o_new - using new g2o libraries")
+    # In order to set RPATH (instead of RUNPATH) for g2o and other libraries linking issue.
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,--disable-new-dtags")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,--disable-new-dtags")
+    set(CMAKE_PREFIX_PATH ${PLVS_ROOT_DIR}/Thirdparty/g2o_new/install/lib/cmake/g2o/)
+    set(G2O_ROOT ${PLVS_ROOT_DIR}/Thirdparty/g2o_new/install/)
+    message(STATUS "set custom g2o root folder: ${G2O_ROOT}")
+    find_package(G2O REQUIRED)
+    # Get g2o libraries from the package
+    set(G2O_LIBS_LIST "")
+    if(TARGET g2o::core)
+        list(APPEND G2O_LIBS_LIST g2o::core)
+    endif()
+    if(TARGET g2o::stuff)
+        list(APPEND G2O_LIBS_LIST g2o::stuff)
+    endif()
+    if(TARGET g2o::solver_cholmod)
+        list(APPEND G2O_LIBS_LIST g2o::solver_cholmod)
+    endif()
+    if(TARGET g2o::types_sba)
+        list(APPEND G2O_LIBS_LIST g2o::types_sba)
+    endif()
+    if(TARGET g2o::types_sim3)
+        list(APPEND G2O_LIBS_LIST g2o::types_sim3)
+    endif()
+    if(TARGET g2o::types_slam3d)
+        list(APPEND G2O_LIBS_LIST g2o::types_slam3d)
+    endif()
+    if(TARGET g2o::opengl_helper)
+        list(APPEND G2O_LIBS_LIST g2o::opengl_helper)
+    endif()
+    # Fallback to direct library paths if targets not found
+    if(NOT G2O_LIBS_LIST)
+        set(G2O_LIBS_LIST
+            ${PLVS_ROOT_DIR}/Thirdparty/g2o_new/install/lib/libg2o_core.so
+            ${PLVS_ROOT_DIR}/Thirdparty/g2o_new/install/lib/libg2o_stuff.so
+            ${PLVS_ROOT_DIR}/Thirdparty/g2o_new/install/lib/libg2o_solver_cholmod.so
+            ${PLVS_ROOT_DIR}/Thirdparty/g2o_new/install/lib/libg2o_types_sba.so
+            ${PLVS_ROOT_DIR}/Thirdparty/g2o_new/install/lib/libg2o_types_sim3.so
+            ${PLVS_ROOT_DIR}/Thirdparty/g2o_new/install/lib/libg2o_types_slam3d.so
+            ${PLVS_ROOT_DIR}/Thirdparty/g2o_new/install/lib/libg2o_opengl_helper.so
+        )
+    endif()
+    set(G2O_LIB_DIR ${PLVS_ROOT_DIR}/Thirdparty/g2o_new/install/lib)
+else()
+    set(WITH_G2O_NEW FALSE)
+    message(STATUS "Using old g2o library")
+    set(G2O_LIBS_LIST ${PLVS_ROOT_DIR}/Thirdparty/g2o/lib/libg2o.so)
+    set(G2O_LIB_DIR ${PLVS_ROOT_DIR}/Thirdparty/g2o/lib)
+endif()
+message(STATUS "g2o lib dir: ${G2O_LIB_DIR}")
+message(STATUS "g2o libs: ${G2O_LIBS_LIST}")
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -187,6 +277,10 @@ ${Pangolin_INCLUDE_DIRS}
 
 link_directories(${CUDA_LIBRARY_DIRS})
 link_directories(${OpenCV_LIBRARY_DIRS})
+link_directories(${G2O_LIB_DIR})
+link_directories(${PLVS_ROOT_DIR}/lib)
+link_directories(${PLVS_ROOT_DIR}/Thirdparty/opencv/install/lib)
+link_directories(${PANGOLIN_LIB_DIR})
 
 add_definitions( ${PCL_DEFINITIONS} )
 link_directories( ${PCL_LIBRARY_DIRS})
@@ -205,7 +299,7 @@ set(LIBS
 ${PLVS_ROOT_DIR}/lib/lib${PROJECT_NAME}.so
 #${PLVS_ROOT_DIR}/lib/lib${PROJECT_NAME}_pc_mapping.so
 ${PLVS_ROOT_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
-${PLVS_ROOT_DIR}/Thirdparty/g2o/lib/libg2o.so
+${G2O_LIBS_LIST}
 ${PLVS_ROOT_DIR}/Thirdparty/volumetric_mapping/lib/libvolumetric_mapping.so
 ${PLVS_ROOT_DIR}/Thirdparty/chisel_server/lib/libchisel_server.a
 ${PLVS_ROOT_DIR}/Thirdparty/open_chisel/lib/libopen_chisel.a
@@ -230,6 +324,10 @@ add_executable(mono
 )
 ament_target_dependencies(mono rclcpp sensor_msgs cv_bridge)
 target_link_libraries(mono ${LIBS})
+set_target_properties(mono PROPERTIES
+  INSTALL_RPATH "${G2O_LIB_DIR}:${PLVS_ROOT_DIR}/lib:${PLVS_ROOT_DIR}/Thirdparty/opencv/install/lib:${PANGOLIN_LIB_DIR}"
+  BUILD_WITH_INSTALL_RPATH TRUE
+)
 
 add_executable(rgbd
   src/rgbd/rgbd.cpp
@@ -237,6 +335,10 @@ add_executable(rgbd
 )
 ament_target_dependencies(rgbd rclcpp sensor_msgs cv_bridge message_filters)
 target_link_libraries(rgbd ${LIBS})
+set_target_properties(rgbd PROPERTIES
+  INSTALL_RPATH "${G2O_LIB_DIR}:${PLVS_ROOT_DIR}/lib:${PLVS_ROOT_DIR}/Thirdparty/opencv/install/lib:${PANGOLIN_LIB_DIR}"
+  BUILD_WITH_INSTALL_RPATH TRUE
+)
 
 add_executable(stereo
   src/stereo/stereo.cpp
@@ -244,6 +346,10 @@ add_executable(stereo
 )
 ament_target_dependencies(stereo rclcpp sensor_msgs cv_bridge message_filters)
 target_link_libraries(stereo ${LIBS})
+set_target_properties(stereo PROPERTIES
+  INSTALL_RPATH "${G2O_LIB_DIR}:${PLVS_ROOT_DIR}/lib:${PLVS_ROOT_DIR}/Thirdparty/opencv/install/lib:${PANGOLIN_LIB_DIR}"
+  BUILD_WITH_INSTALL_RPATH TRUE
+)
 
 add_executable(stereo-inertial
   src/stereo-inertial/stereo-inertial.cpp
@@ -251,6 +357,10 @@ add_executable(stereo-inertial
 )
 ament_target_dependencies(stereo-inertial rclcpp sensor_msgs cv_bridge)
 target_link_libraries(stereo-inertial ${LIBS})
+set_target_properties(stereo-inertial PROPERTIES
+  INSTALL_RPATH "${G2O_LIB_DIR}:${PLVS_ROOT_DIR}/lib:${PLVS_ROOT_DIR}/Thirdparty/opencv/install/lib:${PANGOLIN_LIB_DIR}"
+  BUILD_WITH_INSTALL_RPATH TRUE
+)
 
 install(TARGETS mono rgbd stereo stereo-inertial
   DESTINATION lib/${PROJECT_NAME})

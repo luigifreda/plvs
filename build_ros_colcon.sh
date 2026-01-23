@@ -20,9 +20,9 @@ UBUNTU_VERSION=$(lsb_release -a 2>&1)  # to get ubuntu version
 
 # ====================================================
 # check if we have external options
-EXTERNAL_OPTION=$1
-if [[ -n "$EXTERNAL_OPTION" ]]; then
-    echo "external option: $EXTERNAL_OPTION" 
+EXTERNAL_OPTIONS=$1
+if [[ -n "$EXTERNAL_OPTIONS" ]]; then
+    echo "external option: $EXTERNAL_OPTIONS" 
 fi
 
 # check if we set a BUILD_TYPE
@@ -44,25 +44,25 @@ fi
 if [[ -n "$CPP_STANDARD_VERSION" ]]; then
     echo "forcing C++$CPP_STANDARD_VERSION compilation"	
     echo "CPP_STANDARD_VERSION: $CPP_STANDARD_VERSION" 
-    EXTERNAL_OPTION="$EXTERNAL_OPTION -DCPP_STANDARD_VERSION=$CPP_STANDARD_VERSION -DCMAKE_CXX_STANDARD=$CPP_STANDARD_VERSION"
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DCPP_STANDARD_VERSION=$CPP_STANDARD_VERSION -DCMAKE_CXX_STANDARD=$CPP_STANDARD_VERSION"
     #-DCMAKE_CXX_FLAGS+=-std=c++$CPP_STANDARD_VERSION
 fi
 
 # check the use of local opencv
 if [[ -n "$OpenCV_DIR" ]]; then
     echo "OpenCV_DIR: $OpenCV_DIR" 
-    EXTERNAL_OPTION="$EXTERNAL_OPTION -DOpenCV_DIR=$OpenCV_DIR"
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DOpenCV_DIR=$OpenCV_DIR"
     export OpenCV_DIR=$OpenCV_DIR  
 fi
 
 # check CUDA options
 if [ $USE_CUDA -eq 1 ]; then
     echo "USE_CUDA: $USE_CUDA" 
-    EXTERNAL_OPTION="$EXTERNAL_OPTION -DWITH_CUDA=ON"
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DWITH_CUDA=ON"
 fi
 
 if [[ $OPENCV_VERSION == 4* ]]; then
-    EXTERNAL_OPTION="$EXTERNAL_OPTION -DOPENCV_VERSION=4"
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DOPENCV_VERSION=4"
 fi
 
 if [[ $USE_LOCAL_PCL -eq 1 ]]; then
@@ -74,11 +74,12 @@ fi
 if [ $USE_OAK -eq 1 ]; then
     export depthai_DIR="$SCRIPT_DIR/Thirdparty/depthai-core/build"
     echo "depthai_DIR: $depthai_DIR" 
-    EXTERNAL_OPTION="$EXTERNAL_OPTION -Ddepthai_DIR=$depthai_DIR" 
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -Ddepthai_DIR=$depthai_DIR" 
 fi
 
+EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DWITH_G2O_NEW=$WITH_G2O_NEW"
 
-print_blue  "external options: $EXTERNAL_OPTION"
+print_blue  "external options: $EXTERNAL_OPTIONS"
 # ====================================================
 
 # create the ros workspace folder 
@@ -88,13 +89,24 @@ fi
 
 # download and recompile vision_opencv
 if [ $USE_LOCAL_OPENCV -eq 1 ]; then
-    cd ros2_ws/src
-    if [ ! -d vision_opencv-$ROS_DISTRO ]; then
-        print_blue "downloading vision_opencv-$ROS_DISTRO stack ... "
 
-        wget https://github.com/ros-perception/vision_opencv/archive/$ROS_DISTRO.zip
-        unzip $ROS_DISTRO.zip 
-        rm $ROS_DISTRO.zip 
+    ROS_DISTRO_TARGET=$ROS_DISTRO
+    if [ $ROS_DISTRO == "jazzy" ]; then
+        ROS_DISTRO_TARGET="4.1.0"
+    fi
+
+    cd ros2_ws/src
+    if [ ! -d vision_opencv-$ROS_DISTRO_TARGET ]; then
+        print_blue "downloading vision_opencv-$ROS_DISTRO_TARGET stack ... "
+
+        # Use tag format for version numbers (tags), branch format for branch names
+        if [[ $ROS_DISTRO_TARGET =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            wget https://github.com/ros-perception/vision_opencv/archive/refs/tags/$ROS_DISTRO_TARGET.zip
+        else
+            wget https://github.com/ros-perception/vision_opencv/archive/$ROS_DISTRO_TARGET.zip
+        fi
+        unzip $ROS_DISTRO_TARGET.zip 
+        rm $ROS_DISTRO_TARGET.zip 
         print_blue "...done"	    
     fi
     # if [ ! -d image_common-$ROS_DISTRO-devel ]; then
@@ -180,6 +192,6 @@ cd $SCRIPT_DIR
 cd ros2_ws
 
 print_blue "compiling with colcon build... "
-CMAKE_OPTIONS="-DCMAKE_BUILD_TYPE=Release $EXTERNAL_OPTION"  # add "--verbose" option if needed 
+CMAKE_OPTIONS="-DCMAKE_BUILD_TYPE=Release $EXTERNAL_OPTIONS"  # add "--verbose" option if needed 
 OVERRIDING_OPTIONS="--allow-overriding cv_bridge image_geometry"
 colcon build --symlink-install $OVERRIDING_OPTIONS --cmake-args $CMAKE_OPTIONS

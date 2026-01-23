@@ -8,6 +8,7 @@ cd $CONFIG_DIR # this brings us in the actual folder of this config script (not 
 #echo "current dir: $CONFIG_DIR"
 
 UBUNTU_VERSION=$(lsb_release -a 2>&1)  # ubuntu version 
+echo "UBUNTU_VERSION: $UBUNTU_VERSION"
 
 # ====================================================
 # BUILD_TYPE 
@@ -151,6 +152,16 @@ if [ $USE_LOCAL_OPENCV -eq 1 ] && [[ ! -n "$OpenCV_DIR" ]]; then
 	echo setting OpenCV_DIR: $OpenCV_DIR
     #export LD_LIBRARY_PATH=$CONFIG_DIR/Thirdparty/opencv/install/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 fi
+
+# ====================================================
+# G2O
+
+export WITH_G2O_NEW=OFF
+if [[ "$UBUNTU_VERSION" == *"24.04"* ]] ; then
+	# At present, the standard g2o version generates some crashes under ubuntu 24.04
+    echo "We force the use of the new g2o version!"
+    WITH_G2O_NEW=ON
+fi 
 
 # ====================================================
 # ZED 

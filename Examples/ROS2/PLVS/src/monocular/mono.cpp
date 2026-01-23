@@ -2,6 +2,8 @@
 #include <algorithm>
 #include <fstream>
 #include <chrono>
+#include <string>
+#include <vector>
 
 #include "rclcpp/rclcpp.hpp"
 #include "monocular-slam-node.hpp"
@@ -11,18 +13,21 @@
 
 int main(int argc, char **argv)
 {
-    if(argc < 3)
+    rclcpp::init(argc, argv);
+
+    const std::vector<std::string> args = rclcpp::remove_ros_arguments(argc, argv);
+    if(args.size() < 3)
     {
         std::cerr << "\nUsage: ros2 run orbslam mono path_to_vocabulary path_to_settings" << std::endl;
         return 1;
     }
 
-    rclcpp::init(argc, argv);
-
     // malloc error using new.. try shared ptr
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
     bool visualization = true;
-    PLVS2::System SLAM(argv[1], argv[2], PLVS2::System::MONOCULAR, visualization);
+    const std::string& vocabulary_file = args[1];
+    const std::string& settings_file = args[2];
+    PLVS2::System SLAM(vocabulary_file, settings_file, PLVS2::System::MONOCULAR, visualization);
 
     auto node = std::make_shared<MonocularSlamNode>(&SLAM);
     std::cout << "============================ " << std::endl;\

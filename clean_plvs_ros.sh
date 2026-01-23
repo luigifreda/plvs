@@ -20,7 +20,9 @@ if [[ -d ros_ws ]]; then
 	fi		
 	if [[ -d log ]]; then 
 		rm -R log 
-	fi		
+	fi
+	cd ..
+	rm -Rf ros_ws
 fi 
 
 echo "cleaning ros2 ws "
@@ -38,4 +40,6 @@ if [[ -d ros2_ws ]]; then
 	if [[ -d log ]]; then 
 		rm -R log 
 	fi		
+	cd ..
+	rm -Rf ros2_ws
 fi 
