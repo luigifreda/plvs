@@ -27,6 +27,33 @@
 #define EXIT_WAIVED 2
 #endif
 
+// CUDA 13+ removed some cudaDeviceProp fields; provide compatibility helpers.
+#if defined(CUDART_VERSION) && (CUDART_VERSION >= 13000)
+static inline int _helperCudaGetComputeMode(const cudaDeviceProp & /*prop*/, int device)
+{
+    int mode = 0;
+    cudaDeviceGetAttribute(&mode, cudaDevAttrComputeMode, device);
+    return mode;
+}
+
+static inline int _helperCudaGetClockRate(const cudaDeviceProp & /*prop*/, int device)
+{
+    int rate = 0;
+    cudaDeviceGetAttribute(&rate, cudaDevAttrClockRate, device);
+    return rate;
+}
+#else
+static inline int _helperCudaGetComputeMode(const cudaDeviceProp &prop, int /*device*/)
+{
+    return prop.computeMode;
+}
+
+static inline int _helperCudaGetClockRate(const cudaDeviceProp &prop, int /*device*/)
+{
+    return prop.clockRate;
+}
+#endif
+
 // Note, it is required that your SDK sample to include the proper header files, please
 // refer the CUDA examples for examples of the needed CUDA headers, which may change depending
 // on which CUDA functions are used.
@@ -1100,7 +1127,7 @@ inline int gpuDeviceInit(int devID)
     cudaDeviceProp deviceProp;
     checkCudaErrors(cudaGetDeviceProperties(&deviceProp, devID));
 
-    if (deviceProp.computeMode == cudaComputeModeProhibited)
+    if (_helperCudaGetComputeMode(deviceProp, devID) == cudaComputeModeProhibited)
     {
         fprintf(stderr, "Error: device is running in <Compute Mode Prohibited>, no threads can use ::cudaSetDevice().\n");
         return -1;
@@ -1144,7 +1171,7 @@ inline int gpuGetMaxGflopsDeviceId()
         cudaGetDeviceProperties(&deviceProp, current_device);
 
         // If this GPU is not running on Compute Mode prohibited, then we can add it to the list
-        if (deviceProp.computeMode != cudaComputeModeProhibited)
+        if (_helperCudaGetComputeMode(deviceProp, current_device) != cudaComputeModeProhibited)
         {
             if (deviceProp.major > 0 && deviceProp.major < 9999)
             {
@@ -1173,7 +1200,7 @@ inline int gpuGetMaxGflopsDeviceId()
         cudaGetDeviceProperties(&deviceProp, current_device);
 
         // If this GPU is not running on Compute Mode prohibited, then we can add it to the list
-        if (deviceProp.computeMode != cudaComputeModeProhibited)
+        if (_helperCudaGetComputeMode(deviceProp, current_device) != cudaComputeModeProhibited)
         {
             if (deviceProp.major == 9999 && deviceProp.minor == 9999)
             {
@@ -1184,7 +1211,7 @@ inline int gpuGetMaxGflopsDeviceId()
                 sm_per_multiproc = _ConvertSMVer2Cores(deviceProp.major, deviceProp.minor);
             }
 
-            unsigned long long compute_perf  = (unsigned long long) deviceProp.multiProcessorCount * sm_per_multiproc * deviceProp.clockRate;
+            unsigned long long compute_perf  = (unsigned long long) deviceProp.multiProcessorCount * sm_per_multiproc * _helperCudaGetClockRate(deviceProp, current_device);
 
             if (compute_perf  > max_compute_perf)
             {
