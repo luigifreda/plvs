@@ -116,6 +116,7 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
 
 #====================================
 # CUDA 
+message(STATUS "WITH_CUDA: " ${WITH_CUDA})
 
 if(WITH_CUDA)
     find_package(CUDA REQUIRED)
@@ -133,8 +134,36 @@ if(WITH_CUDA)
         src/cuda/Cuda.cu
     )
 
-    set(CUDA_ARCH_BIN "35 50 52 53 61 62 75 80 86" CACHE STRING "Specify 'real' GPU arch to build binaries for, BIN(PTX) format is supported. Example: 1.3 2.1(1.3) or 13 21(13)")
+    option(PLVS_AUTO_CUDA_ARCH "Auto-detect CUDA arch list" ON)
+    set(CUDA_ARCH_BIN "" CACHE STRING "Specify 'real' GPU arch to build binaries for, BIN(PTX) format is supported. Example: 1.3 2.1(1.3) or 13 21(13)")
     set(CUDA_ARCH_PTX "" CACHE STRING "Specify 'virtual' PTX arch to build PTX intermediate code for. Example: 1.0 1.2 or 10 12")
+
+    if(PLVS_AUTO_CUDA_ARCH AND CUDA_ARCH_BIN STREQUAL "")
+        execute_process(
+            COMMAND nvidia-smi --query-gpu=compute_cap --format=csv,noheader
+            OUTPUT_VARIABLE _plvs_cc_raw
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+        if(_plvs_cc_raw)
+            string(REPLACE "\n" ";" _plvs_cc_list "${_plvs_cc_raw}")
+            set(_plvs_arch_bins "")
+            foreach(_plvs_cc IN LISTS _plvs_cc_list)
+                string(REPLACE "." "" _plvs_cc_nodot "${_plvs_cc}")
+                if(NOT _plvs_cc_nodot STREQUAL "")
+                    list(APPEND _plvs_arch_bins "${_plvs_cc_nodot}")
+                endif()
+            endforeach()
+            list(REMOVE_DUPLICATES _plvs_arch_bins)
+            if(_plvs_arch_bins)
+                set(CUDA_ARCH_BIN "${_plvs_arch_bins}" CACHE STRING "Specify 'real' GPU arch to build binaries for, BIN(PTX) format is supported. Example: 1.3 2.1(1.3) or 13 21(13)" FORCE)
+                message(STATUS "Detected CUDA_ARCH_BIN: ${CUDA_ARCH_BIN}")
+            endif()
+        endif()
+        if(CUDA_ARCH_BIN STREQUAL "")
+            message(WARNING "Could not auto-detect CUDA_ARCH_BIN; set it manually to enable -gencode flags.")
+        endif()
+    endif()
 
     include(${CMAKE_MODULE_PATH}/CudaComputeTargetFlags.cmake)
     APPEND_TARGET_ARCH_FLAGS()
