@@ -4343,6 +4343,20 @@ void Tracking::CreateNewKeyFrame()
                         mCurrentFrame.mvpMapLines[i] = static_cast<MapLinePtr>(NULL);
                     }
 
+                    if(bCreateNew && mCurrentFrame.NlinesLeft != -1)
+                    {
+                        const int right = mCurrentFrame.mvLeftToRightLinesMatch[i];
+                        if(right >= 0)
+                        {
+                            MapLinePtr existing = mCurrentFrame.mvpMapLines[right + mCurrentFrame.NlinesLeft];
+                            if(existing && AssociateMapLineWithStereo(existing, pKF, i))
+                            {
+                                mCurrentFrame.mvpMapLines[i] = existing;
+                                bCreateNew = false;
+                            }
+                        }
+                    }
+
 #if CREATE_NEW_LINES_ON_TRACKING 
                     if(bCreateNew)
                     {
@@ -4361,8 +4375,14 @@ void Tracking::CreateNewKeyFrame()
                             //MapLinePtr pNewML = new MapLine(x3DStart,x3DEnd,pKF,mpAtlas->GetCurrentMap());
                             MapLinePtr pNewML = MapLineNewPtr(x3DStart,x3DEnd,pKF,mpAtlas->GetCurrentMap());
                             
-                            pNewML->AddObservation(pKF,i);
-                            pKF->AddMapLine(pNewML,i);
+                            AssociateMapLineWithStereo(pNewML, pKF, i);
+                            if(mCurrentFrame.NlinesLeft != -1)
+                            {
+                                const int right = mCurrentFrame.mvLeftToRightLinesMatch[i];
+                                const int partner = right + mCurrentFrame.NlinesLeft;
+                                if(right >= 0 && pKF->GetMapLine(partner) == pNewML)
+                                    mCurrentFrame.mvpMapLines[partner] = pNewML;
+                            }
                             pNewML->ComputeDistinctiveDescriptors();
                             pNewML->UpdateNormalAndDepth();
                             mpAtlas->AddMapLine(pNewML);

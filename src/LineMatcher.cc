@@ -2076,7 +2076,7 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
         if(!pML)
             continue;
 
-        if(pML->isBad() || pML->IsInKeyFrame(pKF))
+        if(pML->isBad() || pML->IsInKeyFrame(pKF, bRight))
             continue;
 
     //    const cv::Mat p3DSw = pML->GetWorldPosStart(); 
@@ -2309,10 +2309,8 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const vector<MapLinePtr> &vpMapLines, co
             }
             else
             {
-                //if( pML->AddObservation(pKF,bestIdx) )
-                //    pKF->AddMapLine(pML,bestIdx);
-                pML->AddObservation(pKF,bestIdx);
-                pKF->AddMapLine(pML,bestIdx);
+                if(!AssociateMapLineWithStereo(pML, pKF, bestIdx))
+                    continue;
             }
             nFused++;
         }
@@ -2555,10 +2553,8 @@ int LineMatcher::Fuse(KeyFramePtr& pKF, const Sophus::Sim3f& Scw, const std::vec
             }
             else
             {
-                //if( pML->AddObservation(pKF,bestIdx) )
-                //    pKF->AddMapLine(pML,bestIdx);
-                pML->AddObservation(pKF,bestIdx);
-                pKF->AddMapLine(pML,bestIdx);
+                if(!AssociateMapLineWithStereo(pML, pKF, bestIdx))
+                    continue;
             }
             nFused++;
         }

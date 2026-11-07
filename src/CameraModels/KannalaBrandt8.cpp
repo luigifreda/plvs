@@ -426,6 +426,8 @@ namespace PLVS2 {
 #endif 
         Eigen::Vector3f l1 = p1.cross(q1);
         const float l1Norm = sqrt( Utils::Pow2(l1[0]) + Utils::Pow2(l1[1]) );
+        if(!std::isfinite(l1Norm) || l1Norm <= 1e-6f)
+            return false;
         l1 = l1/l1Norm; // in this way we have l1 = (nx, ny, -d) with (nx^2 + ny^2) = 1
                            
 #if KEYLINES_ARE_DISTORTED
@@ -438,6 +440,8 @@ namespace PLVS2 {
 #endif 
         Eigen::Vector3f l2 = p2.cross(q2);
         const float l2Norm = sqrt( Utils::Pow2(l2[0]) + Utils::Pow2(l2[1]) );
+        if(!std::isfinite(l2Norm) || l2Norm <= 1e-6f)
+            return false;
         l2 = l2/l2Norm; // in this way we have l2 = (nx, ny, -d) with (nx^2 + ny^2) = 1             
 
         // Check if we can triangulate, i.e. check if the normals of the two planes corresponding to lines are not parallel
@@ -479,6 +483,13 @@ namespace PLVS2 {
                 outData.p3DS = Eigen::Vector3f( (p1[0]-cx1)*invfx1*outData.depthS, (p1[1]-cy1)*invfy1*outData.depthS, outData.depthS ); // depthP1 * K1.inv()*p1;   
                 outData.p3DE = Eigen::Vector3f( (q1[0]-cx1)*invfx1*outData.depthE, (q1[1]-cy1)*invfy1*outData.depthE, outData.depthE ); // depthQ1 * K1.inv()*q1;              
     #endif 
+                const Eigen::Vector3f start2 = camPairdata.R21 * outData.p3DS + camPairdata.t21;
+                const Eigen::Vector3f end2 = camPairdata.R21 * outData.p3DE + camPairdata.t21;
+                if(!GeometricTools::CheckLineSegmentProjection(outData.p3DS, outData.p3DE, K1,
+                        p1.head<2>(), q1.head<2>(), sigma1) ||
+                   !GeometricTools::CheckLineSegmentProjection(start2, end2, K2,
+                        p2.head<2>(), q2.head<2>(), sigma2))
+                    return false;
                 const Eigen::Vector3f camRay = outData.p3DS.normalized();
                 Eigen::Vector3f lineES = outData.p3DS-outData.p3DE;  
                 const double lineLength = lineES.norm();

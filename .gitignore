@@ -190,6 +190,7 @@ housekeeping/
 Results/ 
 
 .cache
+.env
 
 *.ply
 *.dat 

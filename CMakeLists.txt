@@ -606,6 +606,18 @@ ${EXTERNAL_LIBS} ${EXTERNAL_CORE_LIBS})
 
 set(CORE_LIBS ${PROJECT_NAME})
 
+option(PLVS_BUILD_TESTS "Build focused line mapping regression tests" OFF)
+if(PLVS_BUILD_TESTS)
+    enable_testing()
+    add_executable(test_line_mapping tests/test_line_mapping.cc)
+    set_target_properties(test_line_mapping PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
+    target_link_libraries(test_line_mapping ${CORE_LIBS} ${EXTERNAL_LIBS} ${EXTERNAL_CORE_LIBS})
+    foreach(line_test observations one_sided replacement distance fusion triangulation)
+        add_test(NAME line_${line_test} COMMAND test_line_mapping ${line_test})
+    endforeach()
+endif()
+
 message(STATUS "Boost_LIBRARIES: ${Boost_LIBRARIES}")
 message(STATUS "EXTERNAL_CORE_LIBS: ${EXTERNAL_CORE_LIBS}")
 

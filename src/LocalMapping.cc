@@ -387,26 +387,30 @@ void LocalMapping::ProcessNewKeyFrame()
         // Associate MapLines to the new keyframe and update normal and descriptor
         const vector<MapLinePtr> vpMapLineMatches = mpCurrentKeyFrame->GetMapLineMatches();
 
+        set<MapLinePtr> changedLines;
+        set<MapLinePtr> recentLines;
         for(size_t i=0; i<vpMapLineMatches.size(); i++)
         {
             MapLinePtr pML = vpMapLineMatches[i];
-            if(pML)
-            {
-                if(!pML->isBad())
-                {
-                    if(!pML->IsInKeyFrame(mpCurrentKeyFrame))
-                    {
-                        pML->AddObservation(mpCurrentKeyFrame, i);
-                        pML->UpdateNormalAndDepth();
-                        pML->ComputeDistinctiveDescriptors();
-                    }
-                    else // this can only happen for new stereo lines inserted by the Tracking
-                    {
-                        mlpRecentAddedMapLines.push_back(pML);
-                    }
-                }
-            }
-        }         
+            if(!pML || pML->isBad())
+                continue;
+            // Reconcile every slot, including aliases of an already registered
+            // line. The observation tuple can store one feature per camera.
+            bool observationAdded = false;
+            if(!AssociateMapLineWithStereo(pML, mpCurrentKeyFrame, i, &observationAdded))
+                continue;
+            if(observationAdded)
+                changedLines.insert(pML);
+            if(pML->mnFirstKFid == mpCurrentKeyFrame->mnId && recentLines.insert(pML).second)
+                mlpRecentAddedMapLines.push_back(pML);
+        }
+        // Refresh once after reconciling both cameras, and only when the
+        // observation set changed. Already initialized lines need no work.
+        for(const auto& pML : changedLines)
+        {
+            pML->UpdateNormalAndDepth();
+            pML->ComputeDistinctiveDescriptors();
+        }
     }
 
     // Update links in the Covisibility Graph
@@ -999,7 +1003,13 @@ void LocalMapping::CreateNewMapFeatures()
             for(size_t ikl=0; ikl<nlineMatches; ikl++)
             {
                 const int &idx1 = vMatchedLineIndices[ikl].first;
-                const int &idx2 = vMatchedLineIndices[ikl].second;              
+                const int &idx2 = vMatchedLineIndices[ikl].second;
+                if(mpCurrentKeyFrame->GetMapLine(idx1) || pKF2->GetMapLine(idx2))
+                {
+                    AssociateMatchedMapLine(mpCurrentKeyFrame, idx1, pKF2, idx2);
+                    continue;
+                }
+
             
 		        // get undistorted kl1 
                 const auto& kl1 = (mpCurrentKeyFrame->NlinesLeft == -1) ? mpCurrentKeyFrame->mvKeyLinesUn[idx1] :
@@ -1104,7 +1114,7 @@ void LocalMapping::CreateNewMapFeatures()
                     const float depthM1 = 0.5* ( mpCurrentKeyFrame->mvDepthLineStart[idx1L] + mpCurrentKeyFrame->mvDepthLineEnd[idx1L] ); // depth middle point left
                     cosParallaxStereo1 = cos(2*atan2(mpCurrentKeyFrame->mb/2,depthM1));
                 }
-                else if(bStereo2 && idx2L>=0 && idx2L < (int)pKF2->mvDepthLineStart.size() && idx2L < (int)pKF2->mvDepthLineEnd.size())
+                if(bStereo2 && idx2L>=0 && idx2L < (int)pKF2->mvDepthLineStart.size() && idx2L < (int)pKF2->mvDepthLineEnd.size())
                 {
                     const float depthM2 = 0.5* ( pKF2->mvDepthLineStart[idx2L] + pKF2->mvDepthLineEnd[idx2L] ); // depth middle point right                   
                     cosParallaxStereo2 = cos(2*atan2(pKF2->mb/2,depthM2));
@@ -1152,37 +1162,6 @@ void LocalMapping::CreateNewMapFeatures()
                             const float cosViewAngle = fabs((float)camRay.dot(lineES));
                             if(cosViewAngle<=Frame::kCosViewZAngleMax)
                             {                    
-            #if ASSIGN_VIRTUAL_DISPARITY_WHEN_TRIANGULATING_LINES
-                                if(!bStereo1) 
-                                {
-                                    if(!mpCurrentKeyFrame->mpCamera2)
-                                    {
-                                        // assign depth and (virtual) disparity to left line end points 
-                                        mpCurrentKeyFrame->mvDepthLineStart[idx1] = depthP1;
-                                        const double disparity_p1 = mpCurrentKeyFrame->mbf/depthP1;                                
-                                        mpCurrentKeyFrame->mvuRightLineStart[idx1] =  p1(0) - disparity_p1; 
-
-                                        mpCurrentKeyFrame->mvDepthLineEnd[idx1] = depthQ1;
-                                        const double disparity_q1 = mpCurrentKeyFrame->mbf/depthQ1;                         
-                                        mpCurrentKeyFrame->mvuRightLineEnd[idx1] = q1(0) - disparity_q1; 
-                                    }
-                                    else
-                                    {
-                                        // assign depth and (virtual) disparity to left line end points      
-                                        if(idx1L>=0 && idx1L < (int)mpCurrentKeyFrame->mvDepthLineStart.size() && 
-                                           idx1L < (int)mpCurrentKeyFrame->mvDepthLineEnd.size() &&
-                                           idx1L < (int)mpCurrentKeyFrame->mvuRightLineStart.size() &&
-                                           idx1L < (int)mpCurrentKeyFrame->mvuRightLineEnd.size())
-                                        {
-                                            mpCurrentKeyFrame->mvDepthLineStart[idx1L] = depthP1;                             
-                                            mpCurrentKeyFrame->mvuRightLineStart[idx1L] =  1; // fake value to signal depth availability 
-              
-                                            mpCurrentKeyFrame->mvDepthLineEnd[idx1L] = depthQ1;                        
-                                            mpCurrentKeyFrame->mvuRightLineEnd[idx1L] = 1; // // fake value to signal depth availability      
-                                        }                                   
-                                    }
-                                }
-            #endif                         
                                 bLineTriangulatedByIntersection = true; 
                                 //std::cout << "triangulated line : " << x3DS << " , " << x3DE << std::endl; 
                             }
@@ -1208,7 +1187,8 @@ void LocalMapping::CreateNewMapFeatures()
 
                 if(!bLineTriangulatedByIntersection)
                 {
-                    if(bStereo1 && cosParallaxStereo1<cosParallaxStereo2)
+                    // Either source is valid when both stereo parallaxes tie.
+                    if(bStereo1 && cosParallaxStereo1<=cosParallaxStereo2)
                     {
                         if(!mpCurrentKeyFrame->UnprojectStereoLine(idx1, x3DS, x3DE)) continue;   
                         //std::cout << "unprojected1 line : " << x3DS << " , " << x3DE << std::endl; 
@@ -1223,113 +1203,19 @@ void LocalMapping::CreateNewMapFeatures()
                         continue; //No stereo and very low parallax
                     }
 
-                    // N.B.1: if we enter here we do not have fisheye cameras 
-                    //MSG_ASSERT(!mpCurrentKeyFrame->mpCamera2, "Invalid camera type - It should be pinhole or fisheye!");
-
-                    // N.B.2: if line is triangulated, the following block of checks are automatically satisfied by construction 
-                    //(given the backprojection of the points p2 q2 from frame 2 on the plane corresponding to l1)
-
-                    const Eigen::Matrix3f Rcw1Sel = bRight1 ? Rwc1R.transpose() : Rwc1L.transpose();
-                    const Eigen::Vector3f twc1Sel = bRight1 ? twc1R : twc1L;
-                    const Eigen::Vector3f tcw1Sel = -Rcw1Sel*twc1Sel;
-                    const Eigen::Matrix3f Rcw2Sel = bRight2 ? Rwc2R.transpose() : Rwc2L.transpose();
-                    const Eigen::Vector3f twc2Sel = bRight2 ? twc2R : twc2L;
-                    const Eigen::Vector3f tcw2Sel = -Rcw2Sel*twc2Sel;
-                    float fx1Sel, fy1Sel, cx1Sel, cy1Sel, fx2Sel, fy2Sel, cx2Sel, cy2Sel;
-                    if(bRight1)
-                    {
-                        fx1Sel = fx1R;
-                        fy1Sel = fy1R;
-                        cx1Sel = cx1R;
-                        cy1Sel = cy1R;
-                    }
-                    else
-                    {
-                        fx1Sel = fx1;
-                        fy1Sel = fy1;
-                        cx1Sel = cx1;
-                        cy1Sel = cy1;
-                    }
-                    if(bRight2)
-                    {
-                        fx2Sel = fx2R;
-                        fy2Sel = fy2R;
-                        cx2Sel = cx2R;
-                        cy2Sel = cy2R;
-                    }
-                    else
-                    {
-                        fx2Sel = fx2;
-                        fy2Sel = fy2;
-                        cx2Sel = cx2;
-                        cy2Sel = cy2;
-                    }
-                    const Eigen::Vector3f x3DSt = x3DS.transpose();
-                    const Eigen::Vector3f x3DEt = x3DE.transpose(); 
-
-                    //Check triangulation in front of cameras
-                    const float sz1 = Rcw1Sel.row(2).dot(x3DSt)+tcw1Sel[2];
-                    if(sz1<=0)
-                        continue;
-                    const float ez1 = Rcw1Sel.row(2).dot(x3DEt)+tcw1Sel[2];
-                    if(ez1<=0)
-                        continue;                
-
-                    const float sz2 = Rcw2Sel.row(2).dot(x3DSt)+tcw2Sel[2];
-                    if(sz2<=0)
-                        continue;
-                    const float ez2 = Rcw2Sel.row(2).dot(x3DEt)+tcw2Sel[2];
-                    if(ez2<=0)
-                        continue;                
-
-                    //Check reprojection error in first keyframe
-                    const float &sigmaSquare1 = mpCurrentKeyFrame->mvLineLevelSigma2[kl1.octave];
-
-                    const float sx1 = Rcw1Sel.row(0).dot(x3DSt)+tcw1Sel[0];
-                    const float sy1 = Rcw1Sel.row(1).dot(x3DSt)+tcw1Sel[1];
-                    const float sinvz1 = 1.0/sz1;
-
-                    const float su1 = fx1Sel*sx1*sinvz1+cx1Sel;
-                    const float sv1 = fy1Sel*sy1*sinvz1+cy1Sel;
-                    const float dl1s = l1[0] * su1 + l1[1] * sv1 + l1[2]; // distance point-line
-                    if((dl1s*dl1s)>3.84*sigmaSquare1)
-                        continue;
-
-
-                    const float ex1 = Rcw1Sel.row(0).dot(x3DEt)+tcw1Sel[0];
-                    const float ey1 = Rcw1Sel.row(1).dot(x3DEt)+tcw1Sel[1];
-                    const float einvz1 = 1.0/ez1;         
-
-                    const float eu1 = fx1Sel*ex1*einvz1+cx1Sel;
-                    const float ev1 = fy1Sel*ey1*einvz1+cy1Sel;
-                    const float dl1e = l1[0] * eu1 + l1[1] * ev1 + l1[2]; // distance point-line
-                    if((dl1e*dl1e)>3.84*sigmaSquare1)
-                        continue;                
-
-                    //Check reprojection error in second keyframe                                          
-                    const float sigmaSquare2 = pKF2->mvLineLevelSigma2[kl2.octave];
-
-                    const float sx2 = Rcw2Sel.row(0).dot(x3DSt)+tcw2Sel[0];
-                    const float sy2 = Rcw2Sel.row(1).dot(x3DSt)+tcw2Sel[1];
-                    const float sinvz2 = 1.0/sz2;         
-
-                    const float su2 = fx2Sel*sx2*sinvz2+cx2Sel;
-                    const float sv2 = fy2Sel*sy2*sinvz2+cy2Sel;
-                    const float dl2s = l2[0] * su2 + l2[1] * sv2 + l2[2];
-                    if((dl2s*dl2s)>3.84*sigmaSquare2)
-                        continue;
-
-
-                    const float ex2 = Rcw2Sel.row(0).dot(x3DEt)+tcw2Sel[0];
-                    const float ey2 = Rcw2Sel.row(1).dot(x3DEt)+tcw2Sel[1];
-                    const float einvz2 = 1.0/ez2;       
-
-                    float eu2 = fx2Sel*ex2*einvz2+cx2Sel;
-                    float ev2 = fy2Sel*ey2*einvz2+cy2Sel;
-                    const float dl2e = l2[0] * eu2 + l2[1] * ev2 + l2[2];
-                    if((dl2e*dl2e)>3.84*sigmaSquare2)
-                        continue;                    
                 }
+
+                // Both intersection and stereo fallback must agree with finite
+                // detections and lie in front of both selected cameras.
+                const Eigen::Vector3f start1 = Rwc1.transpose() * (x3DS - twc1);
+                const Eigen::Vector3f end1 = Rwc1.transpose() * (x3DE - twc1);
+                const Eigen::Vector3f start2 = Rwc2.transpose() * (x3DS - twc2);
+                const Eigen::Vector3f end2 = Rwc2.transpose() * (x3DE - twc2);
+                if(!GeometricTools::CheckLineSegmentProjection(start1, end1, K1,
+                        p1.head<2>(), q1.head<2>(), mpCurrentKeyFrame->mvLineLevelSigma2[kl1.octave]) ||
+                   !GeometricTools::CheckLineSegmentProjection(start2, end2, K2,
+                        p2.head<2>(), q2.head<2>(), pKF2->mvLineLevelSigma2[kl2.octave]))
+                    continue;
 
                 //Check scale consistency
                 Eigen::Vector3f x3DM = 0.5*(x3DS+x3DE);
@@ -1351,15 +1237,26 @@ void LocalMapping::CreateNewMapFeatures()
                 if(linesRatioDist*linesRatioFactor<linesRatioOctave || linesRatioDist>linesRatioOctave*linesRatioFactor)
                     continue;                
             
+#if ASSIGN_VIRTUAL_DISPARITY_WHEN_TRIANGULATING_LINES
+                if(bLineTriangulatedByIntersection && !bStereo1 && !bRight1)
+                {
+                    // Cache only validated depths, in the camera whose
+                    // undistorted endpoints were used to reconstruct them.
+                    mpCurrentKeyFrame->mvDepthLineStart[idx1] = start1.z();
+                    mpCurrentKeyFrame->mvDepthLineEnd[idx1] = end1.z();
+                    mpCurrentKeyFrame->mvuRightLineStart[idx1] = mpCurrentKeyFrame->mpCamera2 ?
+                        1.f : p1.x() - mpCurrentKeyFrame->mbf/start1.z();
+                    mpCurrentKeyFrame->mvuRightLineEnd[idx1] = mpCurrentKeyFrame->mpCamera2 ?
+                        1.f : q1.x() - mpCurrentKeyFrame->mbf/end1.z();
+                }
+#endif
+
                 // Triangulation is successful
                 //MapLinePtr pML = new MapLine(x3DS,x3DE,mpCurrentKeyFrame,mpAtlas->GetCurrentMap());
                 MapLinePtr pML = MapLineNewPtr(x3DS,x3DE,mpCurrentKeyFrame,mpAtlas->GetCurrentMap());
  
-                pML->AddObservation(mpCurrentKeyFrame,idx1);
-                mpCurrentKeyFrame->AddMapLine(pML,idx1);                    
-                
-                pML->AddObservation(pKF2,idx2);
-                pKF2->AddMapLine(pML,idx2);
+                AssociateMapLineWithStereo(pML, mpCurrentKeyFrame, idx1);
+                AssociateMapLineWithStereo(pML, pKF2, idx2);
 
                 pML->ComputeDistinctiveDescriptors();
 

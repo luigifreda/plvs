@@ -70,7 +70,7 @@ def align(model,data):
     W = numpy.zeros( (3,3) )
     for column in range(model.shape[1]):
         W += numpy.outer(model_zerocentered[:,column],data_zerocentered[:,column])
-    U,d,Vh = numpy.linalg.linalg.svd(W.transpose())
+    U,d,Vh = numpy.linalg.svd(W.transpose())
     S = numpy.matrix(numpy.identity( 3 ))
     if(numpy.linalg.det(U) * numpy.linalg.det(Vh)<0):
         S[2,2] = -1
@@ -85,7 +85,7 @@ def align(model,data):
         normi = numpy.linalg.norm(model_zerocentered[:,column])
         norms += normi*normi
 
-    s = float(dots/norms)    
+    s = numpy.asarray(dots/norms).item()
     
     transGT = data.mean(1) - s*rot * model.mean(1)
     trans = data.mean(1) - rot * model.mean(1)
@@ -96,8 +96,8 @@ def align(model,data):
     alignment_errorGT = model_alignedGT - data
     alignment_error = model_aligned - data
 
-    trans_errorGT = numpy.sqrt(numpy.sum(numpy.multiply(alignment_errorGT,alignment_errorGT),0)).A[0]
-    trans_error = numpy.sqrt(numpy.sum(numpy.multiply(alignment_error,alignment_error),0)).A[0]
+    trans_errorGT = numpy.asarray(numpy.sqrt(numpy.sum(numpy.multiply(alignment_errorGT,alignment_errorGT),0))).ravel()
+    trans_error = numpy.asarray(numpy.sqrt(numpy.sum(numpy.multiply(alignment_error,alignment_error),0))).ravel()
         
     return rot,transGT,trans_errorGT,trans,trans_error, s
 
@@ -198,12 +198,12 @@ if __name__=="__main__":
 
     if args.save_associations:
         file = open(args.save_associations,"w")
-        file.write("\n".join(["%f %f %f %f %f %f %f %f"%(a,x1,y1,z1,b,x2,y2,z2) for (a,b),(x1,y1,z1),(x2,y2,z2) in zip(matches,first_xyz.transpose().A,second_xyz_aligned.transpose().A)]))
+        file.write("\n".join(["%f %f %f %f %f %f %f %f"%(a,x1,y1,z1,b,x2,y2,z2) for (a,b),(x1,y1,z1),(x2,y2,z2) in zip(matches,numpy.asarray(first_xyz.transpose()),numpy.asarray(second_xyz_aligned.transpose()))]))
         file.close()
         
     if args.save:
         file = open(args.save,"w")
-        file.write("\n".join(["%f "%stamp+" ".join(["%f"%d for d in line]) for stamp,line in zip(second_stamps,second_xyz_notscaled_full.transpose().A)]))
+        file.write("\n".join(["%f "%stamp+" ".join(["%f"%d for d in line]) for stamp,line in zip(second_stamps,numpy.asarray(second_xyz_notscaled_full.transpose()))]))
         file.close()
 
     if args.plot:
@@ -214,10 +214,10 @@ if __name__=="__main__":
         from matplotlib.patches import Ellipse
         fig = plt.figure()
         ax = fig.add_subplot(111)
-        plot_traj(ax,first_stamps,first_xyz_full.transpose().A,'-',"black","ground truth")
-        plot_traj(ax,second_stamps,second_xyz_full_aligned.transpose().A,'-',"blue","estimated")
+        plot_traj(ax,first_stamps,numpy.asarray(first_xyz_full.transpose()),'-',"black","ground truth")
+        plot_traj(ax,second_stamps,numpy.asarray(second_xyz_full_aligned.transpose()),'-',"blue","estimated")
         label="difference"
-        for (a,b),(x1,y1,z1),(x2,y2,z2) in zip(matches,first_xyz.transpose().A,second_xyz_aligned.transpose().A):
+        for (a,b),(x1,y1,z1),(x2,y2,z2) in zip(matches,numpy.asarray(first_xyz.transpose()),numpy.asarray(second_xyz_aligned.transpose())):
             ax.plot([x1,x2],[y1,y2],'-',color="red",label=label)
             label=""
             

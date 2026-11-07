@@ -81,6 +81,7 @@ public:
 
     std::tuple<int,int> GetIndexInKeyFrame(const KeyFramePtr& pKF);
     bool IsInKeyFrame(const KeyFramePtr& pKF);
+    bool IsInKeyFrame(const KeyFramePtr& pKF, bool bRight);
 
     void SetBadFlag();
     bool isBad();
@@ -235,6 +236,18 @@ protected:
      std::mutex mMutexFeatures;
      std::mutex mMutexMap;
 };
+
+// Register a feature and its known stereo counterpart without overwriting
+// another live map line. Returns false if the primary feature conflicts.
+// observationAdded reports additions to either camera; slot cleanup alone does
+// not require recomputing the line's normal or distinctive descriptor.
+bool AssociateMapLineWithStereo(const MapLinePtr& pML, const KeyFramePtr& pKF, int index,
+                                bool* observationAdded = nullptr);
+
+// Recover a one-sided triangulation match by validating the existing 3D line
+// against both detections. Distinct existing map lines are left to fusion.
+bool AssociateMatchedMapLine(const KeyFramePtr& pKF1, int index1,
+                            const KeyFramePtr& pKF2, int index2);
 
 } //namespace PLVS2
 

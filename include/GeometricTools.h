@@ -41,6 +41,8 @@
 #include <opencv2/core/core.hpp>
 #include <Thirdparty/Sophus/sophus/se3.hpp>
 #include <Eigen/Core>
+#include <algorithm>
+#include <cmath>
 
 namespace PLVS2
 {
@@ -80,6 +82,43 @@ class GeometricTools
 {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+    // Validate a finite 3D segment against an undistorted image detection.
+    // Distance to the infinite supporting line alone cannot reject unrelated
+    // detections that occupy disjoint intervals along that line.
+    static bool CheckLineSegmentProjection(const Eigen::Vector3f& start,
+                                          const Eigen::Vector3f& end,
+                                          const Eigen::Matrix3f& K,
+                                          const Eigen::Vector2f& observedStart,
+                                          const Eigen::Vector2f& observedEnd,
+                                          float sigma2)
+    {
+        if(!start.allFinite() || !end.allFinite() || start.z() <= 1e-6f || end.z() <= 1e-6f ||
+           !K.allFinite() || !observedStart.allFinite() || !observedEnd.allFinite() ||
+           !std::isfinite(sigma2) || sigma2 <= 0.f)
+            return false;
+        const Eigen::Vector3f hs = K * start;
+        const Eigen::Vector3f he = K * end;
+        const Eigen::Vector2f projectedStart = hs.head<2>() / hs.z();
+        const Eigen::Vector2f projectedEnd = he.head<2>() / he.z();
+        const Eigen::Vector2f observedDirection = observedEnd - observedStart;
+        const float length = observedDirection.norm();
+        if(!projectedStart.allFinite() || !projectedEnd.allFinite() || length <= 1e-6f)
+            return false;
+        const Eigen::Vector2f axis = observedDirection / length;
+        const Eigen::Vector2f normal(-axis.y(), axis.x());
+        const float errorStart = normal.dot(projectedStart - observedStart);
+        const float errorEnd = normal.dot(projectedEnd - observedStart);
+        if(errorStart * errorStart > 3.84f * sigma2 || errorEnd * errorEnd > 3.84f * sigma2)
+            return false;
+        const float s = axis.dot(projectedStart - observedStart);
+        const float e = axis.dot(projectedEnd - observedStart);
+        const float projectedLength = std::fabs(e - s);
+        const float overlap = std::min(length, std::max(s, e)) - std::max(0.f, std::min(s, e));
+        // Allow partial visibility and reversed endpoints, but require actual
+        // shared support (at least 10% of the shorter segment).
+        return projectedLength > 1e-6f && overlap >= 0.1f * std::min(length, projectedLength);
+    }
     
     // Compute the Fundamental matrix between KF1 and KF2
     static Eigen::Matrix3f ComputeF12(KeyFrame* &pKF1, KeyFrame* &pKF2);

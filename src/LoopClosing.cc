@@ -1536,9 +1536,8 @@ void LoopClosing::CorrectLoop()
                         pCurML->Replace(pLoopML);
                     else
                     {
-                        mpCurrentKF->AddMapLine(pLoopML,i);   
-                        pLoopML->AddObservation(mpCurrentKF,i);
-                        pLoopML->ComputeDistinctiveDescriptors();
+                        if(AssociateMapLineWithStereo(pLoopML, mpCurrentKF, i))
+                            pLoopML->ComputeDistinctiveDescriptors();
                     }
                 }                
             }

@@ -20,6 +20,7 @@
 #include "MapLine.h"
 #include "LineMatcher.h"
 #include "Utils.h"
+#include "GeometricTools.h"
 
 #include<mutex>
 #include <opencv2/core/base.hpp>
@@ -98,28 +99,13 @@ MapLine::MapLine(const Eigen::Vector3f& PosStart, const Eigen::Vector3f& PosEnd,
     //mNormalVector = mNormalVector/cv::norm(mNormalVector);
     mNormalVector.normalize();
 
-//    cv::Mat PC = mWorldPosMiddle - Ow;
-//    const float dist = cv::norm(PC);
-    const int level = (pFrame -> NlinesLeft == -1) ? pFrame->mvKeyLinesUn[idxF].octave
-                                                   : (idxF < pFrame -> NlinesLeft) ? pFrame->mvKeyLinesUn[idxF].octave
-                                                                                   : pFrame -> mvKeyLinesRightUn[idxF].octave;
-//    const float levelScaleFactor =  pFrame->mvScaleFactors[level];
-//    const int nLevels = pFrame->mnScaleLevels;
-//    mfMaxDistance = dist*levelScaleFactor;
-//    mfMinDistance = mfMaxDistance/pFrame->mvScaleFactors[nLevels-1];
-    
-    //const int level = pFrame->mvKeyLinesUn[idxF].octave;
-    const float levelScaleFactor =  pFrame->mvLineScaleFactors[level];
-    const int nLevels = pFrame->mnLineScaleLevels;
-
-//    float distMiddle = cv::norm(p3DMiddle - Ow);
-//    mfMaxDistance = distMiddle;
-//    mfMinDistance = distMiddle;    
-    float distStart = (PosStart - Ow).norm();
-    float distEnd   = (PosEnd - Ow).norm();
-    mfMaxDistance = std::max(distStart,distEnd) * levelScaleFactor;
-    mfMinDistance = std::min(distStart,distEnd) * levelScaleFactor/pFrame->mvLineScaleFactors[nLevels-1];
-
+    const int level = (pFrame->NlinesLeft == -1 || idxF < pFrame->NlinesLeft) ?
+        pFrame->mvKeyLinesUn[idxF].octave :
+        pFrame->mvKeyLinesRightUn[idxF - pFrame->NlinesLeft].octave;
+    const float levelScaleFactor = pFrame->mvLineScaleFactors[level];
+    const float distMiddle = (p3DMiddle - Ow).norm();
+    mfMaxDistance = distMiddle * levelScaleFactor;
+    mfMinDistance = mfMaxDistance/pFrame->mvLineScaleFactors.back();
 
     pFrame->mLineDescriptors.row(idxF).copyTo(mDescriptor);
 
@@ -240,12 +226,13 @@ void MapLine::AddObservation(const KeyFramePtr& pKF, int idx)
         indexes = tuple<int,int>(-1,-1);
     }
 
-    if(pKF -> NlinesLeft != -1 && idx >= pKF -> NlinesLeft){
-        get<1>(indexes) = idx;
-    }
-    else{
-        get<0>(indexes) = idx;
-    }
+    const bool bRight = pKF->NlinesLeft != -1 && idx >= pKF->NlinesLeft;
+    int& cameraIndex = bRight ? get<1>(indexes) : get<0>(indexes);
+    // One feature per camera. Re-registering it must not inflate nObs or
+    // silently replace another feature while leaving its keyframe slot alive.
+    if(cameraIndex != -1)
+        return;
+    cameraIndex = idx;
 
     mObservations[pKF]=indexes;
 
@@ -454,24 +441,23 @@ void MapLine::Replace(MapLinePtr& pML)
         tuple<int,int> indexes = mit -> second;
         int leftIndex = get<0>(indexes), rightIndex = get<1>(indexes);
 
-        if(!pML->IsInKeyFrame(pKF))
+        // Transfer each camera independently: the survivor may already have
+        // the left observation while the replaced line owns the right one.
+        const auto targetIndexes = pML->GetIndexInKeyFrame(pKF);
+        for(const auto& camera : {std::make_pair(leftIndex, get<0>(targetIndexes)),
+                                  std::make_pair(rightIndex, get<1>(targetIndexes))})
         {
-            if(leftIndex != -1){
-                pKF->ReplaceMapLineMatch(leftIndex, pML);
-                pML->AddObservation(pKF,leftIndex);
+            const int index = camera.first;
+            if(index == -1)
+                continue;
+            if(camera.second == -1)
+            {
+                pKF->ReplaceMapLineMatch(index, pML);
+                pML->AddObservation(pKF, index);
             }
-            if(rightIndex != -1){
-                pKF->ReplaceMapLineMatch(rightIndex, pML);
-                pML->AddObservation(pKF,rightIndex);
-            }
-        }
-        else
-        {
-            if(leftIndex != -1){
-                pKF->EraseMapLineMatch(leftIndex);
-            }
-            if(rightIndex != -1){
-                pKF->EraseMapLineMatch(rightIndex);
+            else if(camera.second != index)
+            {
+                pKF->EraseMapLineMatch(index);
             }
         }
     }
@@ -620,6 +606,122 @@ bool MapLine::IsInKeyFrame(const KeyFramePtr& pKF)
     return (mObservations.count(pKF));
 }
 
+bool MapLine::IsInKeyFrame(const KeyFramePtr& pKF, bool bRight)
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    const auto it = mObservations.find(pKF);
+    return it != mObservations.end() &&
+           (bRight ? get<1>(it->second) : get<0>(it->second)) != -1;
+}
+
+bool AssociateMapLineWithStereo(const MapLinePtr& pML, const KeyFramePtr& pKF, int index,
+                                bool* observationAdded)
+{
+    if(observationAdded)
+        *observationAdded = false;
+    if(!pML || !pKF || pML->isBad() || index < 0 || index >= pKF->Nlines)
+        return false;
+    auto associate = [&](int feature)
+    {
+        const bool right = pKF->NlinesLeft != -1 && feature >= pKF->NlinesLeft;
+        const auto indexes = pML->GetIndexInKeyFrame(pKF);
+        const int existingIndex = right ? get<1>(indexes) : get<0>(indexes);
+        const MapLinePtr existing = pKF->GetMapLine(feature);
+        if(existingIndex != -1 && existingIndex != feature)
+        {
+            // Tracking may place the same line in multiple feature slots of
+            // one camera. Keep the registered slot and remove the stale alias.
+            if(existing == pML)
+                pKF->EraseMapLineMatch(feature);
+            return false;
+        }
+        if(existing && existing != pML && !existing->isBad())
+            return false;
+        pML->AddObservation(pKF, feature);
+        pKF->AddMapLine(pML, feature);
+        if(observationAdded && existingIndex == -1)
+            *observationAdded = true;
+        return true;
+    };
+    if(!associate(index))
+        return false;
+    if(pKF->NlinesLeft != -1)
+    {
+        const bool right = index >= pKF->NlinesLeft;
+        const int localIndex = right ? index - pKF->NlinesLeft : index;
+        const auto& matches = right ? pKF->mvRightToLeftLinesMatch : pKF->mvLeftToRightLinesMatch;
+        if(localIndex < static_cast<int>(matches.size()) && matches[localIndex] >= 0)
+        {
+            const int partner = right ? matches[localIndex] : matches[localIndex] + pKF->NlinesLeft;
+            if(partner >= 0 && partner < pKF->Nlines)
+                associate(partner);
+        }
+    }
+    return true;
+}
+
+bool AssociateMatchedMapLine(const KeyFramePtr& pKF1, int index1,
+                            const KeyFramePtr& pKF2, int index2)
+{
+    if(!pKF1 || !pKF2 || index1 < 0 || index1 >= pKF1->Nlines ||
+       index2 < 0 || index2 >= pKF2->Nlines)
+        return false;
+    const MapLinePtr line1 = pKF1->GetMapLine(index1);
+    const MapLinePtr line2 = pKF2->GetMapLine(index2);
+    if(static_cast<bool>(line1) == static_cast<bool>(line2))
+        return false; // Both free, already associated, or two different lines.
+    const MapLinePtr line = line1 ? line1 : line2;
+    if(line->isBad())
+        return false;
+
+    Eigen::Vector3f start, end;
+    line->GetWorldEndPoints(start, end);
+    float distances[2], scales[2];
+    const KeyFramePtr keyframes[2] = {pKF1, pKF2};
+    const int indices[2] = {index1, index2};
+    for(int i = 0; i < 2; ++i)
+    {
+        const auto& kf = keyframes[i];
+        const int index = indices[i];
+        const bool right = kf->NlinesLeft != -1 && index >= kf->NlinesLeft;
+        const auto& keyline = right ? kf->mvKeyLinesRightUn[index - kf->NlinesLeft]
+                                    : kf->mvKeyLinesUn[index];
+        const auto* camera = right ? kf->mpCamera2 : kf->mpCamera;
+        if(!camera || keyline.octave < 0 ||
+           keyline.octave >= static_cast<int>(kf->mvLineScaleFactors.size()) ||
+           keyline.octave >= static_cast<int>(kf->mvLineLevelSigma2.size()))
+            return false;
+        const Sophus::SE3f pose = right ? kf->GetRightPose() : kf->GetPose();
+        const Eigen::Vector3f cameraStart = pose * start;
+        const Eigen::Vector3f cameraEnd = pose * end;
+        if(!GeometricTools::CheckLineSegmentProjection(cameraStart, cameraEnd, camera->toLinearK_(),
+                Eigen::Vector2f(keyline.startPointX, keyline.startPointY),
+                Eigen::Vector2f(keyline.endPointX, keyline.endPointY),
+                kf->mvLineLevelSigma2[keyline.octave]))
+            return false;
+        distances[i] = (0.5f * (cameraStart + cameraEnd)).norm();
+        scales[i] = kf->mvLineScaleFactors[keyline.octave];
+        if(!std::isfinite(distances[i]) || distances[i] <= 0.f ||
+           !std::isfinite(scales[i]) || scales[i] <= 0.f)
+            return false;
+    }
+    const float ratioDistance = distances[1] / distances[0];
+    const float ratioOctave = scales[0] / scales[1];
+    const float tolerance = 1.5f * pKF1->mfLineScaleFactor;
+    if(ratioDistance * tolerance < ratioOctave || ratioDistance > ratioOctave * tolerance)
+        return false;
+
+    bool added = false;
+    if(!AssociateMapLineWithStereo(line, line1 ? pKF2 : pKF1, line1 ? index2 : index1, &added))
+        return false;
+    if(added)
+    {
+        line->UpdateNormalAndDepth();
+        line->ComputeDistinctiveDescriptors();
+    }
+    return true;
+}
+
 void MapLine::UpdateNormalAndDepth()
 {
     map<KeyFramePtr,tuple<int,int>> observations;
@@ -666,15 +768,11 @@ void MapLine::UpdateNormalAndDepth()
         }
     }
 
-    //Eigen::Vector3f PC = Pos - pRefKF->GetCameraCenter();
-    //const float dist = cv::norm(PC);
+    const auto refObservation = observations.find(pRefKF);
+    if(refObservation == observations.end())
+        return;
 
-    const Eigen::Vector3f Ow = pRefKF->GetCameraCenter();
-    float distStart = (p3DStart - Ow).norm();
-    float distEnd   = (p3DEnd - Ow).norm();
-    //float distMiddle = cv::norm(p3DMiddle - Ow);
-
-    tuple<int ,int> indexes = observations[pRefKF];
+    tuple<int ,int> indexes = refObservation->second;
     int leftIndex = get<0>(indexes), rightIndex = get<1>(indexes);
     int level;
     if(pRefKF -> NlinesLeft == -1){
@@ -688,15 +786,18 @@ void MapLine::UpdateNormalAndDepth()
     }
 
     //const int level = pRefKF->mvKeyLinesUn[observations[pRefKF]].octave;
-    const float levelScaleFactor =  pRefKF->mvLineScaleFactors[level];
-    const int nLevels = pRefKF->mnScaleLevels;
+    if(level < 0 || level >= static_cast<int>(pRefKF->mvLineScaleFactors.size()))
+        return;
+    const float levelScaleFactor = pRefKF->mvLineScaleFactors[level];
+    const Eigen::Vector3f Ow = leftIndex != -1 ? pRefKF->GetCameraCenter()
+                                              : pRefKF->GetRightCameraCenter();
+    const float distMiddle = (p3DMiddle - Ow).norm();
 
     {
         unique_lock<mutex> lock3(mMutexPos);
-        //mfMaxDistance = dist*levelScaleFactor;
-        //mfMinDistance = mfMaxDistance/pRefKF->mvScaleFactors[nLevels-1];
-	    mfMaxDistance = std::max(distStart,distEnd) * levelScaleFactor;
-        mfMinDistance = std::min(distStart,distEnd) * levelScaleFactor/pRefKF->mvLineScaleFactors[nLevels-1];
+        // Projection and scale prediction both use the segment midpoint.
+        mfMaxDistance = distMiddle * levelScaleFactor;
+        mfMinDistance = mfMaxDistance/pRefKF->mvLineScaleFactors.back();
 
         mNormalVector = normal/n;
         mNormalVector.normalize();
@@ -719,8 +820,7 @@ void MapLine::SetNormalVector(Eigen::Vector3f& normal)
 float MapLine::GetMinDistanceInvariance()
 {
     unique_lock<mutex> lock(mMutexPos);
-    return 0.8f*mfMaxDistance; // 0.8 ~= 1/1.2
-    //return 0.7f*mfMinDistance; // 0.7 ~= 1/1.4
+    return 0.8f*mfMinDistance; // 0.8 ~= 1/1.2
 }
 
 float MapLine::GetMaxDistanceInvariance()
