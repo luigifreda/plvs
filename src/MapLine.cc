@@ -251,8 +251,13 @@ void MapLine::AddObservation(const KeyFramePtr& pKF, int idx)
 
 
     const bool bLineDepthAvailable = (!pKF->mvuRightLineStart.empty()) ;// && (!pKF->mvuRightLineEnd.empty());
+    // A right-camera index is one observation. EraseObservation subtracts 1 for it.
+    // Counting it as 2 (the fisheye depth flag is set on both images) leaves nObs
+    // above 2 after the last keyframe is removed, so the line stays alive with an empty observation map.
+    const bool bRightObservation = (pKF->NlinesLeft != -1 && idx >= pKF->NlinesLeft);
     //if( !pKF->mpCamera2 && ((pKF->mvuRightLineStart[idx]>=0) && (pKF->mvuRightLineEnd[idx]>=0)) )
-    if(bLineDepthAvailable && (pKF->mvuRightLineStart[idx]>=0) && (pKF->mvuRightLineEnd[idx]>=0)) // NOTE: With fisheye cameras, mvuRightLineStart and mvuRightLineEnd values cannot be directly used, however if >0 they signal the availability of the depths.  
+    // NOTE: With fisheye cameras, mvuRightLineStart and mvuRightLineEnd values cannot be directly used, however if >0 they signal the availability of the depths.
+    if(!bRightObservation && bLineDepthAvailable && (pKF->mvuRightLineStart[idx]>=0) && (pKF->mvuRightLineEnd[idx]>=0))
     {
         nObs+=2;
     }
@@ -308,8 +313,15 @@ void MapLine::EraseObservation(const KeyFramePtr& pKF)
 
             mObservations.erase(it);         
 #endif 
-            if(mpRefKF==pKF)
+            if(mObservations.empty())
+            {
+                // The erased keyframe was the last one. Do not read begin() on an empty map.
+                bBad=true;
+            }
+            else if(mpRefKF==pKF)
+            {
                 mpRefKF=mObservations.begin()->first;
+            }
 
             // If only 2 observations or less, discard line
             if(nObs<=2)

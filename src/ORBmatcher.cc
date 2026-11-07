@@ -2081,7 +2081,14 @@ namespace PLVS2
 
                         if(mbCheckOrientation)
                         {
-                            float rot = pKF->mvKeysUn[i].angle-CurrentFrame.mvKeysUn[bestIdx2].angle;
+                            // Fisheye stereo keeps right keypoints out of mvKeysUn (that vector is left-only).
+                            const cv::KeyPoint kpKF = (pKF->NLeft == -1) ? pKF->mvKeysUn[i]
+                                                                         : (i < static_cast<size_t>(pKF->NLeft)) ? pKF->mvKeys[i]
+                                                                                                                : pKF->mvKeysRight[i - pKF->NLeft];
+                            const cv::KeyPoint kpCF = (CurrentFrame.Nleft == -1) ? CurrentFrame.mvKeysUn[bestIdx2]
+                                                                                 : (bestIdx2 < CurrentFrame.Nleft) ? CurrentFrame.mvKeys[bestIdx2]
+                                                                                                                   : CurrentFrame.mvKeysRight[bestIdx2 - CurrentFrame.Nleft];
+                            float rot = kpKF.angle-kpCF.angle;
                             if(rot<0.0)
                                 rot+=360.0f;
                             int bin = round(rot*factor);

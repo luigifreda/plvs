@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 
-source bash_utils.sh
-
 CONFIG_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 CONFIG_DIR=$(readlink -f $CONFIG_DIR)  # this reads the actual path if a symbolic directory is used
 cd $CONFIG_DIR # this brings us in the actual folder of this config script (not the symbolic one)
 #echo "current dir: $CONFIG_DIR"
+
+source $CONFIG_DIR/bash_utils.sh
+
+# ====================================================
+# Ubuntu version
+# ====================================================
 
 UBUNTU_VERSION=$(lsb_release -a 2>&1)  # ubuntu version 
 echo "UBUNTU_VERSION: $UBUNTU_VERSION"
@@ -69,6 +73,9 @@ fi
 export PATH=/usr/local/$CUDA_VERSION/bin${PATH:+:${PATH}}
 export LD_LIBRARY_PATH=/usr/local/$CUDA_VERSION/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 export CUDADIR=/usr/local/$CUDA_VERSION
+
+write_env_var "USE_CUDA" $USE_CUDA
+write_env_var "CUDA_VERSION" $CUDA_VERSION
 
 # ====================================================
 # PCL

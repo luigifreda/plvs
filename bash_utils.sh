@@ -137,3 +137,70 @@ function version_compare() {
     done
     echo 0
 }
+
+
+
+# Default .env path: CONFIG_DIR/.env when config.sh was sourced, else ./.env
+function local_env_file(){
+    if [[ -n "${CONFIG_DIR:-}" ]]; then
+        echo "${CONFIG_DIR}/.env"
+    else
+        echo ".env"
+    fi
+}
+
+# Write or update KEY=VALUE in the local .env file (optional third arg: path).
+function write_env_var(){
+    local key="$1"
+    local value="$2"
+    local env_file="${3:-$(local_env_file)}"
+    if [[ -z "$key" ]]; then
+        print_red "write_env_var: key is required"
+        return 1
+    fi
+    local dir found=0 line
+    dir=$(dirname "$env_file")
+    if [[ ! -d "$dir" ]]; then
+        mkdir -p "$dir"
+    fi
+    if [[ -f "$env_file" ]]; then
+        : > "${env_file}.tmp"
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            if [[ "$line" =~ ^[[:space:]]*${key}= ]]; then
+                printf '%s=%s\n' "$key" "$value" >> "${env_file}.tmp"
+                found=1
+            else
+                printf '%s\n' "$line" >> "${env_file}.tmp"
+            fi
+        done < "$env_file"
+        if [[ $found -eq 0 ]]; then
+            printf '%s=%s\n' "$key" "$value" >> "${env_file}.tmp"
+        fi
+        mv "${env_file}.tmp" "$env_file"
+    else
+        printf '%s=%s\n' "$key" "$value" > "$env_file"
+    fi
+}
+
+# Read KEY from the local .env file; prints nothing if missing (optional second arg: path).
+function read_env_var(){
+    local key="$1"
+    local env_file="${2:-$(local_env_file)}"
+    if [[ -z "$key" || ! -f "$env_file" ]]; then
+        return 0
+    fi
+    local line value
+    line=$(grep -E "^[[:space:]]*${key}=" "$env_file" 2>/dev/null | tail -n 1)
+    if [[ -z "$line" ]]; then
+        return 0
+    fi
+    value="${line#*=}"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+        value="${value:1:-1}"
+    elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+        value="${value:1:-1}"
+    fi
+    printf '%s' "$value"
+}

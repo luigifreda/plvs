@@ -208,7 +208,14 @@ if [[ ! -d $TARGET_FOLDER/opencv ]]; then
     sudo apt-get install -y curl software-properties-common unzip
     sudo apt-get install -y build-essential cmake 
     if [[ "$CUDA_ON" == "ON" ]]; then 
-        if [[ $version == *"24.04"* ]] ; then
+        # Ubuntu 24.04 has no real libcudnn-dev package. apt substitutes nvidia-cudnn,
+        # which unpacks /usr/lib/x86_64-linux-gnu/libcudnn.so and fails when NVIDIA's
+        # libcudnn8-dev or libcudnn9-dev already owns that file.
+        CUDNN_DEV_INSTALLED=$(dpkg-query -W -f='${Package} ${Status}\n' 'libcudnn*-dev' 'nvidia-cudnn' 2>/dev/null | grep "install ok installed" || true)
+        if [[ -n "$CUDNN_DEV_INSTALLED" ]]; then
+            echo "cuDNN dev already installed, skipping libcudnn-dev:"
+            echo "$CUDNN_DEV_INSTALLED"
+        elif [[ $version == *"24.04"* ]] ; then
             install_packages libcudnn-dev
         else 
             install_packages libcudnn8 libcudnn8-dev  # check and install otherwise this is going to update to the latest version (and that's not we necessary want to do)

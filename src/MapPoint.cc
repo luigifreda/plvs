@@ -243,8 +243,15 @@ void MapPoint::EraseObservation(const KeyFramePtr& pKF)
             mObservations.erase(it);              
 #endif            
 
-            if(mpRefKF==pKF)
+            if(mObservations.empty())
+            {
+                // The erased keyframe was the last one. Do not read begin() on an empty map.
+                bBad=true;
+            }
+            else if(mpRefKF==pKF)
+            {
                 mpRefKF=mObservations.begin()->first;
+            }
 
             // If only 2 observations or less, discard point
             if(nObs<=2)

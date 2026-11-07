@@ -829,23 +829,32 @@ void MapObject::AddKeyFrameObservation(const KeyFramePtr& pKF)
 void MapObject::EraseObservation(const KeyFramePtr& pKF)
 {
     bool bBad=false;
-    
-    unique_lock<mutex> lock(mMutexObservations);
-    if(mObservations.count(pKF))
     {
-        nObs--;
-        
-        mObservations.erase(pKF);
+        unique_lock<mutex> lock(mMutexObservations);
+        if(mObservations.count(pKF))
+        {
+            nObs--;
 
-        if(mpRefKF==pKF)
-            mpRefKF=mObservations.begin()->first;
-        
-        if(nObs<2)
-           bBad=true;        
+            mObservations.erase(pKF);
+
+            if(mObservations.empty())
+            {
+                // nObs counts frames, not keyframes, so it can stay above 2 after the last keyframe is removed.
+                bBad=true;
+            }
+            else if(mpRefKF==pKF)
+            {
+                mpRefKF=mObservations.begin()->first;
+            }
+
+            if(nObs<2)
+               bBad=true;
+        }
     }
-    
+
+    // SetBadFlag locks mMutexObservations again. Release this lock first.
     if(bBad)
-        SetBadFlag();    
+        SetBadFlag();
 }
 
 std::map<KeyFramePtr,ObjectObservation> MapObject::GetObservations()

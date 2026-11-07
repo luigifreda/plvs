@@ -843,8 +843,10 @@ bool LoopClosing::DetectCommonRegionsFromBoW(std::vector<KeyFramePtr> &vpBowCand
                 set<MapObjectPtr> spMapObjects;
                 vector<MapObjectPtr> vpMapObjects;                
                 
-                vector<KeyFramePtr> vpKeyFrames;
-                unordered_set<KeyFramePtr> spKeyFrames;  // Luigi's change: added set in order to avoid pushing many instances of the same KF when considering points, lines, etc
+                // SearchByProjection indexes these in parallel with the feature vectors (vpPointsKFs[i] / vpLinesKFs[i]).
+                // A unique-keyframe set is shorter than the feature list and reads off the end.
+                vector<KeyFramePtr> vpMapPointKFs;
+                vector<KeyFramePtr> vpMapLineKFs;
                 for(KeyFramePtr pCovKFi : vpCovKFi)
                 {
                     for(MapPointPtr pCovMPij : pCovKFi->GetMapPointMatches())
@@ -856,8 +858,7 @@ bool LoopClosing::DetectCommonRegionsFromBoW(std::vector<KeyFramePtr> &vpBowCand
                         {
                             spMapPoints.insert(pCovMPij);
                             vpMapPoints.push_back(pCovMPij);
-                            //vpKeyFrames.push_back(pCovKFi); // Luigi's change 
-                            spKeyFrames.insert(pCovKFi);
+                            vpMapPointKFs.push_back(pCovKFi);
                         }
                     }
 
@@ -872,8 +873,7 @@ bool LoopClosing::DetectCommonRegionsFromBoW(std::vector<KeyFramePtr> &vpBowCand
                             {
                                 spMapLines.insert(pCovMLij);
                                 vpMapLines.push_back(pCovMLij);
-                                //vpKeyFrames.push_back(pCovKFi); // Luigi's change 
-                                spKeyFrames.insert(pCovKFi);
+                                vpMapLineKFs.push_back(pCovKFi);
                             }
                         }                        
                     }
@@ -889,16 +889,11 @@ bool LoopClosing::DetectCommonRegionsFromBoW(std::vector<KeyFramePtr> &vpBowCand
                             {
                                 spMapObjects.insert(pCovMOij);
                                 vpMapObjects.push_back(pCovMOij);
-                                //vpKeyFrames.push_back(pCovKFi); // Luigi's change 
-                                spKeyFrames.insert(pCovKFi);
                             }
                         }                        
                     }                    
      
                 }
-                vpKeyFrames = vector<KeyFramePtr>(spKeyFrames.begin(),spKeyFrames.end()); // Luigi's change 
-
-                //std::cout << "There are " << vpKeyFrames.size() <<" KFs which view all the mappoints" << std::endl;
 
                 g2o::Sim3 gScm(solver.GetEstimatedRotation().cast<double>(),solver.GetEstimatedTranslation().cast<double>(), (double) solver.GetEstimatedScale());
                 g2o::Sim3 gSmw(pMostBoWMatchesKF->GetRotation().cast<double>(),pMostBoWMatchesKF->GetTranslation().cast<double>(),1.0);
@@ -909,7 +904,7 @@ bool LoopClosing::DetectCommonRegionsFromBoW(std::vector<KeyFramePtr> &vpBowCand
                 vpMatchedMP.resize(mpCurrentKF->GetMapPointMatches().size(), static_cast<MapPointPtr>(NULL));
                 vector<KeyFramePtr> vpMatchedKF;
                 vpMatchedKF.resize(mpCurrentKF->GetMapPointMatches().size(), static_cast<KeyFramePtr>(NULL));
-                int numProjPointMatches = matcher.SearchByProjection(mpCurrentKF, mScw, vpMapPoints, vpKeyFrames, vpMatchedMP, vpMatchedKF, 8, 1.5);
+                int numProjPointMatches = matcher.SearchByProjection(mpCurrentKF, mScw, vpMapPoints, vpMapPointKFs, vpMatchedMP, vpMatchedKF, 8, 1.5);
                 //cout <<"BoW: " << numProjMatches << " matches between " << vpMapPoints.size() << " points with coarse Sim3" << endl;
 
                 int numProjLineMatches = 0; 
@@ -920,7 +915,7 @@ bool LoopClosing::DetectCommonRegionsFromBoW(std::vector<KeyFramePtr> &vpBowCand
                 {
                     vpMatchedML.resize(mpCurrentKF->GetMapLineMatches().size(), static_cast<MapLinePtr>(NULL));                                        
                     vpMatchedLinesKF.resize(mpCurrentKF->GetMapLineMatches().size(), static_cast<KeyFramePtr>(NULL));
-                    numProjLineMatches = pLineMatcher->SearchByProjection(mpCurrentKF, mScw, vpMapLines, vpKeyFrames, vpMatchedML, vpMatchedLinesKF, 8, 1.5);
+                    numProjLineMatches = pLineMatcher->SearchByProjection(mpCurrentKF, mScw, vpMapLines, vpMapLineKFs, vpMatchedML, vpMatchedLinesKF, 8, 1.5);
                 }
 #endif    
                 int numProjObjectMatches = 0; 

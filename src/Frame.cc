@@ -2978,6 +2978,12 @@ void Frame::ComputeStereoFishEyeMatches()
     //vector<cv::KeyPoint> stereoLeft(mvKeys.begin() + monoLeft, mvKeys.end());
     //vector<cv::KeyPoint> stereoRight(mvKeysRight.begin() + monoRight, mvKeysRight.end());
 
+    // Left and right keypoints share one index space (N = Nleft + Nright).
+    // Depth is stored only for left matches; right-image entries stay -1 so
+    // readers that walk every keypoint index (LocalMapping, culling) stay in range.
+    mvDepth = vector<float>(N,-1.0f);
+    mvuRight = vector<float>(N,-1);
+
     if(mDescriptors.rows == 0 || mDescriptorsRight.rows == 0)
     {
         MSG_WARN_STREAM("No keypoints detected in frame " << mnId);
@@ -2989,8 +2995,6 @@ void Frame::ComputeStereoFishEyeMatches()
 
     mvLeftToRightMatch = vector<int>(Nleft,-1);
     mvRightToLeftMatch = vector<int>(Nright,-1);
-    mvDepth = vector<float>(Nleft,-1.0f);
-    mvuRight = vector<float>(Nleft,-1);
     mvStereo3Dpoints = vector<Eigen::Vector3f>(Nleft);
     mnCloseMPs = 0;
 
@@ -3030,10 +3034,13 @@ void Frame::ComputeStereoFishEyeLineMatches()
     MSG_ASSERT(mpCamera2, "No second camera");
     MSG_ASSERT(NlinesLeft==mLineDescriptors.rows && NlinesRight==mLineDescriptorsRight.rows, "Line descriptors must be concatenated in Frame::ComputeStereoFishEyeLineMatches()");
 
+    // Left and right lines share one index space (Nlines = NlinesLeft + NlinesRight).
+    // Depth is stored only for left matches; right-image entries stay -1.
+    mvDepthLineStart = vector<float>(Nlines,-1.0f);
+    mvDepthLineEnd = vector<float>(Nlines,-1.0f);
+
     if(NlinesLeft>0)
     {
-        mvDepthLineStart = vector<float>(NlinesLeft,-1.0f);
-        mvDepthLineEnd = vector<float>(NlinesLeft,-1.0f);    
         mvLeftToRightLinesMatch = vector<int>(NlinesLeft,-1);
 
         // NOTE: We store in mvuRightLineStart/End fake positive values (+1) where depths are available (for both left and right lines). 
