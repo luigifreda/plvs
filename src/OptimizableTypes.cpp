@@ -211,7 +211,7 @@ namespace PLVS2 {
         // e = [u,v]^T - cam.proj(exp(csi)*Tcw*Xw) = [u,v]^T - cam.proj(exp(csi)*Xc)
 
 
-        auto projectJac = -pCamera->projectJac(xyz_trans);
+        const Eigen::Matrix<double,2,3> projectJac = -pCamera->projectJac(xyz_trans);
 
         // _jacobianOplusXi = de/Xw = de/Xc * dXc/dXw 
         // de/dXc = - d(cam.proj(Xc)/dXc) = - projectJac(Xc)
