@@ -1,3 +1,4 @@
+#include "cuda_to_hip.h"
 /*
 Copyright 2016 Fixstars Corporation
 
@@ -36,7 +37,7 @@ namespace sgm {
 		void cast_16bit_8bit_array(const uint16_t* arr16bits, uint8_t* arr8bits, int num_elements) {
 			for (int mod = 1024; mod != 0; mod >>= 1) {
 				if (num_elements % mod == 0) {
-					cast_16bit_8bit_array_kernel << <num_elements / mod, mod >> >(arr16bits, arr8bits, num_elements);
+					cast_16bit_8bit_array_kernel<<<num_elements / mod, mod>>>(arr16bits, arr8bits, num_elements);
 					break;
 				}
 			}
@@ -45,7 +46,7 @@ namespace sgm {
 		void cast_8bit_16bit_array(const uint8_t* arr8bits, uint16_t* arr16bits, int num_elements) {
 			for (int mod = 1024; mod != 0; mod >>= 1) {
 				if (num_elements % mod == 0) {
-					cast_8bit_16bit_array_kernel << <num_elements / mod, mod >> >(arr8bits, arr16bits, num_elements);
+					cast_8bit_16bit_array_kernel<<<num_elements / mod, mod>>>(arr8bits, arr16bits, num_elements);
 					break;
 				}
 			}

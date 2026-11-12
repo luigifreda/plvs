@@ -98,13 +98,13 @@ protected:
 
 #if !USE_NORMALS
 
-template class PointCloudMapFastFusion<pcl::PointXYZRGBA>;
+extern template class PointCloudMapFastFusion<pcl::PointXYZRGBA>;
 
 #else
 
-template class PointCloudMapFastFusion<pcl::PointXYZRGBNormal>;
+extern template class PointCloudMapFastFusion<pcl::PointXYZRGBNormal>;
 
-template class PointCloudMapFastFusion<pcl::PointSurfelSegment>;
+extern template class PointCloudMapFastFusion<pcl::PointSurfelSegment>;
 
 #endif
 

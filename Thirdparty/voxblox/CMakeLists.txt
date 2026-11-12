@@ -15,12 +15,24 @@ MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 # This option allows the generations of a file compile_commands.json in our build folder: that file contains the full command line to compile individual source files
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -fPIC -DNDEBUG -pthread")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -fPIC -DNDEBUG -pthread")
+if(WIN32)
+    # clang for x86_64-pc-windows-msvc rejects -fPIC and -pthread; PIC is implicit
+    # and threading comes from the MSVC runtime.
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -DNDEBUG")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -DNDEBUG")
+    else()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -g -O3")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -g -O3")
+    endif()
 else()
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -g -O3 -fPIC -pthread")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -g -O3 -fPIC -pthread")
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -fPIC -DNDEBUG -pthread")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -fPIC -DNDEBUG -pthread")
+    else()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -g -O3 -fPIC -pthread")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -g -O3 -fPIC -pthread")
+    endif()
 endif()
 
 if(BUILD_WITH_MARCH_NATIVE)
@@ -156,10 +168,10 @@ target_link_libraries(test_load_esdf ${PROJECT_NAME} ${PROJECT_NAME}_proto ${PRO
 #########
 add_custom_target(test_data)
 add_custom_command(TARGET test_data
-                  COMMAND rm -rf test_data
-                  COMMAND mkdir -p test_data
-                  COMMAND cp -r ${CMAKE_SOURCE_DIR}/test/test_data/*
-                                test_data/ || :)
+                  COMMAND ${CMAKE_COMMAND} -E rm -rf test_data
+                  COMMAND ${CMAKE_COMMAND} -E make_directory test_data
+                  COMMAND ${CMAKE_COMMAND} -E copy_directory
+                                ${CMAKE_SOURCE_DIR}/test/test_data test_data)
 
 #add_definitions(-DVISUALIZE_UNIT_TEST_RESULTS)
 
@@ -210,7 +222,23 @@ add_custom_command(TARGET test_data
 
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
-# ### create symbolic links
-set(MY_COMMAND sh)
-set(MY_ARG ${CMAKE_CURRENT_SOURCE_DIR}/create_include.sh ${VOXBLOX_INCLUDE_DIRS})
-execute_process(COMMAND ${MY_COMMAND} ${MY_ARG} WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} RESULT_VARIABLE RES)
+# ### gather the public headers into include/
+if(WIN32)
+    # create_include.sh uses POSIX symlinks (ln -sf), unavailable on Windows;
+    # copy the headers into include/ with CMake instead.
+    file(MAKE_DIRECTORY ${PROJECT_SOURCE_DIR}/include)
+    foreach(_vb_dir ${VOXBLOX_INCLUDE_DIRS})
+        file(GLOB _vb_entries ${_vb_dir}/*)
+        file(COPY ${_vb_entries} DESTINATION ${PROJECT_SOURCE_DIR}/include)
+    endforeach()
+    # Like create_include.sh, also copy the generated protobuf headers; they exist
+    # once a first build has run, which is why build_thirdparty.sh reconfigures.
+    file(GLOB _vb_pb_headers ${CMAKE_CURRENT_BINARY_DIR}/*.pb.h)
+    if(_vb_pb_headers)
+        file(COPY ${_vb_pb_headers} DESTINATION ${PROJECT_SOURCE_DIR}/include)
+    endif()
+else()
+    set(MY_COMMAND sh)
+    set(MY_ARG ${CMAKE_CURRENT_SOURCE_DIR}/create_include.sh ${VOXBLOX_INCLUDE_DIRS})
+    execute_process(COMMAND ${MY_COMMAND} ${MY_ARG} WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} RESULT_VARIABLE RES)
+endif()

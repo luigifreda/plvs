@@ -1,3 +1,4 @@
+#include "cuda_to_hip.h"
 /*
 Copyright 2016 Fixstars Corporation
 
@@ -36,6 +37,67 @@ namespace {
 		x = y;
 		y = tmp;
 	}
+
+#if defined(USE_HIP) || defined(__HIP_PLATFORM_AMD__)
+	// NVIDIA's SIMD-in-a-word video intrinsics have no HIP equivalent; emulate
+	// the three used here in software. *2 operates on two packed uint16 lanes,
+	// *4 on four packed uint8 lanes; results match the CUDA intrinsics bit for
+	// bit (per-lane unsigned compare/min/max, no cross-lane carry).
+	__device__ inline uint32_t __vcmpgtu2(uint32_t a, uint32_t b)
+	{
+		uint32_t r = 0;
+		for (int s = 0; s < 32; s += 16) {
+			const uint32_t la = (a >> s) & 0xffffu, lb = (b >> s) & 0xffffu;
+			r |= (la > lb ? 0xffffu : 0u) << s;
+		}
+		return r;
+	}
+	__device__ inline uint32_t __vminu2(uint32_t a, uint32_t b)
+	{
+		uint32_t r = 0;
+		for (int s = 0; s < 32; s += 16) {
+			const uint32_t la = (a >> s) & 0xffffu, lb = (b >> s) & 0xffffu;
+			r |= (la < lb ? la : lb) << s;
+		}
+		return r;
+	}
+	__device__ inline uint32_t __vmaxu2(uint32_t a, uint32_t b)
+	{
+		uint32_t r = 0;
+		for (int s = 0; s < 32; s += 16) {
+			const uint32_t la = (a >> s) & 0xffffu, lb = (b >> s) & 0xffffu;
+			r |= (la > lb ? la : lb) << s;
+		}
+		return r;
+	}
+	__device__ inline uint32_t __vcmpgtu4(uint32_t a, uint32_t b)
+	{
+		uint32_t r = 0;
+		for (int s = 0; s < 32; s += 8) {
+			const uint32_t la = (a >> s) & 0xffu, lb = (b >> s) & 0xffu;
+			r |= (la > lb ? 0xffu : 0u) << s;
+		}
+		return r;
+	}
+	__device__ inline uint32_t __vminu4(uint32_t a, uint32_t b)
+	{
+		uint32_t r = 0;
+		for (int s = 0; s < 32; s += 8) {
+			const uint32_t la = (a >> s) & 0xffu, lb = (b >> s) & 0xffu;
+			r |= (la < lb ? la : lb) << s;
+		}
+		return r;
+	}
+	__device__ inline uint32_t __vmaxu4(uint32_t a, uint32_t b)
+	{
+		uint32_t r = 0;
+		for (int s = 0; s < 32; s += 8) {
+			const uint32_t la = (a >> s) & 0xffu, lb = (b >> s) & 0xffu;
+			r |= (la > lb ? la : lb) << s;
+		}
+		return r;
+	}
+#endif
 
 	// sort, min, max of 1 element
 	template <typename T, int V = 1> __device__ inline void dev_sort(T& x, T& y) { if (x > y) swap(x, y); }

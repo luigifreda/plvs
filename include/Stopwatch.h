@@ -28,15 +28,33 @@
 #ifndef STOPWATCH_H_
 #define STOPWATCH_H_
 
+#if defined(_WIN32)
+// This is a developer profiler that streams timings over a UDP socket to an
+// external visualizer. On Windows we keep the timing machinery but skip the
+// socket: pulling <winsock2.h> here conflicts with the <windows.h> that other
+// headers (Pangolin) include first, and the UDP stream is not part of SLAM.
+#define PLVS_STOPWATCH_NO_SOCKET
+#include <chrono>
+struct timeval { long tv_sec; long tv_usec; };
+inline int gettimeofday(struct timeval* tv, void* /*tz*/)
+{
+    using namespace std::chrono;
+    auto now = duration_cast<microseconds>(system_clock::now().time_since_epoch()).count();
+    tv->tv_sec = (long)(now / 1000000);
+    tv->tv_usec = (long)(now % 1000000);
+    return 0;
+}
+#else
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/time.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
-#include <arpa/inet.h>
-#include <unistd.h>
+#include "PosixCompat.h"  // usleep (portable; <unistd.h> is POSIX-only)
 
 #include <string.h>
-#include <sys/time.h>
 #include <vector>
 #include <string>
 #include <iostream>
@@ -183,6 +201,7 @@ class Stopwatch
 
         void sendAll()
         {
+#if !defined(PLVS_STOPWATCH_NO_SOCKET)
             gettimeofday(&clock, 0);
 
             if((currentSend = (clock.tv_sec * 1000000 + clock.tv_usec)) - lastSend > SEND_INTERVAL_MS)
@@ -196,6 +215,7 @@ class Stopwatch
 
                 lastSend = currentSend;
             }
+#endif
         }
 
         static unsigned long long int getCurrentSystemTime()
@@ -224,12 +244,13 @@ class Stopwatch
     private:
         Stopwatch()
         {
+#if !defined(PLVS_STOPWATCH_NO_SOCKET)
             memset(&servaddr, 0, sizeof(servaddr));
             servaddr.sin_family = AF_INET;
             servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
             servaddr.sin_port = htons(45454);
             sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-
+#endif
             gettimeofday(&clock, 0);
 
             signature = clock.tv_sec * 1000000 + clock.tv_usec;
@@ -239,7 +260,9 @@ class Stopwatch
 
         virtual ~Stopwatch()
         {
+#if !defined(PLVS_STOPWATCH_NO_SOCKET)
             close(sockfd);
+#endif
         }
 
         unsigned char * serialiseTimings(int & packetSize)
@@ -273,8 +296,10 @@ class Stopwatch
         timeval clock;
         long long int currentSend, lastSend;
         unsigned long long int signature;
+#if !defined(PLVS_STOPWATCH_NO_SOCKET)
         int sockfd;
         struct sockaddr_in servaddr;
+#endif
         std::map<std::string, float> timings;
         std::map<std::string, unsigned long long int> tickTimings;
 };

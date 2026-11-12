@@ -41,7 +41,7 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/features2d/features2d.hpp>
 
-#ifdef USE_CUDA
+#if defined(USE_CUDA) || defined(USE_HIP)
 #include <opencv2/core/cuda.hpp>
 #include <opencv2/cudafilters.hpp>
 #endif
@@ -421,7 +421,7 @@ protected:
     
     bool mEnableDepthFilter;
     float mDepthCutoff;
-#ifdef USE_CUDA
+#if defined(USE_CUDA) || defined(USE_HIP)
     cv::Ptr< cv::cuda::Filter > mpClosingFilter;
     cv::Ptr< cv::cuda::Filter > mpOpeningFilter;
 #endif    

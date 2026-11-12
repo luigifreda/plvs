@@ -1,3 +1,4 @@
+#include <cassert>  // assert() is not transitively included on all toolchains
 #include <open_chisel/geometry/Raycast.h>
 #include <iostream>
 

@@ -364,3 +364,18 @@ void GlPointCloud<PointT>::InvertColors(typename PointCloudT::Ptr pCloud)
 
 
 
+
+// Explicit template instantiations after the out-of-line member definitions.
+namespace PLVS2 {
+#if !USE_NORMALS
+
+/// < list here the types you want to use 
+template class GlPointCloud<pcl::PointXYZRGBA>;
+
+#else
+
+template class GlPointCloud<pcl::PointXYZRGBNormal>;
+template class GlPointCloud<pcl::PointSurfelSegment>;
+
+#endif
+} // namespace PLVS2

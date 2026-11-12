@@ -17,6 +17,20 @@
 
 find_package(crypto QUIET)
 
+# Prefer the standard OpenSSL config package when available (covers Windows, where
+# the manual libcrypto.so/.a search below does not match the .lib layout).
+if (NOT crypto_FOUND)
+    find_package(OpenSSL QUIET)
+    if (TARGET OpenSSL::Crypto)
+        set(LibCrypto_LIBRARY OpenSSL::Crypto)
+        get_target_property(LibCrypto_INCLUDE_DIR OpenSSL::Crypto INTERFACE_INCLUDE_DIRECTORIES)
+        set(LIBCRYPTO_FOUND true)
+        set(LibCrypto_FOUND true)
+        message(STATUS "LibCrypto resolved via OpenSSL::Crypto")
+        return()
+    endif()
+endif()
+
 if (crypto_FOUND)
     get_target_property(crypto_INCLUDE_DIR crypto INTERFACE_INCLUDE_DIRECTORIES)
     message(STATUS "S2N found target: crypto")

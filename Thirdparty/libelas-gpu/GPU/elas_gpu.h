@@ -7,7 +7,11 @@
 #include <algorithm>
 #include <math.h>
 #include <vector>
+#if defined(USE_HIP) || defined(__HIP_PLATFORM_AMD__)
+#include <hip/hip_runtime.h>
+#else
 #include <cuda.h>
+#endif
 #include <stdint.h>
 #include <functional>  
 

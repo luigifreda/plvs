@@ -30,6 +30,13 @@
 #define pcl_isfinite(x) std::isfinite(x)
 #endif
 
+// PCL 1.15 moved cloud_point_index_idx into pcl::internal; earlier releases
+// define it in the global namespace.
+#include <pcl/pcl_config.h>
+#if PCL_VERSION_COMPARE(>=, 1, 15, 0)
+using pcl::internal::cloud_point_index_idx;
+#endif
+
 
 inline void pcl::VoxelGridCustom<pcl::PointSurfelSegment>::applyFilter (PointCloud &output)
 {

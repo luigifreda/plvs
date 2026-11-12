@@ -379,3 +379,23 @@ void PointCloudMapVoxelGridFilterActive<pcl::PointSurfelSegment>::OnMapChange()
 
 
 } //namespace PLVS2
+
+// Explicit template instantiations after the out-of-line member definitions.
+namespace PLVS2 {
+#if !USE_NORMALS
+
+template class PointCloudMapVoxelGridFilter<pcl::PointXYZRGBA>;
+
+template class PointCloudMapVoxelGridFilterActive<pcl::PointXYZRGBA>;
+
+
+#else
+
+template class PointCloudMapVoxelGridFilter<pcl::PointXYZRGBNormal>;
+template class PointCloudMapVoxelGridFilter<pcl::PointSurfelSegment>;
+
+template class PointCloudMapVoxelGridFilterActive<pcl::PointXYZRGBNormal>;
+template class PointCloudMapVoxelGridFilterActive<pcl::PointSurfelSegment>;
+
+#endif
+} // namespace PLVS2

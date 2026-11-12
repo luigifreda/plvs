@@ -35,8 +35,9 @@
 #include <limits>
 #include <cstddef>
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(_WIN32)
 #include <unordered_map>
+namespace std { namespace tr1 = ::std; }  // std::tr1 was removed; alias to std
 #else
 #include <tr1/unordered_map>
 #endif

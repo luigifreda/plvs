@@ -46,7 +46,7 @@
 #include "CameraModels/GeometricCamera.h"
 #include "SettingsAddsOn.h"
 
-#include <unistd.h>
+#include "PosixCompat.h"  // usleep (portable; <unistd.h> is POSIX-only)
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>

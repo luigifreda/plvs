@@ -14,12 +14,23 @@ ENDIF()
 
 MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall -O3 -fPIC -DNDEBUG")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -fPIC -DNDEBUG")
+if(WIN32)
+    # clang for x86_64-pc-windows-msvc rejects -fPIC; PIC is implicit on Windows.
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall -O3 -DNDEBUG")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -DNDEBUG")
+    else()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall -g")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -g")
+    endif()
 else()
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall -g -fPIC")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -g -fPIC")
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall -O3 -fPIC -DNDEBUG")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -fPIC -DNDEBUG")
+    else()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall -g -fPIC")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -g -fPIC")
+    endif()
 endif()
 
 if(BUILD_WITH_MARCH_NATIVE)
@@ -97,16 +108,33 @@ set(SRCS_VOLUMETRIC_MAPPING
 )
 
 add_library(volumetric_mapping SHARED ${SRCS_VOLUMETRIC_MAPPING})
-target_link_libraries(volumetric_mapping ${OCTOMAP_LIBRARIES} ${OpenCV_LIBS} ${PCL_LIBRARIES})
+# The sources carry no __declspec(dllexport) annotations; let CMake export every
+# symbol so the Windows DLL produces a usable import library.
+if(WIN32)
+  set_target_properties(volumetric_mapping PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+# Windows DLLs forbid undefined symbols at link time (unlike Unix shared objects),
+# so the glog dependency these sources use must be linked explicitly.
+target_link_libraries(volumetric_mapping ${OCTOMAP_LIBRARIES} ${OpenCV_LIBS} ${PCL_LIBRARIES} ${GLOG_LIBRARIES})
 
 
 ## install
 
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
-# ### create symbolic links
-set(MY_COMMAND sh)
-set(MY_ARG ${CMAKE_CURRENT_SOURCE_DIR}/create_include.sh ${VOLUMETRIC_MAPPING_INCLUDE_DIRS})
-execute_process(COMMAND ${MY_COMMAND} ${MY_ARG} WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} RESULT_VARIABLE RES)
+# ### gather the public headers into include/
+if(WIN32)
+    # create_include.sh uses POSIX symlinks (ln -sf), unavailable on Windows;
+    # copy the headers into include/ with CMake instead.
+    file(MAKE_DIRECTORY ${PROJECT_SOURCE_DIR}/include)
+    foreach(_vm_dir ${VOLUMETRIC_MAPPING_INCLUDE_DIRS})
+        file(GLOB _vm_entries ${_vm_dir}/*)
+        file(COPY ${_vm_entries} DESTINATION ${PROJECT_SOURCE_DIR}/include)
+    endforeach()
+else()
+    set(MY_COMMAND sh)
+    set(MY_ARG ${CMAKE_CURRENT_SOURCE_DIR}/create_include.sh ${VOLUMETRIC_MAPPING_INCLUDE_DIRS})
+    execute_process(COMMAND ${MY_COMMAND} ${MY_ARG} WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} RESULT_VARIABLE RES)
+endif()
 
 

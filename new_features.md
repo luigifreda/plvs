@@ -19,6 +19,7 @@ This is a list of the **new features** provided by PLVS:
   - As for reloading the dense map, set `PointCloudMapping.loadMap: 1` and configure `PointCloudMapping.loadFilename`.
 * Extraction of **ORB** keypoints via **CUDA**. 
   - This capability can be optionally activated by using the option `USE_CUDA` in [config.sh](./config.sh) 
+  - On **AMD GPUs**, the same GPU code (ORB extraction and the GPU-accelerated *libelas* and *libsgm* stereo depth methods) can be built with **HIP** for **ROCm** by using the option `USE_HIP` in [config.sh](./config.sh). This requires a ROCm installation and an OpenCV build with HIP support: since the local OpenCV installed by [install_local_opencv.sh](./install_local_opencv.sh) is built without HIP support, you must set `USE_LOCAL_OPENCV=0` and point `OpenCV_DIR` to an OpenCV configured with `-DWITH_HIP=ON`. 
 * Different methods can be used with calibrated stereo cameras for estimating depth maps: *libelas*, *libsgm*, *opencv* (these methods may need more fine tuning).
   - Use the option `StereoDense.type` to select your preferred method in the yaml settings for stereo cameras. This will work with your stereo datasets when `PointCloudMapping.on` is set to 1.  
 * Some parts of the original ORBSLAM code were improved and optimized.

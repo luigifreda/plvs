@@ -549,3 +549,17 @@ bool PointCloudMapChisel<PointT>::LoadMap(const std::string& filename)
 
 
 } //namespace PLVS2
+// Explicit template instantiations after the out-of-line member definitions.
+namespace PLVS2 {
+#if !USE_NORMALS
+
+template class PointCloudMapChisel<pcl::PointXYZRGBA>;
+
+#else
+
+template class PointCloudMapChisel<pcl::PointXYZRGBNormal>;
+
+template class PointCloudMapChisel<pcl::PointSurfelSegment>;
+
+#endif
+} // namespace PLVS2

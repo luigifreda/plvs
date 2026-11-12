@@ -58,6 +58,7 @@
 //
 //M*/
 
+#include "cuda_to_hip.h"
 #include "opencv2/core/cuda/common.hpp"
 #include "opencv2/core/cuda/utility.hpp"
 #include "opencv2/core/cuda/reduce.hpp"
@@ -161,7 +162,7 @@ void GpuOrb::launch_async(InputArray _image, const KeyPoint * _keypoints, const 
 
     dim3 dimBlock(32);
     dim3 dimGrid(npoints);
-    calcOrb_kernel << <dimGrid, dimBlock, 0, stream>>>(image, keypoints, npoints, desc);
+    calcOrb_kernel<<<dimGrid, dimBlock, 0, stream>>>(image, keypoints, npoints, desc);
     checkCudaErrors(cudaGetLastError());
 }
 

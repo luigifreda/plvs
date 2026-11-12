@@ -304,11 +304,14 @@ void Viewer::Run()
 
     pangolin::CreateWindowAndBind(kMapWindowName, mGLviewportWidth+mUiWidth, mGLviewportHeight);
 
+#if !defined(_WIN32)
     if(screenWidth >= 3840 &&  screenHeight >= 2400)
     {
-        // can do this only after a pangolin context has been created 
+        // can do this only after a pangolin context has been created.
+        // pangolin::set_font_size was removed in Pangolin 0.9.x (used on Windows).
         pangolin::set_font_size(30);
     }
+#endif
 
     // Choose a sensible left UI Panel width based on the width of 20
     // charectors from the default font.

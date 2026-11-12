@@ -1,5 +1,5 @@
 #include "elas.h"
-#ifdef USE_CUDA
+#if defined(USE_CUDA) || defined(USE_HIP)
 #include "elas_gpu.h"
 #endif
 
@@ -9,7 +9,7 @@ namespace libelas {
 
 ElasInterface::ElasInterface(Elas::Parameters param)
 {
-#ifdef USE_CUDA
+#if defined(USE_CUDA) || defined(USE_HIP)
     pImpl = new ElasGPU(param);
 #else
     pImpl = new Elas(param);

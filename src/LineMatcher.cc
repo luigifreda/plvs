@@ -186,7 +186,7 @@ int LineMatcher::SearchByKnn(KeyFramePtr& pKF, const Frame &F, std::vector<MapLi
     std::vector<bool> vValidMatch;
     std::vector<bool> vbMatched(F.Nlines,false); // a "train" line can be matched to many "query" lines
     std::vector<float> vMatchDistances(F.Nlines,255);    
-    std::vector<std::pair<int,list<int>::iterator>> vRotHistPairsBinIdxMatchIter(F.Nlines,std::make_pair(-1,list<int>::iterator(0)));         
+    std::vector<std::pair<int,list<int>::iterator>> vRotHistPairsBinIdxMatchIter(F.Nlines,std::make_pair(-1,list<int>::iterator()));         
             
     int numValidMatches = ComputeDescriptorMatches(ldesc_q, ldesc_t, queryMask, lmatches , vValidMatch);
     
@@ -333,7 +333,7 @@ int LineMatcher::SearchByKnn(Frame &CurrentFrame, const Frame &LastFrame)
     std::vector<bool> vValidMatch;
     std::vector<bool> vbMatched(CurrentFrame.Nlines,false); // a "train" line can be matched to many "query" lines   
     std::vector<float> vMatchDistances(CurrentFrame.Nlines,255);   
-    std::vector<std::pair<int,list<int>::iterator>> vRotHistPairsBinIdxMatchIter(CurrentFrame.Nlines,std::make_pair(-1,list<int>::iterator(0)));         
+    std::vector<std::pair<int,list<int>::iterator>> vRotHistPairsBinIdxMatchIter(CurrentFrame.Nlines,std::make_pair(-1,list<int>::iterator()));         
     
     int numValidMatches = ComputeDescriptorMatches(ldesc_q, ldesc_t, queryMask, lmatches , vValidMatch);
 
@@ -472,7 +472,7 @@ int LineMatcher::SearchStereoMatchesByKnn(Frame &frame, std::vector<cv::DMatch>&
 #if USE_REPLACE_WITH_BETTER_IN_STEREO_MATCHING
     std::vector<bool> vbMatched(NLinesRight,false);  // a "train" line can be matched to many "query" lines  
     std::vector<int> vStoredMatchIndex(NLinesRight,0); // vStoredMatchIndex[i] = match associated to the i-th right "train" line        
-    std::vector<std::pair<int,list<int>::iterator>> vRotHistPairsBinIdxMatchIter(NLinesRight,std::make_pair(-1,list<int>::iterator(0)));         
+    std::vector<std::pair<int,list<int>::iterator>> vRotHistPairsBinIdxMatchIter(NLinesRight,std::make_pair(-1,list<int>::iterator()));         
 #endif        
 
     int numValidMatches = ComputeDescriptorMatches(ldesc_q, ldesc_t, queryMask, lmatches, vValidDescriptorMatches);
@@ -679,7 +679,7 @@ int LineMatcher::SearchForTriangulation(KeyFramePtr& pKF1, KeyFramePtr& pKF2, ve
     std::vector<std::vector<cv::DMatch>> lmatches;
     std::vector<bool> vValidMatch;
 
-    std::vector<std::pair<int,list<int>::iterator>> vRotHistPairsBinIdxMatchIter(pKF2->Nlines,std::make_pair(-1,list<int>::iterator(0)));             
+    std::vector<std::pair<int,list<int>::iterator>> vRotHistPairsBinIdxMatchIter(pKF2->Nlines,std::make_pair(-1,list<int>::iterator()));             
             
     int numValidMatches = ComputeDescriptorMatches(ldesc_q, ldesc_t, queryMask, lmatches, vValidMatch);
     //std::cout << "num valid matches: " << numValidMatches << std::endl; 

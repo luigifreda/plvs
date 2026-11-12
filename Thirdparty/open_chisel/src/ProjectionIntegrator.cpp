@@ -19,6 +19,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include <cassert>  // assert() is not transitively included on all toolchains
 #include <open_chisel/ProjectionIntegrator.h>
 #include <open_chisel/geometry/Raycast.h>
 #include <iostream>

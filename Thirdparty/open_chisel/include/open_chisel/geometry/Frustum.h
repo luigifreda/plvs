@@ -26,6 +26,15 @@
 #include "Geometry.h"
 #include "AABB.h"
 
+// The Windows SDK (windef.h) defines the legacy 16-bit segment keywords near/far
+// as empty object-like macros, which mangles the member/parameter names below.
+#ifdef near
+#undef near
+#endif
+#ifdef far
+#undef far
+#endif
+
 namespace chisel
 {
 

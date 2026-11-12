@@ -1296,3 +1296,18 @@ bool PointCloudMapOctreePointCloud<PointT>::LoadMap(const std::string& filename)
 
 
 } //namespace PLVS2
+
+// Explicit template instantiations after the out-of-line member definitions.
+namespace PLVS2 {
+#if !USE_NORMALS
+
+template class PointCloudMapOctreePointCloud<pcl::PointXYZRGBA>;
+
+#else
+
+template class PointCloudMapOctreePointCloud<pcl::PointXYZRGBNormal>;
+
+template class PointCloudMapOctreePointCloud<pcl::PointSurfelSegment>;
+
+#endif
+} // namespace PLVS2

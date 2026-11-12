@@ -15,6 +15,7 @@ set(WITH_LIBELAS        ON  CACHE BOOL "Add libelas support")  # for stereo dens
 set(WITH_LIBSGM         ON  CACHE BOOL "Add stereo libsgm support")  # for stereo dense reconstruction (it needs CUDA)
 set(WITH_OPENMP         ON  CACHE BOOL "Add OpenMP support") # useful for PCL (since we use the macro PCL_NO_PRECOMPILE!)
 set(WITH_CUDA           OFF CACHE BOOL "Add CUDA support")
+set(USE_HIP             OFF CACHE BOOL "Build with HIP for AMD GPUs")
 set(WITH_TRACY_PROFILER OFF CACHE BOOL "Add Tracy profiler support.")
 set(WITH_RERUN          OFF CACHE BOOL "Add Rerun support.")
 set(WITH_LOCAL_PCL      OFF  CACHE BOOL "Add local PCL support")
@@ -42,8 +43,16 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 #====================================
 # compiler and build options 
 
-set(LIBRARY_TYPE SHARED)
-#set(LIBRARY_TYPE STATIC)  
+if(WIN32)
+    # A shared plvs would need every templated PointCloud* class member explicitly
+    # exported (__declspec(dllexport)); the project has no such annotations, so on
+    # Windows build the core as a static library and let each executable pull the
+    # template instantiations it needs.
+    set(LIBRARY_TYPE STATIC)
+else()
+    set(LIBRARY_TYPE SHARED)
+endif()
+#set(LIBRARY_TYPE STATIC)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
@@ -60,8 +69,13 @@ message("Build type: " ${CMAKE_BUILD_TYPE})
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
 
-    # Best release
-    set(MY_FLAGS "-Wall -O3 -fPIC -DNDEBUG -Wno-unused-parameter -Wno-unused-function") # -Wextra -Wno-deprecated
+    # Best release. clang for x86_64-pc-windows-msvc rejects -fPIC (implicit on
+    # Windows); keep it on the other platforms.
+    if(WIN32)
+        set(MY_FLAGS "-Wall -O3 -DNDEBUG -Wno-unused-parameter -Wno-unused-function")
+    else()
+        set(MY_FLAGS "-Wall -O3 -fPIC -DNDEBUG -Wno-unused-parameter -Wno-unused-function") # -Wextra -Wno-deprecated
+    endif()
 
     if(BUILD_WITH_MARCH_NATIVE)
         set(MY_FLAGS "${MY_FLAGS} -march=native")      
@@ -83,7 +97,11 @@ else()
     #set(MY_FLAGS "-Wall -O3  -g -pthread")
 
     # Debug with g2o compiled with -march=native; this should avoid g2o crashes (see "Mismatched build flags" on https://github.com/ethz-asl/eigen_catkin/wiki/Eigen-Memory-Issues#memory-misalignment )
-    set(MY_FLAGS "-Wall  -g -O3 -fPIC -pthread") # -fsanitize=address  
+    if(WIN32)
+        set(MY_FLAGS "-Wall  -g -O3")  # clang rejects -fPIC/-pthread for windows-msvc
+    else()
+        set(MY_FLAGS "-Wall  -g -O3 -fPIC -pthread") # -fsanitize=address
+    endif()
 
     if(BUILD_WITH_MARCH_NATIVE)
         set(MY_FLAGS "${MY_FLAGS} -march=native")      
@@ -102,9 +120,20 @@ endif()
 set(MY_C_FLAGS "${CMAKE_C_FLAGS} ${MY_FLAGS}")
 set(MY_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MY_FLAGS}")    
 
-# apply flags 
+# apply flags
 set(CMAKE_C_FLAGS "${MY_C_FLAGS}")
 set(CMAKE_CXX_FLAGS "${MY_CXX_FLAGS}")
+
+if(WIN32)
+    # NOMINMAX: keep windows.h from defining min/max macros (they clash with STL
+    # and PCL/Eigen). WIN32_LEAN_AND_MEAN: avoid windows.h pulling the legacy
+    # winsock1 headers, which conflict with <winsock2.h>. _USE_MATH_DEFINES: M_PI.
+    add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN _USE_MATH_DEFINES)
+    # Tracking keeps whole Frame objects (~420 KB each) on the stack, and the
+    # monocular initialization path nests three such frames, which overflows the
+    # 1 MB Windows default stack. Reserve the 8 MB that Linux threads get.
+    add_link_options(LINKER:/STACK:8388608)
+endif()
 
 message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
@@ -190,10 +219,77 @@ if (WITH_CUDA)
 endif()
 
 #====================================
+# HIP (AMD GPU support)
+message(STATUS "USE_HIP: " ${USE_HIP})
+
+if(USE_HIP)
+    cmake_minimum_required(VERSION 3.21)
+    # enable_language(HIP) honors an explicit -DCMAKE_HIP_ARCHITECTURES, otherwise
+    # auto-detects the host GPU(s), and errors on a no-GPU build host.
+    enable_language(HIP)
+    message(STATUS "CMAKE_HIP_ARCHITECTURES: ${CMAKE_HIP_ARCHITECTURES}")
+
+    # Set files to build
+    set(HIP_SOURCES
+        src/cuda/Allocator_gpu.cu
+        src/cuda/Fast_gpu.cu
+        src/cuda/Orb_gpu.cu
+        src/cuda/Cuda.cu
+    )
+
+    # Mark .cu files as HIP language
+    set_source_files_properties(${HIP_SOURCES} PROPERTIES LANGUAGE HIP)
+
+    # Add USE_HIP define and include the compat header path
+    add_compile_definitions(USE_HIP)
+
+    # The device sources include <cuda/helper_cuda.h> for checkCudaErrors, which
+    # the vendored CUDA samples header only defines when the CUDA toolkit has
+    # already defined __DRIVER_TYPES_H__, so it is unavailable here. hip_compat/
+    # holds substitutes named after the headers they stand in for; prepending it
+    # makes those includes resolve here on a ROCm build, while the vendored
+    # copies stay untouched and keep serving the CUDA build.
+    include_directories(BEFORE ${PROJECT_SOURCE_DIR}/hip_compat)
+
+    # Host C++ translation units that include OpenCV's cv::cuda headers (e.g.
+    # cuda_stream_accessor.hpp) must select the HIP runtime branch and resolve
+    # hip/hip_runtime.h. Define __HIP_PLATFORM_AMD__ and add the ROCm include path
+    # for the host compiler so those headers do not fall back to <cuda_runtime.h>.
+    # Derive a ROCm include hint from the HIP compiler location (its bin dir sits
+    # under the ROCm root) so this resolves on Windows where ROCm is not at
+    # /opt/rocm; fall back to ROCM_PATH and the Linux default.
+    get_filename_component(_hip_bin "${CMAKE_HIP_COMPILER}" DIRECTORY)
+    get_filename_component(_rocm_root "${_hip_bin}/../../.." ABSOLUTE)
+    find_path(HIP_INCLUDE_DIR hip/hip_runtime.h
+        HINTS "${_rocm_root}/include" "$ENV{ROCM_PATH}/include" /opt/rocm/include)
+    add_compile_definitions(__HIP_PLATFORM_AMD__)
+    include_directories(${HIP_INCLUDE_DIR})
+
+    # Host TUs reach OpenCV cv::cuda headers and the project's cuda/{Fast,Orb}.hpp
+    # that use CUDA runtime spellings (cudaStream_t, ...). Force-include the
+    # CUDA->HIP alias shim into every TU so those resolve to the HIP runtime types.
+    add_compile_options(-include ${PROJECT_SOURCE_DIR}/src/cuda/cuda_to_hip.h)
+
+    # HIP compile options
+    set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -std=c++${CMAKE_CXX_STANDARD}")
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -O3")
+    else()
+        set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -g")
+    endif()
+endif()
+
+#====================================
 # packages 
 
 find_package(Eigen3 3.1.0 REQUIRED)
 message(STATUS "eigen include: ${EIGEN3_INCLUDE_DIR}")
+# The local FindEigen3 module only sets EIGEN3_INCLUDE_DIR; some dependency config
+# packages (e.g. Pangolin) additionally require the Eigen3::Eigen imported target
+# from Eigen's own config package, so pull it in when available.
+if(NOT TARGET Eigen3::Eigen)
+    find_package(Eigen3 CONFIG QUIET)
+endif()
 
 
 find_package(Boost REQUIRED COMPONENTS thread system serialization)
@@ -201,6 +297,11 @@ find_package(Boost REQUIRED COMPONENTS thread system serialization)
 
 # Check fastfusion support and SIMD supports
 include(${CMAKE_MODULE_PATH}/CheckFastfusionSupport.cmake)
+# CheckFastfusionSupport sets BUILD_FASTFUSION from CPU SIMD alone; honor the
+# user-facing WITH_FASTFUSION toggle so the optional backend can be turned off.
+if(NOT WITH_FASTFUSION)
+    set(BUILD_FASTFUSION FALSE)
+endif()
 if(BUILD_FASTFUSION AND WITH_FASTFUSION)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DUSE_FASTFUSION")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_FASTFUSION")
@@ -223,7 +324,12 @@ message(STATUS "opencv lib dirs: ${OpenCV_INSTALL_PATH}")
 message(STATUS "opencv libs: ${OpenCV_LIBS}")
 
 
-set(Pangolin_DIR ${PROJECT_SOURCE_DIR}/Thirdparty/Pangolin/build/) # this seems to work in general 
+# On Linux the project builds Pangolin in-tree (Thirdparty/Pangolin/build). On
+# Windows, take Pangolin from a CMake config package (e.g. vcpkg) via the normal
+# find_package search unless the caller pins Pangolin_DIR explicitly.
+if(NOT WIN32)
+    set(Pangolin_DIR ${PROJECT_SOURCE_DIR}/Thirdparty/Pangolin/build/) # this seems to work in general
+endif()
 #set(CMAKE_PREFIX_PATH ${PROJECT_SOURCE_DIR}/Thirdparty/Pangolin/install/lib/cmake/Pangolin/) # this does not work (after make install) if we set the RPATH!
 #set(Pangolin_DIR ${PROJECT_SOURCE_DIR}/Thirdparty/Pangolin/install/) # this does not work (after make install) if we set the RPATH!
 message(STATUS "set custom pangolin folder: ${Pangolin_DIR}")
@@ -266,6 +372,7 @@ if(NOT GLOG_FOUND)
 endif()
 
 
+
 find_package(octomap REQUIRED)
 message(STATUS "octomap include: ${OCTOMAP_INCLUDE_DIRS}")
 message(STATUS "octomap lib dirs: ${OCTOMAP_LIBRARY_DIRS}")
@@ -273,14 +380,67 @@ message(STATUS "octomap libs: ${OCTOMAP_LIBRARIES}")
 
 
 find_package(Protobuf REQUIRED)
+# The modern protobuf (e.g. vcpkg's, where it is built static against Abseil)
+# exposes the protobuf::libprotobuf imported target carrying its Abseil link
+# dependencies; the legacy PROTOBUF_LIBRARIES variable is just the bare library
+# path and omits them, leaving unresolved absl symbols at the final link. Prefer
+# the target when present.
+if(WIN32 AND TARGET protobuf::libprotobuf)
+    # On Windows with vcpkg static protobuf the bare PROTOBUF_LIBRARIES path
+    # omits Abseil link dependencies; use the imported target which carries them.
+    # On Linux the system shared protobuf's FindProtobuf sets PROTOBUF_LIBRARIES to
+    # the bare .so path; using the conda-found imported target would pull
+    # /opt/conda/include first and break the generated .pb.h version check.
+    set(PROTOBUF_LIBRARIES protobuf::libprotobuf)
+    # The static protobuf also needs utf8_range (utf8_range_IsValid / ValidPrefix),
+    # which its imported target does not always carry transitively; add it.
+    find_package(utf8_range CONFIG QUIET)
+    foreach(_u utf8_range::utf8_validity utf8_range::utf8_range)
+        if(TARGET ${_u})
+            list(APPEND PROTOBUF_LIBRARIES ${_u})
+        endif()
+    endforeach()
+endif()
 message(STATUS "protobuf libs: ${PROTOBUF_LIBRARIES}")
+
+# When the dependency stack is the vcpkg static Abseil (Windows static-md),
+# protobuf and glog reference Abseil's SwissTable / hashtablez internals across
+# several archives that single-pass static linking will not resolve unless the
+# full Abseil target set is on the link line. Collect every imported absl:: target
+# (read from its exported targets file, as Abseil imports them GLOBAL) into
+# ABSEIL_LIBRARIES so the closure is complete. Empty where Abseil is absent
+# (e.g. the Linux build with a shared protobuf/glog), and also with a DLL Abseil
+# (absl::abseil_dll), whose import library already resolves every symbol and
+# whose test-only targets name libraries that are not installed.
+set(ABSEIL_LIBRARIES "")
+if(WIN32 AND NOT TARGET absl::abseil_dll)
+    file(GLOB _absl_target_files "${CMAKE_PREFIX_PATH}/share/absl/abslTargets.cmake")
+    foreach(_f IN LISTS _absl_target_files)
+        file(STRINGS "${_f}" _lines REGEX "add_library\\(absl::")
+        foreach(_l IN LISTS _lines)
+            string(REGEX MATCH "absl::[A-Za-z0-9_]+" _n "${_l}")
+            if(_n AND TARGET ${_n})
+                list(APPEND ABSEIL_LIBRARIES ${_n})
+            endif()
+        endforeach()
+    endforeach()
+    list(REMOVE_DUPLICATES ABSEIL_LIBRARIES)
+endif()
 
 
 find_package(LibCrypto REQUIRED)
 
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(GLFW REQUIRED glfw3)
+if(WIN32)
+    # pkg-config is not the norm on Windows; use GLFW's CMake config package
+    # (e.g. from vcpkg), which exposes the glfw target and its include dirs.
+    find_package(glfw3 CONFIG REQUIRED)
+    set(GLFW_LIBRARIES glfw)
+    set(GLFW_INCLUDE_DIRS "")
+else()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(GLFW REQUIRED glfw3)
+endif()
 
 
 if(BUILD_FASTFUSION)
@@ -304,34 +464,40 @@ if(WITH_LIBELAS)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_LIBELAS")
     if(CUDA_FOUND)
         message(STATUS "building with libelas CUDA ***************")
+    elseif(USE_HIP)
+        message(STATUS "building with libelas HIP ***************")
     else()
         message(STATUS "building with libelas CPU ***************")
     endif()
     set(LIBELAS_INCLUDES 
     ${PROJECT_SOURCE_DIR}/Thirdparty/libelas-gpu/include
     )
-    set(LIBELAS_LIBRARIES 
-    ${PROJECT_SOURCE_DIR}/Thirdparty/libelas-gpu/lib/liblibelas_gpu.a  # this contains or not CUDA 
-    )
+    if(WIN32)
+        set(LIBELAS_LIBRARIES ${PROJECT_SOURCE_DIR}/Thirdparty/libelas-gpu/lib/libelas_gpu.lib)
+    else()
+        set(LIBELAS_LIBRARIES ${PROJECT_SOURCE_DIR}/Thirdparty/libelas-gpu/lib/liblibelas_gpu.a)  # this contains or not CUDA
+    endif()
 else()
     message(STATUS "libelas disabled! ***************")
 endif()
 
 
 if(WITH_LIBSGM)
-    if(NOT CUDA_FOUND)
+    if(NOT CUDA_FOUND AND NOT USE_HIP)
         find_package(CUDA) # make the check if not already done above
     endif()
-    if(CUDA_FOUND)
+    if(CUDA_FOUND OR USE_HIP)
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DUSE_LIBSGM")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_LIBSGM")
-        message(STATUS "building with stereo libsgm CUDA ***************")
-        set(LIBSGM_INCLUDES 
+        message(STATUS "building with stereo libsgm GPU ***************")
+        set(LIBSGM_INCLUDES
         ${PROJECT_SOURCE_DIR}/Thirdparty/libsgm/include
         )
-        set(LIBSGM_LIBRARIES 
-        ${PROJECT_SOURCE_DIR}/Thirdparty/libsgm/lib/libsgm.a  # this contains CUDA 
-        )
+        if(WIN32)
+            set(LIBSGM_LIBRARIES ${PROJECT_SOURCE_DIR}/Thirdparty/libsgm/lib/sgm.lib)  # device code: HIP
+        else()
+            set(LIBSGM_LIBRARIES ${PROJECT_SOURCE_DIR}/Thirdparty/libsgm/lib/libsgm.a)  # device code: CUDA or HIP
+        endif()
     else()
         message(STATUS "stereo libsgm disabled! ***************")
     endif()
@@ -363,7 +529,12 @@ if( WITH_G2O_NEW )
 else()
     # g2o provided with ORBSLAM3
     set(G2O_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/)
-    set(G2O_LIBS ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so)
+    if(WIN32)
+        # g2o places its DLL + import lib in bin/ on Windows (see its CMakeLists)
+        set(G2O_LIBS ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/bin/g2o.lib)
+    else()
+        set(G2O_LIBS ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so)
+    endif()
 endif()
 message(STATUS "g2o include: ${G2O_INCLUDE_DIR}")
 message(STATUS "g2o lib dirs: ${G2O_LIB_DIR}")
@@ -427,10 +598,18 @@ endif()
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 
 
-set(EXTERNAL_CORE_LIBS   # core external libs 
+# On Windows, Boost libraries are versioned (e.g. boost_serialization-vc143-mt-...
+# .lib), so the bare boost_serialization / boost_thread names do not resolve; rely
+# on the targets find_package(Boost) populated in Boost_LIBRARIES instead.
+if(WIN32)
+    set(BOOST_EXTRA_LIBS Boost::serialization Boost::thread)
+else()
+    set(BOOST_EXTRA_LIBS boost_serialization boost_thread)
+endif()
+set(EXTERNAL_CORE_LIBS   # core external libs
 ${OpenCV_LIBS}
 ${EIGEN3_LIBS}
-${Boost_LIBRARIES} boost_serialization boost_thread # FIXME: remove this and let cmake package finder get the info!
+${Boost_LIBRARIES} ${BOOST_EXTRA_LIBS}
 #Boost::boost # NOTE this does not work!
 ${Pangolin_LIBRARIES}
 ${G2O_LIBS}
@@ -438,12 +617,23 @@ ${PCL_LIBRARIES}
 ${GLOG_LIBRARIES}
 ${OCTOMAP_LIBRARIES}
 ${PROTOBUF_LIBRARIES}
+${ABSEIL_LIBRARIES}
 ${LibCrypto_LIBRARY}
 ${GLFW_LIBRARIES}
 ${CHOLMOD_LIBRARIES}
 )
 if(CUDA_FOUND)
-    set(EXTERNAL_CORE_LIBS ${EXTERNAL_CORE_LIBS} ${CUDA_LIBRARIES}) # ${CUDA_LIBRARIES} are used just for stereo disparity computation when libelas or libsgm support are added 
+    set(EXTERNAL_CORE_LIBS ${EXTERNAL_CORE_LIBS} ${CUDA_LIBRARIES}) # ${CUDA_LIBRARIES} are used just for stereo disparity computation when libelas or libsgm support are added
+endif()
+if(USE_HIP)
+    # libsgm.a / liblibelas_gpu.a carry HIP device code; link the HIP runtime.
+    # The runtime import lib lives under the ROCm root (derived from the HIP
+    # compiler) on Windows, or /opt/rocm/lib(64) on Linux.
+    get_filename_component(_hip_bin "${CMAKE_HIP_COMPILER}" DIRECTORY)
+    get_filename_component(_rocm_root "${_hip_bin}/../../.." ABSOLUTE)
+    find_library(HIP_RUNTIME_LIB amdhip64
+        HINTS "${_rocm_root}/lib" "$ENV{ROCM_PATH}/lib" /opt/rocm/lib /opt/rocm/lib64)
+    set(EXTERNAL_CORE_LIBS ${EXTERNAL_CORE_LIBS} ${HIP_RUNTIME_LIB})
 endif()
 if(WITH_RERUN)
     set(EXTERNAL_CORE_LIBS ${EXTERNAL_CORE_LIBS} rerun_sdk)
@@ -457,7 +647,27 @@ if(realsense2_FOUND)
 endif()
 
 
-set(EXTERNAL_LIBS  # Thirdparty libs 
+# The bundled Thirdparty libraries are referenced by output-file path. On Windows
+# the all-clang toolchain emits MSVC-style names (an import .lib for each SHARED
+# DLL, a .lib for each static archive) instead of lib*.so / lib*.a; select the
+# right names per platform.
+set(TP ${PROJECT_SOURCE_DIR}/Thirdparty)
+if(WIN32)
+    set(EXTERNAL_LIBS  # Thirdparty libs
+    ${TP}/DBoW2/lib/DBoW2.lib
+    ${TP}/line_descriptor/lib/linedesc.lib
+    ${TP}/volumetric_mapping/lib/volumetric_mapping.lib
+    ${TP}/chisel_server/lib/chisel_server.lib
+    ${TP}/open_chisel/lib/open_chisel.lib
+    ${FASTFUSION_LIBRARIES}
+    ${TP}/voxblox/lib/voxblox.lib
+    ${TP}/voxblox/lib/voxblox_proto.lib
+    ${TP}/voxblox_server/lib/voxblox_server.lib
+    ${LIBELAS_LIBRARIES}
+    ${LIBSGM_LIBRARIES}
+    )
+else()
+set(EXTERNAL_LIBS  # Thirdparty libs
 ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
 ${PROJECT_SOURCE_DIR}/Thirdparty/line_descriptor/lib/liblinedesc.a
 ${PROJECT_SOURCE_DIR}/Thirdparty/volumetric_mapping/lib/libvolumetric_mapping.so
@@ -470,8 +680,9 @@ ${PROJECT_SOURCE_DIR}/Thirdparty/voxblox_server/lib/libvoxblox_server.a
 ${LIBELAS_LIBRARIES}
 ${LIBSGM_LIBRARIES}
 )
+endif()
 
-link_directories( 
+link_directories(
   ${G2O_LIB_DIR}  
   ${PCL_LIBRARY_DIRS}
 )
@@ -480,7 +691,8 @@ link_directories(
 # source files and folders to build 
 
 #add_library(${PROJECT_NAME} SHARED
-set(CPU_SOURCES 
+set(CPU_SOURCES
+src/WinBoostArchiveCompat.cpp
 src/System.cc
 src/Tracking.cc
 src/LocalMapping.cc
@@ -592,13 +804,64 @@ src/g2o/types_seven_dof_expmap2.cpp
 #)
 
 if (WITH_CUDA)
-    cuda_compile(CUDA_OBJS ${CUDA_SOURCES}) 
+    cuda_compile(CUDA_OBJS ${CUDA_SOURCES})
 endif()
 
-add_library(${PROJECT_NAME} ${LIBRARY_TYPE}
-    ${CUDA_OBJS}
-    ${CPU_SOURCES}
-)
+if(WIN32)
+    # Abseil's exported targets (pulled in transitively by PCL/protobuf and the
+    # vcpkg static glog) carry the bare MSVC lib flag "-ignore:4221" wrapped in a
+    # $<LINK_ONLY:...> generator expression in their INTERFACE_LINK_LIBRARIES. The
+    # vcpkg toolchain forwards it to the linker, but the all-clang driver used here
+    # treats it as an unknown argument and fails the final link. Strip it from
+    # every imported Abseil target (it only suppresses a benign "no public symbols"
+    # archive warning). Done here, after all find_package calls, so nothing
+    # re-imports Abseil and restores the flag. The target names are read from the
+    # exported targets file because Abseil imports them GLOBAL (not enumerable via a
+    # directory's IMPORTED_TARGETS).
+    file(GLOB _absl_target_files "${CMAKE_PREFIX_PATH}/share/absl/abslTargets.cmake")
+    set(_absl_names "")
+    foreach(_f IN LISTS _absl_target_files)
+        file(STRINGS "${_f}" _lines REGEX "add_library\\(absl::")
+        foreach(_l IN LISTS _lines)
+            string(REGEX MATCH "absl::[A-Za-z0-9_]+" _n "${_l}")
+            if(_n)
+                list(APPEND _absl_names "${_n}")
+            endif()
+        endforeach()
+    endforeach()
+    list(REMOVE_DUPLICATES _absl_names)
+    foreach(_t IN LISTS _absl_names)
+        if(TARGET ${_t})
+            get_target_property(_ill ${_t} INTERFACE_LINK_LIBRARIES)
+            if(_ill)
+                set(_clean "")
+                foreach(_item IN LISTS _ill)
+                    if(NOT _item MATCHES "ignore:4221")
+                        list(APPEND _clean "${_item}")
+                    endif()
+                endforeach()
+                set_target_properties(${_t} PROPERTIES INTERFACE_LINK_LIBRARIES "${_clean}")
+            endif()
+        endif()
+    endforeach()
+endif()
+
+if(USE_HIP)
+    add_library(${PROJECT_NAME} ${LIBRARY_TYPE}
+        ${HIP_SOURCES}
+        ${CPU_SOURCES}
+    )
+    set_target_properties(${PROJECT_NAME} PROPERTIES HIP_ARCHITECTURES "${CMAKE_HIP_ARCHITECTURES}")
+elseif(WITH_CUDA)
+    add_library(${PROJECT_NAME} ${LIBRARY_TYPE}
+        ${CUDA_OBJS}
+        ${CPU_SOURCES}
+    )
+else()
+    add_library(${PROJECT_NAME} ${LIBRARY_TYPE}
+        ${CPU_SOURCES}
+    )
+endif()
 
 target_link_libraries(${PROJECT_NAME}
 ${EXTERNAL_LIBS} ${EXTERNAL_CORE_LIBS})

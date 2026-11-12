@@ -122,12 +122,12 @@ inline int colorOffset(const typename pcl::PointCloud<PointT>& pCloud)
 #if !USE_NORMALS
 
 /// < list here the types you want to use 
-template class GlPointCloud<pcl::PointXYZRGBA>;
+extern template class GlPointCloud<pcl::PointXYZRGBA>;
 
 #else
 
-template class GlPointCloud<pcl::PointXYZRGBNormal>;
-template class GlPointCloud<pcl::PointSurfelSegment>;
+extern template class GlPointCloud<pcl::PointXYZRGBNormal>;
+extern template class GlPointCloud<pcl::PointSurfelSegment>;
 
 #endif
 

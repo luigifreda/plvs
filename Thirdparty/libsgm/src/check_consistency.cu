@@ -1,3 +1,4 @@
+#include "cuda_to_hip.h"
 /*
 Copyright 2016 Fixstars Corporation
 
@@ -43,10 +44,10 @@ namespace sgm {
 			const dim3 blocks(width / 16, height / 16);
 			const dim3 threads(16, 16);
 			if (depth_bits == 16) {
-				check_consistency_kernel<uint16_t> << < blocks, threads >> > (d_left_disp, d_right_disp, (uint16_t*)d_src_left, width, height);
+				check_consistency_kernel<uint16_t><<<blocks, threads>>>(d_left_disp, d_right_disp, (uint16_t*)d_src_left, width, height);
 			}
 			else if (depth_bits == 8) {
-				check_consistency_kernel<uint8_t> << < blocks, threads >> > (d_left_disp, d_right_disp, (uint8_t*)d_src_left, width, height);
+				check_consistency_kernel<uint8_t><<<blocks, threads>>>(d_left_disp, d_right_disp, (uint8_t*)d_src_left, width, height);
 			}
 
 			CudaKernelCheck();
@@ -57,10 +58,10 @@ namespace sgm {
 			const dim3 blocks(width / 16, height / 16);
 			const dim3 threads(16, 16);
 			if (depth_bits == 16) {
-				check_consistency_kernel<uint16_t> << < blocks, threads >> > (d_left_disp, d_right_disp, (uint16_t*)d_src_left, width, height);
+				check_consistency_kernel<uint16_t><<<blocks, threads>>>(d_left_disp, d_right_disp, (uint16_t*)d_src_left, width, height);
 			}
 			else if (depth_bits == 8) {
-				check_consistency_kernel<uint8_t> << < blocks, threads >> > (d_left_disp, d_right_disp, (uint8_t*)d_src_left, width, height);
+				check_consistency_kernel<uint8_t><<<blocks, threads>>>(d_left_disp, d_right_disp, (uint8_t*)d_src_left, width, height);
 			}
 			
 			CudaKernelCheck();	

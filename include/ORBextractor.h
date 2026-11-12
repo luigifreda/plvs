@@ -43,7 +43,7 @@
 #include <list>
 #include <opencv2/opencv.hpp>
 
-#ifdef USE_CUDA
+#if defined(USE_CUDA) || defined(USE_HIP)
 #include <opencv2/core/cuda.hpp>
 #include <opencv2/cudafilters.hpp>
 #include <cuda/Fast.hpp>
@@ -115,7 +115,7 @@ public:
     // for pre-computing Gaussian pyramid 
     void PrecomputeGaussianPyramid(const cv::Mat& image);
 
-#ifdef USE_CUDA
+#if defined(USE_CUDA) || defined(USE_HIP)
     // We assume all frames are of the same dimension
     bool mbImagePyramidAllocated;
     std::vector< cv::cuda::GpuMat > mvImagePyramid;
@@ -151,7 +151,7 @@ protected:
     std::vector<float> mvLevelSigma2;
     std::vector<float> mvInvLevelSigma2;
     
-#ifdef USE_CUDA
+#if defined(USE_CUDA) || defined(USE_HIP)
     cv::Ptr< cv::cuda::Filter > mpGaussianFilter;
     cuda::Stream mcvStream;
 

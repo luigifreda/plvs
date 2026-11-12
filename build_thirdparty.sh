@@ -57,6 +57,12 @@ if [ $USE_CUDA -eq 1 ]; then
     EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DWITH_CUDA=ON"
 fi
 
+# check HIP options
+if [ $USE_HIP -eq 1 ]; then
+    echo "USE_HIP: $USE_HIP"
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DUSE_HIP=ON"
+fi
+
 if [[ $OPENCV_VERSION == 4* ]]; then
     EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DOPENCV_VERSION=4"
 fi
@@ -246,7 +252,7 @@ cd $SCRIPT_DIR
 
 print_blue '================================================'
 
-if [ $CUDA_FOUND -eq 1 ]; then
+if [ $CUDA_FOUND -eq 1 ] || [ $USE_HIP -eq 1 ]; then
     echo "Configuring and building Thirdparty/stereo_libsgm... "
     
     cd Thirdparty/libsgm

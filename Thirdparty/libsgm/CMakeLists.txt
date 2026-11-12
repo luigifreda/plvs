@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 3.1)
 project(libSGM VERSION 2.0.0)
 
-set(CPP_STANDARD_VERSION "17" CACHE STRING "Desired C++ standard version") 
+set(CPP_STANDARD_VERSION "17" CACHE STRING "Desired C++ standard version")
 option(ENABLE_ZED_DEMO "Build a Demo using ZED Camera" OFF)
 option(ENABLE_SAMPLES  "Build samples" OFF)
 option(LIBSGM_SHARED   "Build a shared library" OFF)
+option(USE_HIP         "Build with HIP for AMD GPUs" OFF)
 set(BUILD_WITH_MARCH_NATIVE ON  CACHE BOOL "Build with \"-march native\"")
 
 if(WIN32)
@@ -29,8 +30,13 @@ endif()
 set(CMAKE_CXX_STANDARD ${CPP_STANDARD_VERSION})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -fPIC -DNDEBUG")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall  -O3 -fPIC -DNDEBUG")
+if(WIN32)
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -DNDEBUG")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -DNDEBUG")
+else()
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -fPIC -DNDEBUG")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall  -O3 -fPIC -DNDEBUG")
+endif()
 
 if(BUILD_WITH_MARCH_NATIVE)
   set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -march=native") 
@@ -38,10 +44,18 @@ if(BUILD_WITH_MARCH_NATIVE)
 endif()
 
 
-find_package(CUDA REQUIRED)
+if(USE_HIP)
+  cmake_minimum_required(VERSION 3.21)
+  # enable_language(HIP) honors an explicit -DCMAKE_HIP_ARCHITECTURES, otherwise
+  # auto-detects the host GPU(s), and errors on a no-GPU build host.
+  enable_language(HIP)
+  message(STATUS "libsgm: CMAKE_HIP_ARCHITECTURES: ${CMAKE_HIP_ARCHITECTURES}")
+  add_compile_definitions(USE_HIP)
+else()
+  find_package(CUDA REQUIRED)
 
-option(LIBSGM_AUTO_CUDA_ARCH "Auto-detect CUDA architecture" ON)
-set(CUDA_ARCH "" CACHE STRING "NVCC arch flags (e.g. -arch=sm_86 or -gencode...)")
+  option(LIBSGM_AUTO_CUDA_ARCH "Auto-detect CUDA architecture" ON)
+  set(CUDA_ARCH "" CACHE STRING "NVCC arch flags (e.g. -arch=sm_86 or -gencode...)")
 
 if(LIBSGM_AUTO_CUDA_ARCH AND (CUDA_ARCH STREQUAL "" OR CUDA_ARCH STREQUAL "-arch=sm_50"))
   if(COMMAND cuda_select_nvcc_arch_flags)
@@ -74,7 +88,8 @@ if(LIBSGM_AUTO_CUDA_ARCH AND (CUDA_ARCH STREQUAL "" OR CUDA_ARCH STREQUAL "-arch
     set(CUDA_ARCH "-arch=sm_50" CACHE STRING "NVCC arch flags (e.g. -arch=sm_86 or -gencode...)")
     message(WARNING "Could not auto-detect CUDA arch; using ${CUDA_ARCH}. Set CUDA_ARCH manually to override.")
   endif()
-endif()
+endif()  # end CUDA-only block
+endif()  # end if(USE_HIP) else
 
 configure_file(${CMAKE_SOURCE_DIR}/include/libsgm_config.h.in
                ${CMAKE_SOURCE_DIR}/include/libsgm_config.h

@@ -155,3 +155,18 @@ void PointCloudMapOctomap<PointT>::OnMapChange()
 
 
 } //namespace PLVS2
+
+// Explicit template instantiations after the out-of-line member definitions.
+namespace PLVS2 {
+#if !USE_NORMALS
+
+template class PointCloudMapOctomap<pcl::PointXYZRGBA>;
+
+#else
+
+template class PointCloudMapOctomap<pcl::PointXYZRGBNormal>;
+
+template class PointCloudMapOctomap<pcl::PointSurfelSegment>;
+
+#endif
+} // namespace PLVS2

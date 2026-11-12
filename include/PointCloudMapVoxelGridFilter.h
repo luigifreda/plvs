@@ -142,6 +142,11 @@ protected:
     std::unordered_map<uint32_t, typename PointCloudKeyFrameT::Ptr> mapKfidPointCloudKeyFrame_;
       
 };
+// Declare the explicit specialization before the instantiation below so the
+// compiler knows it is specialized (clang errors on specialization-after-
+// instantiation otherwise).
+template<> void PointCloudMapVoxelGridFilterActive<pcl::PointSurfelSegment>::OnMapChange();
+
 
 
 
@@ -149,18 +154,18 @@ protected:
 
 #if !USE_NORMALS
 
-template class PointCloudMapVoxelGridFilter<pcl::PointXYZRGBA>;
+extern template class PointCloudMapVoxelGridFilter<pcl::PointXYZRGBA>;
 
-template class PointCloudMapVoxelGridFilterActive<pcl::PointXYZRGBA>;
+extern template class PointCloudMapVoxelGridFilterActive<pcl::PointXYZRGBA>;
 
 
 #else
 
-template class PointCloudMapVoxelGridFilter<pcl::PointXYZRGBNormal>;
-template class PointCloudMapVoxelGridFilter<pcl::PointSurfelSegment>;
+extern template class PointCloudMapVoxelGridFilter<pcl::PointXYZRGBNormal>;
+extern template class PointCloudMapVoxelGridFilter<pcl::PointSurfelSegment>;
 
-template class PointCloudMapVoxelGridFilterActive<pcl::PointXYZRGBNormal>;
-template class PointCloudMapVoxelGridFilterActive<pcl::PointSurfelSegment>;
+extern template class PointCloudMapVoxelGridFilterActive<pcl::PointXYZRGBNormal>;
+extern template class PointCloudMapVoxelGridFilterActive<pcl::PointSurfelSegment>;
 
 #endif
 

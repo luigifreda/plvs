@@ -424,3 +424,18 @@ bool PointCloudMapFastFusion<PointT>::LoadMap(const std::string& filename)
 
 
 } //namespace PLVS2
+
+// Explicit template instantiations after the out-of-line member definitions.
+namespace PLVS2 {
+#if !USE_NORMALS
+
+template class PointCloudMapFastFusion<pcl::PointXYZRGBA>;
+
+#else
+
+template class PointCloudMapFastFusion<pcl::PointXYZRGBNormal>;
+
+template class PointCloudMapFastFusion<pcl::PointSurfelSegment>;
+
+#endif
+} // namespace PLVS2
