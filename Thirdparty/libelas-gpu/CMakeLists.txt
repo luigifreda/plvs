@@ -3,6 +3,7 @@ project(libelas_gpu)
 
 set(CPP_STANDARD_VERSION "17" CACHE STRING "Desired C++ standard version") # need C++17 given the following error "nvcc fatal   : Value 'c++20' is not defined for option 'std'"
 set(WITH_GPU ON CACHE BOOL "Added GPU support")
+option(USE_HIP "Build with HIP for AMD GPUs" OFF)
 set(BUILD_WITH_MARCH_NATIVE ON  CACHE BOOL "Build with \"-march native\"")
 
 IF(NOT CMAKE_BUILD_TYPE)
@@ -14,13 +15,24 @@ ENDIF()
 MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 
 # Include libraries
-find_package(CUDA)
-if (CUDA_FOUND AND WITH_GPU)
-    set(USE_CUDA true)     # N.B.: here opencv libs are not used!
-    MESSAGE("USE_CUDA ${USE_CUDA}")
+if(USE_HIP)
+    cmake_minimum_required(VERSION 3.21)
+    # enable_language(HIP) honors an explicit -DCMAKE_HIP_ARCHITECTURES, otherwise
+    # auto-detects the host GPU(s), and errors on a no-GPU build host.
+    enable_language(HIP)
+    message(STATUS "libelas-gpu: CMAKE_HIP_ARCHITECTURES: ${CMAKE_HIP_ARCHITECTURES}")
+    add_compile_definitions(USE_HIP)
+    set(USE_GPU true)
 else()
-    set(CUDA_LIBRARIES "")
-    MESSAGE("CUDA NOT FOUND!")
+    find_package(CUDA)
+    if (CUDA_FOUND AND WITH_GPU)
+        set(USE_CUDA true)     # N.B.: here opencv libs are not used!
+        set(USE_GPU true)
+        MESSAGE("USE_CUDA ${USE_CUDA}")
+    else()
+        set(CUDA_LIBRARIES "")
+        MESSAGE("CUDA NOT FOUND!")
+    endif()
 endif()
 
 # This option allows the generations of a file compile_commands.json in our build folder: that file contains the full command line to compile individual source files
@@ -31,15 +43,19 @@ set(CMAKE_CXX_STANDARD ${CPP_STANDARD_VERSION})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Enable compile optimizations
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native ")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -pthread -ftree-vectorize -funroll-loops -fPIC")
-    # Enable SSE3 cpu commands
-    # If we are on ARM we need to find an alternative
-    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse -msse2 -msse3")
+# clang for x86_64-pc-windows-msvc rejects -fPIC and -pthread.
+if(WIN32)
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -ftree-vectorize -funroll-loops")
+    else()
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g3 -Wall")
+    endif()
 else()
-    # Enable debug flags
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g3 -Wall -fPIC")
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -pthread -ftree-vectorize -funroll-loops -fPIC")
+    else()
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g3 -Wall -fPIC")
+    endif()
 endif()
 
 if(BUILD_WITH_MARCH_NATIVE)
@@ -117,9 +133,34 @@ set(sources_cpu
   GPU/ElasInterface.cpp
 )
 
+# On Windows the x86 greedy register allocator of the ROCm clang (23) hangs or
+# crashes on Elas::gapInterpolation; use the basic allocator for this file.
+if(WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    set_source_files_properties(CPU/elas.cpp PROPERTIES COMPILE_OPTIONS "-mllvm;-regalloc=basic")
+endif()
 
 
-if(USE_CUDA )
+
+if(USE_HIP)
+    # HIP build
+    set(sources_gpu
+      GPU/elas_gpu.cu
+    )
+    # ElasInterface.cpp includes elas_gpu.h, which needs the HIP headers.
+    set_source_files_properties(${sources_gpu} GPU/ElasInterface.cpp PROPERTIES LANGUAGE HIP)
+    if(WIN32)
+        set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -std=c++${CMAKE_CXX_STANDARD} -O3")
+    else()
+        set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -std=c++${CMAKE_CXX_STANDARD} -O3 -fPIC")
+    endif()
+
+    add_library(${PROJECT_NAME}
+        ${sources_gpu}
+        ${sources_cpu}
+    )
+    set_target_properties(${PROJECT_NAME} PROPERTIES HIP_ARCHITECTURES "${CMAKE_HIP_ARCHITECTURES}")
+
+elseif(USE_CUDA)
 
     # convert the gpu code to cpu code
     cuda_compile(sources_gpu_built ${sources_gpu})

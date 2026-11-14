@@ -20,6 +20,12 @@ endif()
 MESSAGE(STATUS "BUILD TYPE:" ${CMAKE_BUILD_TYPE})
 
 SET (G2O_LIB_TYPE SHARED)
+# Build a static archive on Windows: g2o has no __declspec(dllexport) annotations
+# and WINDOWS_EXPORT_ALL_SYMBOLS does not export static data members (e.g.
+# G2OBatchStatistics::_globalStats), so a DLL leaves them unresolved for consumers.
+IF(WIN32)
+  SET (G2O_LIB_TYPE STATIC)
+ENDIF(WIN32)
 
 # There seems to be an issue with MSVC8
 # see http://eigen.tuxfamily.org/bz/show_bug.cgi?id=83
@@ -47,6 +53,13 @@ IF(UNIX)
   ADD_DEFINITIONS(-DUNIX)
   MESSAGE(STATUS "Compiling on Unix")
 ENDIF(UNIX)
+# The bundled Windows code paths (os_specific.{c,h}, timeutil.{cpp,h}) gate on
+# WINDOWS / _WINDOWS, which the MSVC IDE predefines but the all-clang toolchain
+# does not; define them so those paths (gettimeofday, vasprintf) activate.
+IF(WIN32)
+  ADD_DEFINITIONS(-DWINDOWS -D_WINDOWS)
+  MESSAGE(STATUS "Compiling on Windows")
+ENDIF(WIN32)
 
 # Eigen library parallelise itself, though, presumably due to performance issues
 # OPENMP is experimental. We experienced some slowdown with it
@@ -59,14 +72,20 @@ IF(OPENMP_FOUND AND G2O_USE_OPENMP)
   MESSAGE(STATUS "Compiling with OpenMP support")
 ENDIF(OPENMP_FOUND AND G2O_USE_OPENMP)
 
-# Compiler specific options for gcc
+# Compiler specific options for gcc/clang
+# clang for x86_64-pc-windows-msvc rejects -fPIC (implicit on Windows).
+if(WIN32)
+    set(G2O_PIC_FLAG "")
+else()
+    set(G2O_PIC_FLAG "-fPIC")
+endif()
 if(BUILD_WITH_MARCH_NATIVE)
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -fPIC -DNDEBUG") 
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -march=native -fPIC -DNDEBUG") 
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native ${G2O_PIC_FLAG} -DNDEBUG")
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -march=native ${G2O_PIC_FLAG} -DNDEBUG")
 else()
     message(STATUS "\n !!! Compiling g2o without optimization flags!!!\n")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 ") 
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 ")     
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 ")
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 ")
 endif()
 
 # Set the C++ standard 
@@ -192,6 +211,15 @@ g2o/stuff/os_specific.c
 g2o/stuff/os_specific.h
 g2o/stuff/string_tools.cpp
 g2o/stuff/property.cpp       
-g2o/stuff/property.h       
+g2o/stuff/property.h
 )
+
+# g2o has no __declspec(dllexport) annotations; let CMake export every symbol so
+# the Windows DLL produces a usable import library, and place the DLL alongside
+# the import lib in bin/.
+IF(WIN32)
+  set_target_properties(g2o PROPERTIES
+    WINDOWS_EXPORT_ALL_SYMBOLS ON
+    RUNTIME_OUTPUT_DIRECTORY ${g2o_LIBRARY_OUTPUT_DIRECTORY})
+ENDIF(WIN32)
 

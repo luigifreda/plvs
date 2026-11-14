@@ -451,3 +451,15 @@ void ColorOctomapServer<PointT>::GetOccupiedPointCloud(typename PointcloudType::
 
 
 } //namespace PLVS2
+// Explicit template instantiations after the out-of-line member definitions
+// (clang/MSVC do not instantiate member bodies when the instantiation precedes
+// them, which is what the in-header declarations now do via 'extern template').
+namespace PLVS2 {
+
+
+/// < list here the types you want to use 
+template class ColorOctomapServer<pcl::PointXYZRGBA>;
+template class ColorOctomapServer<pcl::PointXYZRGBNormal>;
+template class ColorOctomapServer<pcl::PointSurfelSegment>;
+
+} // namespace PLVS2

@@ -28,8 +28,9 @@ Street, Fifth Floor, Boston, MA 02110-1301, USA
 #include <iostream>
 #include <vector>
 
-#ifndef _MSC_VER
-  #include <stdint.h>
+#if !defined(_MSC_VER) || (_MSC_VER >= 1600) || defined(__clang__)
+  // modern toolchains (and clang in MSVC mode) ship the standard fixed-width types
+  #include <cstdint>
 #else
   typedef __int8            int8_t;
   typedef __int16           int16_t;

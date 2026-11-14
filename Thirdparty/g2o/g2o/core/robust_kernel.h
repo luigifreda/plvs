@@ -27,8 +27,9 @@
 #ifndef G2O_ROBUST_KERNEL_H
 #define G2O_ROBUST_KERNEL_H
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(_WIN32)
 #include <memory>
+namespace std { namespace tr1 = ::std; }  // std::tr1 was removed; alias to std
 #else
 #include <tr1/memory>
 #endif

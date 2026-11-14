@@ -203,12 +203,12 @@ public:
 #if !USE_NORMALS
 
 /// < list here the types you want to use 
-template class PointCloudKeyFrame<pcl::PointXYZRGBA>;
+extern template class PointCloudKeyFrame<pcl::PointXYZRGBA>;
 
 #else
 
-template class PointCloudKeyFrame<pcl::PointXYZRGBNormal>;
-template class PointCloudKeyFrame<pcl::PointSurfelSegment>;
+extern template class PointCloudKeyFrame<pcl::PointXYZRGBNormal>;
+extern template class PointCloudKeyFrame<pcl::PointSurfelSegment>;
 
 
 #endif

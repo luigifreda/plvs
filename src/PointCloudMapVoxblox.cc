@@ -269,3 +269,19 @@ bool PointCloudMapVoxblox<PointT>::LoadMap(const std::string& filename)
 
 
 } //namespace PLVS2
+// Explicit template instantiations after the out-of-line member definitions
+// (clang/MSVC do not instantiate member bodies when the instantiation precedes
+// them, which is what the in-header declarations now do via 'extern template').
+namespace PLVS2 {
+#if !USE_NORMALS
+
+template class PointCloudMapVoxblox<pcl::PointXYZRGBA>;
+
+#else
+
+template class PointCloudMapVoxblox<pcl::PointXYZRGBNormal>;
+
+template class PointCloudMapVoxblox<pcl::PointSurfelSegment>;
+
+#endif
+} // namespace PLVS2

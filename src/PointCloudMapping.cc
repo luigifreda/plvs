@@ -1004,7 +1004,7 @@ PointCloudMapping::PointCloudT::Ptr PointCloudMapping::GeneratePointCloudInCamer
         {
             if(idxCloud[ii]>=0) // central point is valid 
             {
-                Eigen::Vector3d normal(0.d,0.d,0.d);  
+                Eigen::Vector3d normal(0.0,0.0,0.0);  
                 PointT& pc = cloud_camera->points[idxCloud[ii]];
                 const Eigen::Vector3d vpc(pc.x,pc.y,pc.z);
                 // get the other points in the neighborhood 

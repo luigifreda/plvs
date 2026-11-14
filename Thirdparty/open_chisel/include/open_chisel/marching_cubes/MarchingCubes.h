@@ -22,6 +22,7 @@
 #ifndef MARCHINGCUBES_H_
 #define MARCHINGCUBES_H_
 
+#include <cassert>  // assert() is not transitively included on all toolchains
 #include <open_chisel/geometry/Geometry.h>
 #include <open_chisel/mesh/Mesh.h>
 

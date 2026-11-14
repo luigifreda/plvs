@@ -231,3 +231,8 @@ Results/
 
 # Calibration
 Examples/Calibration/recorder-*
+
+# ROCm/HIP build trees
+build-hip/
+Thirdparty/libsgm/build-hip/
+Thirdparty/libelas-gpu/build-hip/

@@ -74,13 +74,13 @@ protected:
 
 #if !USE_NORMALS
 
-template class PointCloudMapVoxblox<pcl::PointXYZRGBA>;
+extern template class PointCloudMapVoxblox<pcl::PointXYZRGBA>;
 
 #else
 
-template class PointCloudMapVoxblox<pcl::PointXYZRGBNormal>;
+extern template class PointCloudMapVoxblox<pcl::PointXYZRGBNormal>;
 
-template class PointCloudMapVoxblox<pcl::PointSurfelSegment>;
+extern template class PointCloudMapVoxblox<pcl::PointSurfelSegment>;
 
 #endif
 

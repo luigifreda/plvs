@@ -148,9 +148,9 @@ protected:
 
 
 /// < list here the types you want to use 
-template class ColorOctomapServer<pcl::PointXYZRGBA>;
-template class ColorOctomapServer<pcl::PointXYZRGBNormal>;
-template class ColorOctomapServer<pcl::PointSurfelSegment>;
+extern template class ColorOctomapServer<pcl::PointXYZRGBA>;
+extern template class ColorOctomapServer<pcl::PointXYZRGBNormal>;
+extern template class ColorOctomapServer<pcl::PointSurfelSegment>;
 
 } //namespace PLVS2
 

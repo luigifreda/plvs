@@ -16,12 +16,24 @@ MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 # This option allows the generations of a file compile_commands.json in our build folder: that file contains the full command line to compile individual source files
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -fPIC -DNDEBUG -pthread")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -fPIC -DNDEBUG -pthread")
+if(WIN32)
+    # clang for x86_64-pc-windows-msvc rejects -fPIC and -pthread; PIC is implicit
+    # and threading comes from the MSVC runtime.
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -DNDEBUG")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -DNDEBUG")
+    else()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -g -O3")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -g -O3")
+    endif()
 else()
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -g -O3 -fPIC -pthread")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -g -O3 -fPIC -pthread")
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -fPIC -DNDEBUG -pthread")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -fPIC -DNDEBUG -pthread")
+    else()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -g -O3 -fPIC -pthread")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -g -O3 -fPIC -pthread")
+    endif()
 endif()
 
 if(BUILD_WITH_MARCH_NATIVE)
@@ -44,6 +56,10 @@ LIST(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/../../cmake_modules)
 
 
 find_package(Eigen3 3.1.0 REQUIRED)
+
+# voxblox headers pull in <glog/logging.h>; resolve glog so its interface compile
+# definitions (e.g. GLOG_USE_GLOG_EXPORT, required by modern glog) propagate.
+find_package(GLOG REQUIRED)
 
 if(WITH_LOCAL_PCL)
     set(CMAKE_PREFIX_PATH ${PROJECT_SOURCE_DIR}/../pcl/install/share/pcl)

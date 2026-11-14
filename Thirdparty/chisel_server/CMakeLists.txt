@@ -13,12 +13,24 @@ ENDIF()
 
 MESSAGE("Build type: " ${CMAKE_BUILD_TYPE}) 
 
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -fPIC -DNDEBUG -pthread")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -fPIC -DNDEBUG -pthread")
+if(WIN32)
+    # clang for x86_64-pc-windows-msvc rejects -fPIC and -pthread; PIC is implicit
+    # and threading comes from the MSVC runtime.
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -DNDEBUG")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -DNDEBUG")
+    else()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -g -O3")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -g -O3")
+    endif()
 else()
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -g -O3 -fPIC -pthread")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -g -O3 -fPIC -pthread")
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -fPIC -DNDEBUG -pthread")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -fPIC -DNDEBUG -pthread")
+    else()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -g -O3 -fPIC -pthread")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -g -O3 -fPIC -pthread")
+    endif()
 endif()
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON) # NOTE: -fPIC above does not work with static libraries
@@ -62,11 +74,19 @@ ${PCL_INCLUDE_DIRS}
 ${PROJECT_SOURCE_DIR}/../open_chisel/include
 )
 
-set(EXTERNAL_LIBS 
+if(WIN32)
+    set(OPEN_CHISEL_LIB ${PROJECT_SOURCE_DIR}/../open_chisel/lib/open_chisel.lib)
+    set(PTHREAD_LIB "")
+else()
+    set(OPEN_CHISEL_LIB ${PROJECT_SOURCE_DIR}/../open_chisel/lib/libopen_chisel.a)
+    set(PTHREAD_LIB pthread)
+endif()
+
+set(EXTERNAL_LIBS
 ${EIGEN3_LIBS}
 ${PCL_LIBRARIES}
-${PROJECT_SOURCE_DIR}/../open_chisel/lib/libopen_chisel.a
-pthread
+${OPEN_CHISEL_LIB}
+${PTHREAD_LIB}
 )
 
 add_library(${PROJECT_NAME} src/ChiselServer.cpp)

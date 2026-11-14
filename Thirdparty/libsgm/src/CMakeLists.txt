@@ -1,25 +1,43 @@
 cmake_minimum_required(VERSION 3.1)
 
-set(CPP_STANDARD_VERSION "17" CACHE STRING "Desired C++ standard version") # this is the first target version that is searched for 
-
-find_package(CUDA REQUIRED)
+set(CPP_STANDARD_VERSION "17" CACHE STRING "Desired C++ standard version")
 
 include_directories(../include)
 
-if (CMAKE_COMPILER_IS_GNUCXX)
-	set(CMAKE_CXX_FLAGS "-O3 -Wall -march=native -fPIC -DNDEBUG")
-	set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++${CMAKE_CXX_STANDARD}")
-endif()
-
-SET(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} ${CUDA_ARCH}")
-
 file(GLOB STEREOSRCS "*.cu" "*.cpp")
 
-if(LIBSGM_SHARED)
-	CUDA_ADD_LIBRARY(sgm stereo_sgm.cpp ${STEREOSRCS} SHARED)
-	target_link_libraries(sgm ${CUDA_LIBRARIES})
+if(USE_HIP)
+    # HIP build
+    set_source_files_properties(${STEREOSRCS} PROPERTIES LANGUAGE HIP)
+    if(WIN32)
+      set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -std=c++${CMAKE_CXX_STANDARD} -O3")
+    else()
+      set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -std=c++${CMAKE_CXX_STANDARD} -O3 -fPIC")
+    endif()
+
+    if(LIBSGM_SHARED)
+        add_library(sgm SHARED stereo_sgm.cpp ${STEREOSRCS})
+    else()
+        add_library(sgm STATIC stereo_sgm.cpp ${STEREOSRCS})
+    endif()
+    set_target_properties(sgm PROPERTIES HIP_ARCHITECTURES "${CMAKE_HIP_ARCHITECTURES}")
 else()
-	CUDA_ADD_LIBRARY(sgm stereo_sgm.cpp ${STEREOSRCS} STATIC)
+    # CUDA build
+    find_package(CUDA REQUIRED)
+
+    if (CMAKE_COMPILER_IS_GNUCXX)
+        set(CMAKE_CXX_FLAGS "-O3 -Wall -march=native -fPIC -DNDEBUG")
+        set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++${CMAKE_CXX_STANDARD}")
+    endif()
+
+    SET(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} ${CUDA_ARCH}")
+
+    if(LIBSGM_SHARED)
+        CUDA_ADD_LIBRARY(sgm stereo_sgm.cpp ${STEREOSRCS} SHARED)
+        target_link_libraries(sgm ${CUDA_LIBRARIES})
+    else()
+        CUDA_ADD_LIBRARY(sgm stereo_sgm.cpp ${STEREOSRCS} STATIC)
+    endif()
 endif()
 
 install(

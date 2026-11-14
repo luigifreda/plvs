@@ -41,7 +41,7 @@
 #include<opencv2/core/core.hpp>
 #include<opencv2/features2d/features2d.hpp>
 
-#ifdef USE_CUDA
+#if defined(USE_CUDA) || defined(USE_HIP)
 #include <opencv2/cudaarithm.hpp>
 #include <opencv2/cudawarping.hpp>
 #endif
@@ -205,7 +205,7 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
 
     mEnableDepthFilter = static_cast<int> (Utils::GetParam(fSettings, "DepthFilter.Morphological.on", 0)) != 0; 
     mDepthCutoff = Utils::GetParam(fSettings, "DepthFilter.Morphological.cutoff", 20);
-#ifdef USE_CUDA
+#if defined(USE_CUDA) || defined(USE_HIP)
     if (mEnableDepthFilter) 
     {
         cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
@@ -1812,7 +1812,7 @@ Sophus::SE3f Tracking::GrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, co
     if((fabs(mDepthMapFactor-1.0f)>1e-5) || mImDepth.type()!=CV_32F)
         mImDepth.convertTo(mImDepth,CV_32F,mDepthMapFactor);
     
-#ifdef USE_CUDA
+#if defined(USE_CUDA) || defined(USE_HIP)
     if (mEnableDepthFilter) 
     {
         cv::cuda::GpuMat gpuInput_gray(mImDepth);

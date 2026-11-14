@@ -11,6 +11,65 @@
 # GLOG_ROOT - Can be set to Glog install path or Windows build path
 #
 
+# Modern glog (e.g. from vcpkg) ships a CMake config package exposing the
+# glog::glog imported target; prefer it when available (covers Windows, where the
+# manual library search below assumes an MSVC layout).
+if(NOT GLOG_FOUND)
+     # glog's config package may declare a link dependency on gflags::gflags;
+     # resolve it first so the imported target loads cleanly. Some gflags
+     # packages export gflags::gflags_shared/_static instead, so alias it.
+     find_package(gflags CONFIG QUIET)
+     if(NOT TARGET gflags::gflags)
+          # gflags exports its target under several names depending on the build:
+          # gflags::gflags_shared/_static when GFLAGS_USE_TARGET_NAMESPACE is on,
+          # the bare gflags_shared/gflags_static when it is off (vcpkg's
+          # x64-windows-static-md default). Alias whichever exists to the name the
+          # glog config package expects.
+          if(TARGET gflags::gflags_shared)
+               add_library(gflags::gflags ALIAS gflags::gflags_shared)
+          elseif(TARGET gflags::gflags_static)
+               add_library(gflags::gflags ALIAS gflags::gflags_static)
+          elseif(TARGET gflags_shared)
+               add_library(gflags::gflags ALIAS gflags_shared)
+          elseif(TARGET gflags_static)
+               add_library(gflags::gflags ALIAS gflags_static)
+          elseif(TARGET gflags)
+               add_library(gflags::gflags ALIAS gflags)
+          endif()
+     endif()
+     find_package(glog CONFIG QUIET)
+     if(TARGET glog::glog)
+          set(GLOG_LIBRARIES glog::glog)
+          # The vcpkg static glog (x64-windows-static-md) is built against Abseil
+          # for its logging core but its CMake config does not export that as an
+          # interface dependency, so consumers see unresolved absl::log_internal /
+          # absl::Cord symbols. On Linux the system shared glog links Abseil
+          # internally; adding absl imported targets here would pull
+          # /opt/conda/include into the compile flags and break the generated
+          # voxblox .pb.h version check (conda absl is v7.35, .pb.h expects v3.21).
+          if(WIN32)
+               find_package(absl CONFIG QUIET)
+               foreach(_absl_tgt absl::log absl::log_internal_check_op absl::cord)
+                    if(TARGET ${_absl_tgt})
+                         list(APPEND GLOG_LIBRARIES ${_absl_tgt})
+                    endif()
+               endforeach()
+          endif()
+          get_target_property(GLOG_INCLUDE_DIRS glog::glog INTERFACE_INCLUDE_DIRECTORIES)
+          # Projects here include <glog/logging.h> via include_directories rather
+          # than by linking glog::glog on every target, so propagate the imported
+          # target's interface compile definitions (GLOG_USE_GLOG_EXPORT etc.)
+          # globally; without them the headers #error out.
+          get_target_property(_glog_defs glog::glog INTERFACE_COMPILE_DEFINITIONS)
+          if(_glog_defs)
+               add_compile_definitions(${_glog_defs})
+          endif()
+          set(GLOG_FOUND TRUE)
+          message(STATUS "glog found via CMake config package (glog::glog)")
+          return()
+     endif()
+endif()
+
 if (NOT DEFINED GLOG_ROOT)
      set (GLOG_ROOT /usr /usr/local)
 endif (NOT DEFINED GLOG_ROOT)

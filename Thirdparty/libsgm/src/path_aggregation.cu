@@ -1,3 +1,4 @@
+#include "cuda_to_hip.h"
 /*
 Copyright 2016 Fixstars Corporation
 

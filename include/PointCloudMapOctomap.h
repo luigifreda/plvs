@@ -73,13 +73,13 @@ protected:
 
 #if !USE_NORMALS
 
-template class PointCloudMapOctomap<pcl::PointXYZRGBA>;
+extern template class PointCloudMapOctomap<pcl::PointXYZRGBA>;
 
 #else
 
-template class PointCloudMapOctomap<pcl::PointXYZRGBNormal>;
+extern template class PointCloudMapOctomap<pcl::PointXYZRGBNormal>;
 
-template class PointCloudMapOctomap<pcl::PointSurfelSegment>;
+extern template class PointCloudMapOctomap<pcl::PointSurfelSegment>;
 
 #endif
 

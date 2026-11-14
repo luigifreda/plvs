@@ -294,7 +294,7 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
 #endif
     if(mpLineExtractorLeft)
     {            
-#ifndef USE_CUDA          
+#if !defined(USE_CUDA) && !defined(USE_HIP)          
         if( Tracking::skUsePyramidPrecomputation )
         {
             // pre-compute Gaussian pyramid to be used for the extraction of both keypoints and keylines        
@@ -478,7 +478,7 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
     
     TICKTRACK("ExtractFeatures");             
    
-#ifndef USE_CUDA    
+#if !defined(USE_CUDA) && !defined(USE_HIP)    
     if( Tracking::skUsePyramidPrecomputation )
     {
         // pre-compute Gaussian pyramid to be used for the extraction of both keypoints and keylines 
@@ -841,7 +841,7 @@ void Frame::PrecomputeGaussianPyramid(int flag, const cv::Mat &im)
     if(flag==0)
     {
         mpORBextractorLeft->PrecomputeGaussianPyramid(im);
-#ifndef USE_CUDA        
+#if !defined(USE_CUDA) && !defined(USE_HIP)        
     #if USE_UNFILTERED_PYRAMID_FOR_LINES        
         if(mpLineExtractorLeft) mpLineExtractorLeft->SetGaussianPyramid(mpORBextractorLeft->mvImagePyramid, mpLineExtractorLeft->GetLevels(), mpORBextractorLeft->GetScaleFactor());
     #else         
@@ -852,7 +852,7 @@ void Frame::PrecomputeGaussianPyramid(int flag, const cv::Mat &im)
     else
     {
         mpORBextractorRight->PrecomputeGaussianPyramid(im);
-#ifndef USE_CUDA          
+#if !defined(USE_CUDA) && !defined(USE_HIP)          
     #if USE_UNFILTERED_PYRAMID_FOR_LINES            
         if(mpLineExtractorRight) mpLineExtractorRight->SetGaussianPyramid(mpORBextractorRight->mvImagePyramid, mpLineExtractorRight->GetLevels(), mpORBextractorRight->GetScaleFactor());
     #else          
@@ -1890,7 +1890,7 @@ void Frame::ComputeStereoMatches()
             // sliding window search
             const int w = 5;
             //cv::Mat IL = mpORBextractorLeft->mvImagePyramid[kpL.octave].rowRange(scaledvL-w,scaledvL+w+1).colRange(scaleduL-w,scaleduL+w+1);
-#ifdef USE_CUDA
+#if defined(USE_CUDA) || defined(USE_HIP)
             cv::cuda::GpuMat gMat = mpORBextractorLeft->mvImagePyramid[kpL.octave]
                                         .rowRange(scaledvL - w, scaledvL + w + 1)
                                         .colRange(scaleduL - w, scaleduL + w + 1);
@@ -1918,7 +1918,7 @@ void Frame::ComputeStereoMatches()
             for(int incR=-L; incR<=+L; incR++)
             {
                 //cv::Mat IR = mpORBextractorRight->mvImagePyramid[kpL.octave].rowRange(scaledvL-w,scaledvL+w+1).colRange(scaleduR0+incR-w,scaleduR0+incR+w+1);
-#ifdef USE_CUDA
+#if defined(USE_CUDA) || defined(USE_HIP)
                 cv::cuda::GpuMat gMat = mpORBextractorRight->mvImagePyramid[kpL.octave]
                         .rowRange(scaledvL - w, scaledvL + w + 1)
                         .colRange(scaleduR0 + incR - w, scaleduR0 + incR + w + 1);
@@ -2863,7 +2863,7 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
 #endif
     if(mpLineExtractorLeft)
     {            
-#ifndef USE_CUDA          
+#if !defined(USE_CUDA) && !defined(USE_HIP)          
         if( Tracking::skUsePyramidPrecomputation )
         {
             // pre-compute Gaussian pyramid to be used for the extraction of both keypoints and keylines        

@@ -108,18 +108,23 @@ protected:
     
     std::unordered_map<uint32_t, typename PointCloudKeyFrameT::Ptr> mapKfidPointCloudKeyFrame_;    
 };
+// Declare the explicit specialization before the instantiation below so the
+// compiler knows it is specialized (clang errors on specialization-after-
+// instantiation otherwise).
+template<> void PointCloudMapOctreePointCloud<pcl::PointSurfelSegment>::OnMapChange();
+
 
 
 
 #if !USE_NORMALS
 
-template class PointCloudMapOctreePointCloud<pcl::PointXYZRGBA>;
+extern template class PointCloudMapOctreePointCloud<pcl::PointXYZRGBA>;
 
 #else
 
-template class PointCloudMapOctreePointCloud<pcl::PointXYZRGBNormal>;
+extern template class PointCloudMapOctreePointCloud<pcl::PointXYZRGBNormal>;
 
-template class PointCloudMapOctreePointCloud<pcl::PointSurfelSegment>;
+extern template class PointCloudMapOctreePointCloud<pcl::PointSurfelSegment>;
 
 #endif
 

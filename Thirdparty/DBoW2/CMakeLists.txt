@@ -20,8 +20,13 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -fPIC -DNDEBUG")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall  -O3 -fPIC -DNDEBUG")
+if(WIN32)
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -DNDEBUG")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall  -O3 -DNDEBUG")
+else()
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -fPIC -DNDEBUG")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall  -O3 -fPIC -DNDEBUG")
+endif()
 
 if(BUILD_WITH_MARCH_NATIVE)
   set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -march=native") 
@@ -66,7 +71,14 @@ ${Boost_LIBRARIES}
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
 include_directories(${OpenCV_INCLUDE_DIRS})
-add_library(DBoW2 SHARED ${SRCS_DBOW2} ${SRCS_DUTILS})
+# Build a static archive on Windows: the sources carry no __declspec(dllexport),
+# and WINDOWS_EXPORT_ALL_SYMBOLS does not export static data members (e.g.
+# FORB::L), so a DLL would leave them unresolved for consumers.
+if(WIN32)
+  add_library(DBoW2 STATIC ${SRCS_DBOW2} ${SRCS_DUTILS})
+else()
+  add_library(DBoW2 SHARED ${SRCS_DBOW2} ${SRCS_DUTILS})
+endif()
 target_link_libraries(DBoW2 ${EXTERNAL_CORE_LIBS})
 
 

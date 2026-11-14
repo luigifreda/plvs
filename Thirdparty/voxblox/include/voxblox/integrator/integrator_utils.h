@@ -76,8 +76,8 @@ class RayCaster {
   AnyIndex ray_step_signs_;
   Ray t_step_size_;
 
-  uint ray_length_in_steps_;
-  uint current_step_;
+  unsigned int ray_length_in_steps_;
+  unsigned int current_step_;
 };
 
 // This function assumes PRE-SCALED coordinates, where one unit = one voxel

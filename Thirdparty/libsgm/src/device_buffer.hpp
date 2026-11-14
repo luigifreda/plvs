@@ -18,6 +18,7 @@ limitations under the License.
 #define SGM_DEVICE_BUFFER_HPP
 
 #include <cstddef>
+#include "cuda_to_hip.h"
 
 namespace sgm {
 

@@ -22,6 +22,7 @@
 #ifndef PROJECTIONINTEGRATOR_H_
 #define PROJECTIONINTEGRATOR_H_
 
+#include <cassert>  // assert() is not transitively included on all toolchains
 #include <iostream>
 
 #include <open_chisel/pointcloud/PointCloud.h>

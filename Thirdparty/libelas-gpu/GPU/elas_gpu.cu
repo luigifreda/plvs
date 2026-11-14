@@ -1,3 +1,4 @@
+#include "cuda_to_hip.h"
 #include "elas_gpu.h"
 
 //#define DEBUG 
@@ -391,7 +392,7 @@ void ElasGPU::computeDisparity(std::vector<support_pt> p_support, std::vector<tr
       tri_u[1] = p_support[c2].u-p_support[c2].d;
       tri_u[2] = p_support[c3].u-p_support[c3].d;
     }
-    float tri_v[3] = {p_support[c1].v,p_support[c2].v,p_support[c3].v};
+    float tri_v[3] = {(float)p_support[c1].v,(float)p_support[c2].v,(float)p_support[c3].v};
     
     for (uint32_t j=0; j<3; j++) {
       for (uint32_t k=0; k<j; k++) {
@@ -590,8 +591,7 @@ void ElasGPU::computeDisparity(std::vector<support_pt> p_support, std::vector<tr
   cudaFree(d_I1);
   cudaFree(d_I2);
   cudaFree(d_grid_dims);
-  cudaFree(d_u_vals);
-  cudaFree(d_v_vals);
+  cudaFree(d_valids);
 
 }
 

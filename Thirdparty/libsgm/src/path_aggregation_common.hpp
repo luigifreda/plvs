@@ -18,7 +18,10 @@ limitations under the License.
 #define SGM_PATH_AGGREGATION_COMMON_HPP
 
 #include <cstdint>
+#include "cuda_to_hip.h"
+#if !defined(USE_HIP) && !defined(__HIP_PLATFORM_AMD__)
 #include <cuda.h>
+#endif
 #include "utility.hpp"
 
 namespace sgm {

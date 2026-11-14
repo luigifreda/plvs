@@ -220,12 +220,12 @@ protected:
 #if !USE_NORMALS
 
 /// < list here the types you want to use 
-template class PointCloudMap<pcl::PointXYZRGBA>;
+extern template class PointCloudMap<pcl::PointXYZRGBA>;
 
 #else
 
-template class PointCloudMap<pcl::PointXYZRGBNormal>;
-template class PointCloudMap<pcl::PointSurfelSegment>;
+extern template class PointCloudMap<pcl::PointXYZRGBNormal>;
+extern template class PointCloudMap<pcl::PointSurfelSegment>;
 
 #endif
 

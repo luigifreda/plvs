@@ -21,7 +21,7 @@
 #include <fstream>
 #include <iomanip>
 #include <chrono>
-#include <unistd.h>
+#include "PosixCompat.h"
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>

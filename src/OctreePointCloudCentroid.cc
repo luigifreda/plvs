@@ -379,3 +379,12 @@ void OctreePointCloudCentroid<PointT, LeafContainerT, BranchContainerT, OctreeT>
 
 }//namespace octree
 }//namespace pcl
+
+// Explicit template instantiations after the out-of-line member definitions.
+namespace pcl { namespace octree {
+
+template class OctreePointCloudCentroid<pcl::PointXYZRGBA>;
+template class OctreePointCloudCentroid<pcl::PointXYZRGBNormal>;
+template class OctreePointCloudCentroid<pcl::PointSurfelSegment>;
+
+}} // namespace pcl::octree

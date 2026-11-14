@@ -955,6 +955,9 @@ int PointCloudMapOctreePointCloud<PointT>::UpdateMapNoSegm()
     //const int threshold = this->nPointCounterThreshold_ - 1;
     const unsigned int threshold = std::max(this->pPointCloudMapParameters_->nPointCounterThreshold - 1, 0);    
 
+    // deleteVoxelAtPoint() can free a leaf or branch the iterator has not visited yet (a centroid can lie in a neighbouring voxel); delete after the loop.
+    typename OctreeType::AlignedPointTVector pointsToDelete;
+
     typename OctreeType::LeafNodeIterator it, itEnd;
 #if PCL_VERSION <= PCL_VERSION_CALC(1, 10, 0)  // pcl 1.10    
     for (it = octree_.leaf_begin(), itEnd = octree_.leaf_end(); it != itEnd; it++)
@@ -987,10 +990,14 @@ int PointCloudMapOctreePointCloud<PointT>::UpdateMapNoSegm()
                 if (deltaT > kDeltaTimeForCleaningUnstablePointsUs)
                 {
                     num_removed_unstable_points++;
-                    octree_.deleteVoxelAtPoint(mapPoint);
+                    pointsToDelete.push_back(mapPoint);
                 }
             }
         }
+    }
+    for (const PointT& point : pointsToDelete)
+    {
+        octree_.deleteVoxelAtPoint(point);
     }
     
     std::cout << "PointCloudMapOctreePointCloud<PointT>::UpdateMap() - removed " << num_removed_unstable_points << " unstable points" << std::endl;
@@ -1032,6 +1039,9 @@ int PointCloudMapOctreePointCloud<PointT>::UpdateMapSegm()
     //mapLabelsCardinality.clear();
 #endif
 
+    // deleteVoxelAtPoint() can free a leaf or branch the iterator has not visited yet (a centroid can lie in a neighbouring voxel); delete after the loop.
+    typename OctreeType::AlignedPointTVector pointsToDelete;
+
     typename OctreeType::LeafNodeIterator it, itEnd;
 #if PCL_VERSION <= PCL_VERSION_CALC(1, 10, 0)  // pcl 1.10    
     for (it = octree_.leaf_begin(), itEnd = octree_.leaf_end(); it != itEnd; it++)
@@ -1068,10 +1078,14 @@ int PointCloudMapOctreePointCloud<PointT>::UpdateMapSegm()
                 if (deltaT > kDeltaTimeForCleaningUnstablePointsUs)
                 {
                     num_removed_unstable_points++;
-                    octree_.deleteVoxelAtPoint(mapPoint);
+                    pointsToDelete.push_back(mapPoint);
                 }
             }
         }
+    }
+    for (const PointT& point : pointsToDelete)
+    {
+        octree_.deleteVoxelAtPoint(point);
     }
     
     std::cout << "PointCloudMapOctreePointCloud<PointT>::UpdateMap() - removed " << num_removed_unstable_points << " unstable points" << std::endl;
@@ -1282,3 +1296,18 @@ bool PointCloudMapOctreePointCloud<PointT>::LoadMap(const std::string& filename)
 
 
 } //namespace PLVS2
+
+// Explicit template instantiations after the out-of-line member definitions.
+namespace PLVS2 {
+#if !USE_NORMALS
+
+template class PointCloudMapOctreePointCloud<pcl::PointXYZRGBA>;
+
+#else
+
+template class PointCloudMapOctreePointCloud<pcl::PointXYZRGBNormal>;
+
+template class PointCloudMapOctreePointCloud<pcl::PointSurfelSegment>;
+
+#endif
+} // namespace PLVS2

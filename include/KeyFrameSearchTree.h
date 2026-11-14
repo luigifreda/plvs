@@ -84,7 +84,7 @@ protected:
 };
 
 /// < list here the types you want to use 
-template class KeyFrameSearchTree<pcl::PointXYZL>;
+extern template class KeyFrameSearchTree<pcl::PointXYZL>;
 
 
 } //namespace PLVS2

@@ -59,6 +59,12 @@ if [ $USE_CUDA -eq 1 ]; then
     EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DWITH_CUDA=ON"
 fi
 
+# check HIP options
+if [ $USE_HIP -eq 1 ]; then
+    echo "USE_HIP: $USE_HIP"
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DUSE_HIP=ON"
+fi
+
 if [[ $OPENCV_VERSION == 4* ]]; then
     EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DOPENCV_VERSION=4"
 fi

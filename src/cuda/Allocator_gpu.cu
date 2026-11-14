@@ -18,6 +18,7 @@
  */
 
 #include <cassert>
+#include "cuda_to_hip.h"
 #include <cuda/helper_cuda.h>
 #include <cuda/Allocator.hpp>
 

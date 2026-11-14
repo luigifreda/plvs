@@ -388,9 +388,9 @@ public:
 
 };
 
-template class OctreePointCloudCentroid<pcl::PointXYZRGBA>;
-template class OctreePointCloudCentroid<pcl::PointXYZRGBNormal>;
-template class OctreePointCloudCentroid<pcl::PointSurfelSegment>;
+extern template class OctreePointCloudCentroid<pcl::PointXYZRGBA>;
+extern template class OctreePointCloudCentroid<pcl::PointXYZRGBNormal>;
+extern template class OctreePointCloudCentroid<pcl::PointSurfelSegment>;
 
 }//namespace octree
 }//namespace pcl

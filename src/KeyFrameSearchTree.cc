@@ -128,3 +128,10 @@ void KeyFrameSearchTree<PointT>::RadiusSearch(const Eigen::Vector3f& Ow, double 
 
 
 
+
+// Explicit template instantiations after the out-of-line member definitions.
+namespace PLVS2 {
+template class KeyFrameSearchTree<pcl::PointXYZL>;
+
+
+} // namespace PLVS2

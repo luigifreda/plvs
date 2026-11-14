@@ -567,3 +567,19 @@ void PointCloudMap<PointT>::ComputeNormals(typename PointCloudT::Ptr pCloud)
 }
 
 } //namespace PLVS2
+// Explicit template instantiations after the out-of-line member definitions
+// (clang/MSVC do not instantiate member bodies when the instantiation precedes
+// them, which is what the in-header declarations now do via 'extern template').
+namespace PLVS2 {
+#if !USE_NORMALS
+
+/// < list here the types you want to use 
+template class PointCloudMap<pcl::PointXYZRGBA>;
+
+#else
+
+template class PointCloudMap<pcl::PointXYZRGBNormal>;
+template class PointCloudMap<pcl::PointSurfelSegment>;
+
+#endif
+} // namespace PLVS2

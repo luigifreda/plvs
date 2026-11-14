@@ -84,19 +84,24 @@ protected:
     std::map<uint32_t, typename PointCloudKeyFrameT::Ptr> mapKfidPointCloudKeyFrame_; // ordered map since we use its order in the KF adjustment 
 
 };
+// Declare the explicit specialization before the instantiation below so the
+// compiler knows it is specialized (clang errors on specialization-after-
+// instantiation otherwise).
+template<> void PointCloudMapChisel<pcl::PointSurfelSegment>::OnMapChange();
+
 
 
 
 
 #if !USE_NORMALS
 
-template class PointCloudMapChisel<pcl::PointXYZRGBA>;
+extern template class PointCloudMapChisel<pcl::PointXYZRGBA>;
 
 #else
 
-template class PointCloudMapChisel<pcl::PointXYZRGBNormal>;
+extern template class PointCloudMapChisel<pcl::PointXYZRGBNormal>;
 
-template class PointCloudMapChisel<pcl::PointSurfelSegment>;
+extern template class PointCloudMapChisel<pcl::PointSurfelSegment>;
 
 #endif
 

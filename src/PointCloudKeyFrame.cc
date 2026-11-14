@@ -430,7 +430,7 @@ void PointCloudKeyFrame<PointT>::ProcessStereoLibelas()
     }
 
     // allocate memory for disparity images
-    const int32_t dims[3] = { imgLeft.cols, imgLeft.rows, imgLeft.step[0] }; // bytes per line = width
+    const int32_t dims[3] = { imgLeft.cols, imgLeft.rows, (int32_t)imgLeft.step[0] }; // bytes per line = width
     //float* D1_data = new float[width*height];
     //float* D2_data = new float[width*height];        
     cv::Mat imgD1 = cv::Mat(height, width, CV_32F);  
@@ -642,3 +642,21 @@ void PointCloudKeyFrame<PointT>::GetTransformedCloud(const cv::Mat& Twc, typenam
 }
 
 }
+
+// Explicit template instantiations after the out-of-line member definitions
+// (clang/MSVC do not instantiate member bodies when the instantiation precedes
+// them, which is what the in-header declarations now do via 'extern template').
+namespace PLVS2 {
+#if !USE_NORMALS
+
+/// < list here the types you want to use 
+template class PointCloudKeyFrame<pcl::PointXYZRGBA>;
+
+#else
+
+template class PointCloudKeyFrame<pcl::PointXYZRGBNormal>;
+template class PointCloudKeyFrame<pcl::PointSurfelSegment>;
+
+
+#endif
+} // namespace PLVS2

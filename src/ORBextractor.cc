@@ -76,7 +76,7 @@
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-#ifdef USE_CUDA
+#if defined(USE_CUDA) || defined(USE_HIP)
 #include <opencv2/core/cuda.hpp>
 #include <opencv2/cudafeatures2d.hpp>
 #include <opencv2/cudawarping.hpp>
@@ -106,7 +106,7 @@ namespace PLVS2
     const int EDGE_THRESHOLD = 19;
 
 
-#ifndef USE_CUDA
+#if !defined(USE_CUDA) && !defined(USE_HIP)
     static float IC_Angle(const Mat& image, Point2f pt,  const vector<int> & u_max)
     {
         int m_01 = 0, m_10 = 0;
@@ -447,7 +447,7 @@ namespace PLVS2
                                int _iniThFAST, int _minThFAST):
             nfeatures(_nfeatures), scaleFactor(_scaleFactor), nlevels(_nlevels),
             iniThFAST(_iniThFAST), minThFAST(_minThFAST), mbPrecomputedGaussianPyramid(false)
-    #ifdef USE_CUDA
+    #if defined(USE_CUDA) || defined(USE_HIP)
         ,
         gpuFast(iniThFAST, minThFAST, nfeatures * 2), ic_angle(), gpuOrb()
         //gpuFast(iniThFAST, minThFAST), ic_angle(), gpuOrb()
@@ -471,7 +471,7 @@ namespace PLVS2
             mvInvLevelSigma2[i]=1.0f/mvLevelSigma2[i];
         }
 
-    #ifdef USE_CUDA
+    #if defined(USE_CUDA) || defined(USE_HIP)
         // Postpone the allocation of the Pyramids to the time we process the first frame.
         mbImagePyramidAllocated = false;
     #else
@@ -515,14 +515,14 @@ namespace PLVS2
             ++v0;
         }
         
-    #ifdef USE_CUDA
+    #if defined(USE_CUDA) || defined(USE_HIP)
         cuda::IC_Angle::loadUMax(umax.data(), umax.size());
         cuda::GpuOrb::loadPattern(pattern.data());
     #endif
 
     }
 
-    #ifndef USE_CUDA
+    #if !defined(USE_CUDA) && !defined(USE_HIP)
     static void computeOrientation(const Mat& image, vector<KeyPoint>& keypoints, const vector<int>& umax)
     {
         for (vector<KeyPoint>::iterator keypoint = keypoints.begin(),
@@ -882,7 +882,7 @@ namespace PLVS2
             vector<cv::KeyPoint> vToDistributeKeys;
             vToDistributeKeys.reserve(nfeatures*10);
 
-    #ifdef USE_CUDA
+    #if defined(USE_CUDA) || defined(USE_HIP)
             
             //N.B.: !in this CUDA version FAST keypoints are extracted without considering the iniThFAST and minThFAST (the tiling seems to be used at cuda kernel level)!
             
@@ -1000,14 +1000,14 @@ namespace PLVS2
             vector<KeyPoint> & keypoints = allKeypoints[level];
             keypoints.reserve(nfeatures);
 
-    #ifdef USE_CUDA
+    #if defined(USE_CUDA) || defined(USE_HIP)
             PUSH_RANGE("DistributeOctTree", 3);
     #endif
         
             keypoints = DistributeOctTree(vToDistributeKeys, minBorderX, maxBorderX,
                                         minBorderY, maxBorderY, mnFeaturesPerLevel[level], level);
 
-    #ifdef USE_CUDA
+    #if defined(USE_CUDA) || defined(USE_HIP)
             POP_RANGE;
 
             // Add border to coordinates and scale information
@@ -1246,7 +1246,7 @@ namespace PLVS2
                                 OutputArray _descriptors, std::vector<int> &vLappingArea)
     {
 
-    #ifdef USE_CUDA
+    #if defined(USE_CUDA) || defined(USE_HIP)
     PUSH_RANGE("ORBextractor", 0);
     #endif
     
@@ -1297,7 +1297,7 @@ namespace PLVS2
                 continue;
 
             // preprocess the resized image
-    #ifdef USE_CUDA
+    #if defined(USE_CUDA) || defined(USE_HIP)
             //cv::cuda::GpuMat& gMat = mvImagePyramid[level];
                     
             // Compute of Gaussion Blur is pipelined into `ComputeKeyPointsOctTree()`
@@ -1378,7 +1378,7 @@ namespace PLVS2
             }
         }
 
-    #ifdef USE_CUDA
+    #if defined(USE_CUDA) || defined(USE_HIP)
         POP_RANGE;
     #endif
 
@@ -1409,7 +1409,7 @@ namespace PLVS2
         
         for (int level = 0; level < nlevels; ++level)
         {
-    #ifdef USE_CUDA
+    #if defined(USE_CUDA) || defined(USE_HIP)
             #define CV_STREAM_MODE  ,mcvStream // N.B: the use of mcvStream allows to perform asynchronous computations 
             mpGaussianFilter->apply(mvImagePyramid[level], mvImagePyramidPreFiltered[level] CV_STREAM_MODE);       
             mvImagePyramidPreFiltered[level].download(mvImagePyramidFiltered[level] CV_STREAM_MODE); 
@@ -1419,14 +1419,14 @@ namespace PLVS2
     #endif        
         }
         
-    #ifdef USE_CUDA    
+    #if defined(USE_CUDA) || defined(USE_HIP)    
         mcvStream.waitForCompletion();
     #endif    
         
         mbPrecomputedGaussianPyramid = true; 
     }
 
-    #ifdef USE_CUDA
+    #if defined(USE_CUDA) || defined(USE_HIP)
 
     void ORBextractor::ComputePyramid(const cv::Mat& image)
     {

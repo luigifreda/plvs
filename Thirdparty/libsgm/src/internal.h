@@ -23,8 +23,11 @@ limitations under the License.
 
 #include <stdexcept>
 
+#include "cuda_to_hip.h"
+#if !defined(USE_HIP) && !defined(__HIP_PLATFORM_AMD__)
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
+#endif
 
 #define CudaSafeCall(error) sgm::details::cuda_safe_call(error, __FILE__, __LINE__)
 
