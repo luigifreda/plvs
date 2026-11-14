@@ -950,7 +950,7 @@ void KeyFrame::ChangeParent(KeyFramePtr& pKF)
     }
 
     mpParent = pKF;
-    pKF->AddChild(WrapPtr(this)); // N.B.: we use a wrap pointer (empty deleter) since the raw ptr 'this' has not been created with the wrap pointer 
+    pKF->AddChild(WrapPtr(this));
 }
 
 set<KeyFramePtr> KeyFrame::GetChilds()

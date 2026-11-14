@@ -79,7 +79,7 @@ class GeometricCamera;
 class ORBextractor;
 class LineExtractor; 
 
-class Frame
+class Frame : public std::enable_shared_from_this<Frame>
 {
 public:
     

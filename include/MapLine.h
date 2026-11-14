@@ -37,7 +37,7 @@ class KeyFrame;
 class Map;
 class Frame;
 
-class MapLine
+class MapLine : public std::enable_shared_from_this<MapLine>
 {
     friend class boost::serialization::access;
     template<class Archive>

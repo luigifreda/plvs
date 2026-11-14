@@ -90,7 +90,7 @@ public:
 
 
 // TODO: add serialization? (objects could be moved)
-class MapObject 
+class MapObject : public std::enable_shared_from_this<MapObject>
 {
 public: 
     

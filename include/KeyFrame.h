@@ -67,7 +67,7 @@ class KeyFrameDatabase;
 
 class GeometricCamera;
 
-class KeyFrame
+class KeyFrame : public std::enable_shared_from_this<KeyFrame>
 {
     
 public:

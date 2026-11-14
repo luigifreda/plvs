@@ -355,8 +355,7 @@ void MapLine::SetBadFlag()
     }
 
     //mpMap->EraseMapLine(this);
-    mpMap->EraseMapLine(WrapPtr(this));   // N.B.: 1) we use a wrap pointer (empty deleter) since the raw ptr 'this' has not been created with the wrap pointer 
-                                          //       2) the comparison operators for shared_ptr simply compare pointer values        
+    mpMap->EraseMapLine(WrapPtr(this));
 }
 
 MapLinePtr MapLine::GetReplaced()
@@ -466,8 +465,7 @@ void MapLine::Replace(MapLinePtr& pML)
     pML->ComputeDistinctiveDescriptors();
 
     //mpMap->EraseMapLine(this);
-    mpMap->EraseMapLine(WrapPtr(this));   // N.B.: 1) we use a wrap pointer (empty deleter) since the raw ptr 'this' has not been created with the wrap pointer 
-                                          //       2) the comparison operators for shared_ptr simply compare pointer values    
+    mpMap->EraseMapLine(WrapPtr(this));
 }
 
 bool MapLine::isBad()

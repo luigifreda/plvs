@@ -21,6 +21,8 @@
 
 #include "PointCloudMapOctreePointCloud.h"
 
+#include <vector>
+
 #include "PointUtils.h"
 
 #include <pcl/io/ply_io.h>
@@ -955,8 +957,9 @@ int PointCloudMapOctreePointCloud<PointT>::UpdateMapNoSegm()
     //const int threshold = this->nPointCounterThreshold_ - 1;
     const unsigned int threshold = std::max(this->pPointCloudMapParameters_->nPointCounterThreshold - 1, 0);    
 
-    // deleteVoxelAtPoint() can free a leaf or branch the iterator has not visited yet (a centroid can lie in a neighbouring voxel); delete after the loop.
-    typename OctreeType::AlignedPointTVector pointsToDelete;
+    // Save leaf keys: centroid rounding can select a neighbouring voxel.
+    // Defer removal until traversal is complete to keep the iterator valid.
+    std::vector<pcl::octree::OctreeKey> keysToDelete;
 
     typename OctreeType::LeafNodeIterator it, itEnd;
 #if PCL_VERSION <= PCL_VERSION_CALC(1, 10, 0)  // pcl 1.10    
@@ -979,10 +982,9 @@ int PointCloudMapOctreePointCloud<PointT>::UpdateMapNoSegm()
             else
             {
                 // remove unstable points 
-                const PointT& mapPoint = leaf.getCentroid();
 
 #ifndef BUILD_UNSTABLE_AS_CARVED                
-                this->pPointCloudUnstable_->push_back(point);
+                this->pPointCloudUnstable_->push_back(leaf.getCentroid());
 #endif                
                 std::uint64_t deltaT = this->lastTimestamp_ - leaf.getTimestamp();
                 //std::cout << "deltaT: " << deltaT << "pt: " << leaf.getTimestamp() << ", lt:" << this->lastTimestamp_ << std::endl; 
@@ -990,14 +992,14 @@ int PointCloudMapOctreePointCloud<PointT>::UpdateMapNoSegm()
                 if (deltaT > kDeltaTimeForCleaningUnstablePointsUs)
                 {
                     num_removed_unstable_points++;
-                    pointsToDelete.push_back(mapPoint);
+                    keysToDelete.push_back(it.getCurrentOctreeKey());
                 }
             }
         }
     }
-    for (const PointT& point : pointsToDelete)
+    for (const auto& key : keysToDelete)
     {
-        octree_.deleteVoxelAtPoint(point);
+        octree_.removeLeaf(key.x, key.y, key.z);
     }
     
     std::cout << "PointCloudMapOctreePointCloud<PointT>::UpdateMap() - removed " << num_removed_unstable_points << " unstable points" << std::endl;
@@ -1039,8 +1041,9 @@ int PointCloudMapOctreePointCloud<PointT>::UpdateMapSegm()
     //mapLabelsCardinality.clear();
 #endif
 
-    // deleteVoxelAtPoint() can free a leaf or branch the iterator has not visited yet (a centroid can lie in a neighbouring voxel); delete after the loop.
-    typename OctreeType::AlignedPointTVector pointsToDelete;
+    // Save leaf keys: centroid rounding can select a neighbouring voxel.
+    // Defer removal until traversal is complete to keep the iterator valid.
+    std::vector<pcl::octree::OctreeKey> keysToDelete;
 
     typename OctreeType::LeafNodeIterator it, itEnd;
 #if PCL_VERSION <= PCL_VERSION_CALC(1, 10, 0)  // pcl 1.10    
@@ -1067,10 +1070,9 @@ int PointCloudMapOctreePointCloud<PointT>::UpdateMapSegm()
             else
             {
                 // remove unstable points 
-                const PointT& mapPoint = leaf.getCentroid();
 
 #ifndef BUILD_UNSTABLE_AS_CARVED                
-                this->pPointCloudUnstable_->push_back(point);
+                this->pPointCloudUnstable_->push_back(leaf.getCentroid());
 #endif                
                 std::uint64_t deltaT = this->lastTimestamp_ - leaf.getTimestamp();
                 //std::cout << "deltaT: " << deltaT << "pt: " << leaf.getTimestamp() << ", lt:" << this->lastTimestamp_ << std::endl; 
@@ -1078,14 +1080,14 @@ int PointCloudMapOctreePointCloud<PointT>::UpdateMapSegm()
                 if (deltaT > kDeltaTimeForCleaningUnstablePointsUs)
                 {
                     num_removed_unstable_points++;
-                    pointsToDelete.push_back(mapPoint);
+                    keysToDelete.push_back(it.getCurrentOctreeKey());
                 }
             }
         }
     }
-    for (const PointT& point : pointsToDelete)
+    for (const auto& key : keysToDelete)
     {
-        octree_.deleteVoxelAtPoint(point);
+        octree_.removeLeaf(key.x, key.y, key.z);
     }
     
     std::cout << "PointCloudMapOctreePointCloud<PointT>::UpdateMap() - removed " << num_removed_unstable_points << " unstable points" << std::endl;

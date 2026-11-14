@@ -25,6 +25,7 @@
 #include <memory>
 #include <stdarg.h>
 #include <type_traits>
+#include <utility>
 
 
 #ifndef UNUSED_VAR
@@ -34,6 +35,8 @@
 namespace PLVS2
 {
  
+// Explicitly non-owning adapters. Do not use these to share an existing owner:
+// their control block is independent and does not keep the object alive.
 template <typename T>
 struct EmptyDelete
 {
@@ -51,19 +54,26 @@ struct SharedPtrWithDeleter : public std::shared_ptr<T>
 //inline TypePtr NewPtr(Args&&... args) { return nullptr; } 
 
 
+// Smart-pointer types must publicly inherit std::enable_shared_from_this<Type>.
+// Define WrapPtr in the .cc file, where Type is complete, just like raw deletion.
+// A non-null object must already have a shared owner before calling WrapPtr;
+// otherwise shared_from_this throws std::bad_weak_ptr. Never wrap in a constructor.
 #define DECLARE_SMART_POINTERS(Type) \
     typedef std::shared_ptr<Type> Type##Ptr; \
     typedef Type* Type##RawPtr; \
     typedef std::weak_ptr<Type> Type##WeakPtr; \
     typedef std::shared_ptr<const Type> Type##ConstPtr; \
-    typedef SharedPtrWithDeleter<Type,EmptyDelete<Type>> Type##WrapPtr; \
+    typedef std::shared_ptr<Type> Type##WrapPtr; \
     template<class... Args> \
     inline Type##Ptr Type##NewPtr(Args&&... args) { return std::make_shared<Type>(std::forward<Args>(args)...); } \
     inline void DeletePtr(const Type##Ptr& ptr) { UNUSED_VAR(ptr); /*ptr.reset()*/ } \
     inline Type* GetRawPtr(const Type##Ptr& ptr){ return ptr.get(); } \
-    inline Type##WrapPtr WrapPtr(Type* ptr) { return Type##WrapPtr(ptr); } 
+    Type##WrapPtr WrapPtr(Type* ptr);
 
-#define DEFINE_SMART_POINTERS(Type)  
+// DeletePtr intentionally does not reset the caller's shared pointer. Releasing
+// ownership requires resetting/erasing the owning references (and breaking cycles).
+#define DEFINE_SMART_POINTERS(Type) \
+    Type##WrapPtr WrapPtr(Type* ptr) { return ptr ? ptr->shared_from_this() : Type##WrapPtr(); }
 
 #define DECLARE_POINTERS(Type) \
     typedef Type* Type##Ptr; \

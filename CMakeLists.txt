@@ -20,6 +20,10 @@ set(WITH_TRACY_PROFILER OFF CACHE BOOL "Add Tracy profiler support.")
 set(WITH_RERUN          OFF CACHE BOOL "Add Rerun support.")
 set(WITH_LOCAL_PCL      OFF  CACHE BOOL "Add local PCL support")
 
+if(WITH_CUDA AND USE_HIP)
+    message(FATAL_ERROR "WITH_CUDA and USE_HIP cannot both be enabled. Select one GPU backend.")
+endif()
+
 #====================================
 # c++ standard 
 
@@ -223,7 +227,9 @@ endif()
 message(STATUS "USE_HIP: " ${USE_HIP})
 
 if(USE_HIP)
-    cmake_minimum_required(VERSION 3.21)
+    if(CMAKE_VERSION VERSION_LESS 3.21)
+        message(FATAL_ERROR "USE_HIP requires CMake 3.21 or newer.")
+    endif()
     # enable_language(HIP) honors an explicit -DCMAKE_HIP_ARCHITECTURES, otherwise
     # auto-detects the host GPU(s), and errors on a no-GPU build host.
     enable_language(HIP)
@@ -869,7 +875,7 @@ ${EXTERNAL_LIBS} ${EXTERNAL_CORE_LIBS})
 
 set(CORE_LIBS ${PROJECT_NAME})
 
-option(PLVS_BUILD_TESTS "Build focused line mapping regression tests" OFF)
+option(PLVS_BUILD_TESTS "Build focused mapping regression tests" OFF)
 if(PLVS_BUILD_TESTS)
     enable_testing()
     add_executable(test_line_mapping tests/test_line_mapping.cc)
@@ -879,6 +885,12 @@ if(PLVS_BUILD_TESTS)
     foreach(line_test observations one_sided replacement distance fusion triangulation)
         add_test(NAME line_${line_test} COMMAND test_line_mapping ${line_test})
     endforeach()
+    add_executable(test_octree_cleanup tests/test_octree_cleanup.cc)
+    set_target_properties(test_octree_cleanup PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
+    target_link_libraries(test_octree_cleanup ${CORE_LIBS} ${EXTERNAL_LIBS} ${EXTERNAL_CORE_LIBS})
+    add_test(NAME octree_cleanup_no_segm COMMAND test_octree_cleanup)
+    add_test(NAME octree_cleanup_segm COMMAND test_octree_cleanup segm)
 endif()
 
 message(STATUS "Boost_LIBRARIES: ${Boost_LIBRARIES}")

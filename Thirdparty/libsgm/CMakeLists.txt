@@ -45,7 +45,9 @@ endif()
 
 
 if(USE_HIP)
-  cmake_minimum_required(VERSION 3.21)
+  if(CMAKE_VERSION VERSION_LESS 3.21)
+    message(FATAL_ERROR "USE_HIP requires CMake 3.21 or newer.")
+  endif()
   # enable_language(HIP) honors an explicit -DCMAKE_HIP_ARCHITECTURES, otherwise
   # auto-detects the host GPU(s), and errors on a no-GPU build host.
   enable_language(HIP)

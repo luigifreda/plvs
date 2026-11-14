@@ -31,3 +31,26 @@ Run the evaluation-script alignment regressions (requires NumPy) with:
 ```sh
 python3 tests/test_evaluation_alignment.py
 ```
+
+The pointer helper regression is standalone and needs only a C++17 compiler:
+
+```sh
+c++ -std=c++17 -Wall -Wextra -Werror -Iinclude tests/test_pointers.cc -o /tmp/plvs_test_pointers
+/tmp/plvs_test_pointers
+```
+
+It checks shared control-block identity, lifetime extension, weak-pointer expiry,
+rejection of unmanaged objects, null wrapping, move-only factory arguments, and
+the existing raw-pointer declarations and deletion behavior.
+
+The octree cleanup regressions exercise both segmented and non-segmented map
+updates. They check that a centroid across a voxel face cannot cause deletion of
+a stable neighbor, that multiple old unstable leaves are removed, and that recent
+unstable leaves survive. A second update checks that the stable leaf remains in
+the octree as well as the output cloud.
+
+```sh
+cmake -S . -B build -DPLVS_BUILD_TESTS=ON
+cmake --build build --target test_octree_cleanup -j2
+ctest --test-dir build --output-on-failure -R '^octree_cleanup_'
+```
